@@ -2,18 +2,19 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { GlassCard } from "@/components/ui/glass-card";
 import SlideToDopl from "@/components/ui/slide-to-dopl";
 import { fireToast } from "@/components/ui/toast";
-import { Lock, Users, TrendingUp, TrendingDown } from "lucide-react";
+import { Lock, Users, TrendingUp, TrendingDown, Check, Sparkles } from "lucide-react";
 import type { Portfolio } from "@/types/database";
 
 type TierPortfolio = Portfolio & {
   position_count: number;
   preview_tickers: string[];
   can_view: boolean;
+  is_subscribed: boolean;
+  is_owner: boolean;
   positions: {
     id: string;
     ticker: string;
@@ -36,43 +37,73 @@ export default function ProfileTiers({
   isAuthed: boolean;
 }) {
   const router = useRouter();
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _ = displayName;
 
-  const [loadingPortfolioId, setLoadingPortfolioId] = useState<string | null>(
-    null
-  );
+  // Local optimistic state so the card flips to "dopling" immediately after
+  // a successful free dopl (before router.refresh completes).
+  const [locallyDopled, setLocallyDopled] = useState<Set<string>>(new Set());
+  const [pending, setPending] = useState<string | null>(null);
 
-  const handleSubscribe = async (portfolioId: string) => {
+  const gotoSignup = (portfolioId: string) => {
+    const next = encodeURIComponent(
+      `/${handle}?intent=dopl&portfolio=${portfolioId}`
+    );
+    router.push(`/signup?next=${next}&role=dopler`);
+  };
+
+  const doplFree = async (portfolioId: string, portfolioName: string) => {
     if (!isAuthed) {
-      const next = encodeURIComponent(
-        `/${handle}?intent=dopl&portfolio=${portfolioId}`
-      );
-      router.push(`/signup?next=${next}&role=dopler`);
+      gotoSignup(portfolioId);
       return;
     }
-    setLoadingPortfolioId(portfolioId);
+    setPending(portfolioId);
     try {
-      const res = await fetch("/api/stripe/checkout", {
+      const res = await fetch("/api/subscriptions/free", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ portfolioId }),
+        body: JSON.stringify({ portfolio_id: portfolioId }),
       });
-      const { url, error } = await res.json();
-      if (url) {
-        window.location.href = url;
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        fireToast({ title: "couldn't dopl", body: json.error ?? "" });
         return;
       }
-      fireToast({ title: "couldn't start checkout", body: error ?? "" });
+      setLocallyDopled((prev) => new Set([...prev, portfolioId]));
+      fireToast({
+        title: `you're now dopling ${displayName}'s ${portfolioName}`,
+      });
+      router.refresh();
     } finally {
-      setLoadingPortfolioId(null);
+      setPending(null);
     }
   };
 
+  const doplPaid = async (portfolioId: string) => {
+    if (!isAuthed) {
+      gotoSignup(portfolioId);
+      return;
+    }
+    const res = await fetch("/api/stripe/checkout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ portfolioId }),
+    });
+    const { url, error } = await res.json();
+    if (url) {
+      window.location.href = url;
+      return;
+    }
+    fireToast({ title: "couldn't start checkout", body: error ?? "" });
+  };
+
   return (
-    <div className="flex md:grid md:grid-cols-2 lg:grid-cols-3 gap-5 overflow-x-auto md:overflow-visible -mx-6 md:mx-0 px-6 md:px-0 snap-x snap-mandatory md:snap-none pb-2 md:pb-0" style={{ scrollbarWidth: "none" }}>
+    <div
+      className="flex md:grid md:grid-cols-2 lg:grid-cols-3 gap-5 overflow-x-auto md:overflow-visible -mx-6 md:mx-0 px-6 md:px-0 snap-x snap-mandatory md:snap-none pb-2 md:pb-0"
+      style={{ scrollbarWidth: "none" }}
+    >
       {tiers.map((p, i) => {
         const isFree = p.tier === "free" || p.price_cents === 0;
+        const isSubscribed = p.is_subscribed || locallyDopled.has(p.id);
+        const isOwner = p.is_owner;
         return (
           <motion.div
             key={p.id}
@@ -85,18 +116,23 @@ export default function ProfileTiers({
             }}
             className="snap-center flex-shrink-0 w-[85%] md:w-auto"
           >
-            <GlassCard className="p-6 flex flex-col h-full">
+            <GlassCard
+              glow={isFree ? "gain" : null}
+              className="p-6 flex flex-col h-full"
+            >
+              {/* Header: tier + doplers count */}
               <div className="flex items-center justify-between mb-4">
                 <span
-                  className={`text-[10px] font-mono font-semibold px-2 py-1 rounded tracking-wider uppercase ${
+                  className={`text-[10px] font-mono font-semibold px-2 py-1 rounded tracking-wider uppercase inline-flex items-center gap-1 ${
                     isFree
-                      ? "bg-[color:var(--dopl-lime)]/15 text-[color:var(--dopl-lime)]"
+                      ? "bg-[color:var(--dopl-lime)]/20 text-[color:var(--dopl-lime)]"
                       : p.tier === "vip"
                       ? "bg-[color:var(--dopl-lime)]/20 text-[color:var(--dopl-lime)]"
                       : "bg-[color:var(--dopl-sage)]/40 text-[color:var(--dopl-cream)]/80"
                   }`}
                 >
-                  {p.tier}
+                  {isFree && <Sparkles size={10} />}
+                  {isFree ? "free" : p.tier}
                 </span>
                 <div className="flex items-center gap-1 text-xs text-[color:var(--dopl-cream)]/40">
                   <Users size={12} />
@@ -120,62 +156,60 @@ export default function ProfileTiers({
                 </p>
 
                 {p.position_count === 0 ? (
-                  <div className="glass-card-light p-3">
+                  <div className="glass-card-light p-3 rounded-lg">
                     <p className="text-xs text-[color:var(--dopl-cream)]/30 italic">
                       empty
                     </p>
                   </div>
                 ) : p.can_view ? (
-                  // Full visible preview for free/subscribed/owner
-                  <div className="glass-card-light p-3">
-                    <div className="space-y-1.5">
-                      {p.positions.slice(0, 4).map((pos) => {
-                        const gain = (pos.gain_loss_pct ?? 0) >= 0;
-                        return (
-                          <div
-                            key={pos.id}
-                            className="flex items-center justify-between text-xs"
+                  // Visible positions — mini glass cards per position
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {p.positions.slice(0, 6).map((pos) => {
+                      const gain = (pos.gain_loss_pct ?? 0) >= 0;
+                      return (
+                        <div
+                          key={pos.id}
+                          className="glass-card-light rounded-lg px-2.5 py-2 flex items-center justify-between text-[11px]"
+                        >
+                          <span className="flex items-center gap-1 min-w-0">
+                            {gain ? (
+                              <TrendingUp
+                                size={9}
+                                className="text-[color:var(--dopl-lime)] flex-shrink-0"
+                              />
+                            ) : (
+                              <TrendingDown
+                                size={9}
+                                className="text-red-400 flex-shrink-0"
+                              />
+                            )}
+                            <span className="font-mono font-semibold truncate">
+                              {pos.ticker}
+                            </span>
+                          </span>
+                          <span
+                            className={`font-mono tabular-nums ${
+                              gain
+                                ? "text-[color:var(--dopl-lime)]/80"
+                                : "text-red-400/80"
+                            }`}
                           >
-                            <span className="flex items-center gap-2">
-                              {gain ? (
-                                <TrendingUp
-                                  size={10}
-                                  className="text-[color:var(--dopl-lime)]"
-                                />
-                              ) : (
-                                <TrendingDown
-                                  size={10}
-                                  className="text-red-400"
-                                />
-                              )}
-                              <span className="font-mono font-semibold">
-                                {pos.ticker}
-                              </span>
-                            </span>
-                            <span
-                              className={`font-mono ${
-                                gain
-                                  ? "text-[color:var(--dopl-lime)]/80"
-                                  : "text-red-400/80"
-                              }`}
-                            >
-                              {pos.allocation_pct != null
-                                ? `${pos.allocation_pct.toFixed(1)}%`
-                                : ""}
-                            </span>
-                          </div>
-                        );
-                      })}
-                      {p.positions.length > 4 && (
-                        <p className="text-[10px] text-[color:var(--dopl-cream)]/30 pt-1">
-                          + {p.positions.length - 4} more
-                        </p>
-                      )}
-                    </div>
+                            {pos.allocation_pct != null
+                              ? `${pos.allocation_pct.toFixed(0)}%`
+                              : "—"}
+                          </span>
+                        </div>
+                      );
+                    })}
+                    {p.positions.length > 6 && (
+                      <div className="col-span-2 text-[10px] text-[color:var(--dopl-cream)]/30 px-2 pt-1">
+                        + {p.positions.length - 6} more
+                      </div>
+                    )}
                   </div>
                 ) : (
                   // Locked preview for paid + not subscribed
-                  <div className="relative glass-card-light p-3 overflow-hidden">
+                  <div className="relative glass-card-light p-3 overflow-hidden rounded-lg">
                     <div className="locked-blur space-y-1.5">
                       {p.preview_tickers.slice(0, 3).map((t, idx) => (
                         <div
@@ -224,22 +258,35 @@ export default function ProfileTiers({
                   </div>
                 </div>
 
-                {isFree || p.can_view ? (
-                  <Link
-                    href={`/feed/${p.id}`}
-                    className="block text-center glass-card-light py-2.5 text-sm font-medium hover:bg-[color:var(--dopl-sage)]/40 transition-colors rounded-xl"
+                {isOwner ? (
+                  <div className="glass-card-light px-4 py-2.5 text-center text-xs text-[color:var(--dopl-cream)]/50 rounded-xl">
+                    your portfolio
+                  </div>
+                ) : isSubscribed ? (
+                  <div
+                    className="inline-flex w-full items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold"
+                    style={{
+                      background: "rgba(197, 214, 52, 0.14)",
+                      border: "1px solid rgba(197, 214, 52, 0.35)",
+                      color: "#C5D634",
+                    }}
                   >
-                    {p.can_view && !isFree ? "view portfolio" : "view positions"}
-                  </Link>
+                    <Check size={14} strokeWidth={2.6} />
+                    dopling
+                  </div>
+                ) : isFree ? (
+                  <button
+                    onClick={() => doplFree(p.id, p.name)}
+                    disabled={pending === p.id}
+                    className="btn-lime w-full text-sm py-2.5 disabled:opacity-60"
+                  >
+                    {pending === p.id ? "dopling..." : "dopl this portfolio"}
+                  </button>
                 ) : (
                   <SlideToDopl
                     label={`slide to dopl · $${(p.price_cents / 100).toFixed(0)}/mo`}
-                    completedLabel={
-                      loadingPortfolioId === p.id
-                        ? "redirecting..."
-                        : "dopl'd"
-                    }
-                    onComplete={() => handleSubscribe(p.id)}
+                    completedLabel="redirecting..."
+                    onComplete={() => doplPaid(p.id)}
                   />
                 )}
               </div>

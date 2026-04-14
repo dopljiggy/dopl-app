@@ -129,6 +129,8 @@ export default async function FundManagerProfile({
       position_count: ps.length,
       preview_tickers: ps.slice(0, 5).map((x) => x.ticker),
       can_view: canView,
+      is_subscribed: isSubscribed,
+      is_owner: isOwner,
       positions: canView ? ps : [],
     };
   });
