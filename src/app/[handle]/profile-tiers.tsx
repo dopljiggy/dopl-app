@@ -5,8 +5,9 @@ import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { GlassCard } from "@/components/ui/glass-card";
 import SlideToDopl from "@/components/ui/slide-to-dopl";
+import UndoplButton from "@/components/ui/undopl-button";
 import { fireToast } from "@/components/ui/toast";
-import { Lock, Users, TrendingUp, TrendingDown, Check, Sparkles } from "lucide-react";
+import { Lock, Users, TrendingUp, TrendingDown, Sparkles } from "lucide-react";
 import type { Portfolio } from "@/types/database";
 
 type TierPortfolio = Portfolio & {
@@ -15,6 +16,7 @@ type TierPortfolio = Portfolio & {
   can_view: boolean;
   is_subscribed: boolean;
   is_owner: boolean;
+  subscription_id: string | null;
   positions: {
     id: string;
     ticker: string;
@@ -262,18 +264,13 @@ export default function ProfileTiers({
                   <div className="glass-card-light px-4 py-2.5 text-center text-xs text-[color:var(--dopl-cream)]/50 rounded-xl">
                     your portfolio
                   </div>
-                ) : isSubscribed ? (
-                  <div
-                    className="inline-flex w-full items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold"
-                    style={{
-                      background: "rgba(197, 214, 52, 0.14)",
-                      border: "1px solid rgba(197, 214, 52, 0.35)",
-                      color: "#C5D634",
-                    }}
-                  >
-                    <Check size={14} strokeWidth={2.6} />
-                    dopling
-                  </div>
+                ) : isSubscribed && p.subscription_id ? (
+                  <UndoplButton
+                    subscriptionId={p.subscription_id}
+                    portfolioName={p.name}
+                    fundManagerName={displayName}
+                    variant="chip"
+                  />
                 ) : isFree ? (
                   <button
                     onClick={() => doplFree(p.id, p.name)}

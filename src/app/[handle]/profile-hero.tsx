@@ -82,8 +82,12 @@ export default function ProfileHero({
         style={{ opacity: headerOpacity }}
         className="relative z-10 flex items-center justify-between px-6 py-5 max-w-5xl mx-auto"
       >
-        <Link href="/" className="font-display text-xl font-semibold">
-          dopl
+        <Link
+          href="/leaderboard"
+          className="inline-flex items-center gap-1.5 text-sm text-[color:var(--dopl-cream)]/70 hover:text-[color:var(--dopl-cream)] transition-colors"
+        >
+          <span aria-hidden>←</span>
+          <span>discover</span>
         </Link>
         <button
           onClick={copyLink}

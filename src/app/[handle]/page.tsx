@@ -100,15 +100,21 @@ export default async function FundManagerProfile({
     : { data: [] };
 
   // Current user's active subscriptions to this FM's portfolios.
+  // Track both the portfolio_ids they're subscribed to AND the subscription_id
+  // for each, so the undopl button on subscribed tiers has something to call.
   let subscribedPortfolioIds = new Set<string>();
+  const subscriptionByPortfolio = new Map<string, string>();
   if (user && portfolioIds.length) {
     const { data: subs } = await supabase
       .from("subscriptions")
-      .select("portfolio_id")
+      .select("id, portfolio_id")
       .eq("user_id", user.id)
       .eq("status", "active")
       .in("portfolio_id", portfolioIds);
-    subscribedPortfolioIds = new Set((subs ?? []).map((s) => s.portfolio_id));
+    for (const s of subs ?? []) {
+      subscribedPortfolioIds.add(s.portfolio_id);
+      subscriptionByPortfolio.set(s.portfolio_id, s.id);
+    }
   }
 
   // Bucket positions per portfolio.
@@ -131,6 +137,7 @@ export default async function FundManagerProfile({
       can_view: canView,
       is_subscribed: isSubscribed,
       is_owner: isOwner,
+      subscription_id: subscriptionByPortfolio.get(p.id) ?? null,
       positions: canView ? ps : [],
     };
   });

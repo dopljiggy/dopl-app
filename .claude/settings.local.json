@@ -76,7 +76,10 @@
       "Bash(npm list:*)",
       "Bash(curl -s https://dopl-app.vercel.app/sw.js)",
       "Bash(curl -s -o /dev/null -w \"/dashboard/share unauthed: %{http_code}\\\\n\" https://dopl-app.vercel.app/dashboard/share)",
-      "Bash(grep -n \"view positions\\\\|view portfolio\\\\|feed/\\\\${p.id}\" src/app/\\\\[handle\\\\]/profile-tiers.tsx)"
+      "Bash(grep -n \"view positions\\\\|view portfolio\\\\|feed/\\\\${p.id}\" src/app/\\\\[handle\\\\]/profile-tiers.tsx)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" -X POST https://dopl-app.vercel.app/api/subscriptions/free)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" https://dopl-app.vercel.app/feed)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" https://dopl-app.vercel.app/dashboard/share)"
     ]
   }
 }
