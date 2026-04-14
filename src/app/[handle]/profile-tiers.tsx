@@ -70,7 +70,7 @@ export default function ProfileTiers({
   };
 
   return (
-    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
+    <div className="flex md:grid md:grid-cols-2 lg:grid-cols-3 gap-5 overflow-x-auto md:overflow-visible -mx-6 md:mx-0 px-6 md:px-0 snap-x snap-mandatory md:snap-none pb-2 md:pb-0" style={{ scrollbarWidth: "none" }}>
       {tiers.map((p, i) => {
         const isFree = p.tier === "free" || p.price_cents === 0;
         return (
@@ -83,6 +83,7 @@ export default function ProfileTiers({
               delay: i * 0.08,
               ease: [0.2, 0.7, 0.2, 1],
             }}
+            className="snap-center flex-shrink-0 w-[85%] md:w-auto"
           >
             <GlassCard className="p-6 flex flex-col h-full">
               <div className="flex items-center justify-between mb-4">

@@ -60,7 +60,8 @@
       "Bash(curl -s -o /dev/null -w \"/welcome %{http_code}\\\\n\" https://dopl-app.vercel.app/welcome)",
       "Bash(curl -s -o /dev/null -w \"/leaderboard %{http_code}\\\\n\" https://dopl-app.vercel.app/leaderboard)",
       "Bash(curl -s -o /dev/null -w \"/signup %{http_code}\\\\n\" https://dopl-app.vercel.app/signup)",
-      "Bash(curl -s -o /dev/null -w \"/nonexistent-handle %{http_code}\\\\n\" https://dopl-app.vercel.app/nonexistent-handle)"
+      "Bash(curl -s -o /dev/null -w \"/nonexistent-handle %{http_code}\\\\n\" https://dopl-app.vercel.app/nonexistent-handle)",
+      "Bash(node scripts/gen-icons.mjs)"
     ]
   }
 }

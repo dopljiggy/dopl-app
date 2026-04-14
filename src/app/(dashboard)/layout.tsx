@@ -11,6 +11,7 @@ import {
   Share2,
   TrendingUp,
   Home,
+  Settings,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
@@ -31,9 +32,27 @@ const sideNav = [
 const bottomNav = [
   { href: "/dashboard", icon: Home, label: "home" },
   { href: "/dashboard/portfolios", icon: Briefcase, label: "portfolios" },
-  { href: "/dashboard/positions", icon: TrendingUp, label: "positions" },
-  { href: "/dashboard/profile", icon: User, label: "profile" },
+  { href: "/dashboard/share", icon: Share2, label: "share" },
+  { href: "/dashboard/profile", icon: Settings, label: "settings" },
 ];
+
+function DoplLogo() {
+  return (
+    <Link href="/" className="flex items-center gap-2 group" aria-label="dopl home">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/dopl-logo.svg"
+        alt=""
+        width={28}
+        height={28}
+        className="rounded-lg"
+      />
+      <span className="font-display text-xl font-semibold tracking-tight">
+        dopl
+      </span>
+    </Link>
+  );
+}
 
 function SideNav() {
   const pathname = usePathname();
@@ -79,12 +98,15 @@ function BottomNav() {
       <div className="mx-auto max-w-md px-3 pb-3">
         <div className="glass-card glass-card-strong flex items-center justify-around py-2 px-2 rounded-2xl">
           {bottomNav.map((item) => {
-            const active = pathname === item.href;
+            const active =
+              pathname === item.href ||
+              (item.href === "/dashboard/profile" &&
+                pathname.startsWith("/dashboard/profile"));
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className="relative flex flex-col items-center justify-center flex-1 py-2"
+                className="relative flex flex-col items-center justify-center flex-1 py-2 min-h-[44px]"
               >
                 {active && (
                   <motion.span
@@ -137,22 +159,17 @@ export default function DashboardLayout({
 
   return (
     <div className="min-h-screen flex">
-      <aside className="w-64 border-r border-[color:var(--glass-border)] p-6 hidden md:block">
-        <Link
-          href="/"
-          className="font-display text-2xl font-semibold mb-10 block tracking-tight"
-        >
-          dopl
-        </Link>
+      <aside className="w-64 border-r border-[color:var(--glass-border)] p-6 hidden md:block sticky top-0 h-screen overflow-y-auto">
+        <div className="mb-10">
+          <DoplLogo />
+        </div>
         <SideNav />
       </aside>
 
-      <main className="flex-1 p-5 md:p-10 pb-28 md:pb-10 min-w-0">
+      <main className="flex-1 p-5 md:p-10 pb-28 md:pb-10 min-w-0 max-w-[1200px] mx-auto w-full">
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-3 md:hidden">
-            <span className="font-display text-xl font-semibold tracking-tight">
-              dopl
-            </span>
+            <DoplLogo />
           </div>
           <div className="flex items-center gap-4 ml-auto">
             <NotificationBell userId={userId} />

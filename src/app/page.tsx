@@ -5,9 +5,19 @@ export default function LandingPage() {
     <main className="min-h-screen">
       {/* Nav */}
       <nav className="flex items-center justify-between px-6 py-4 max-w-6xl mx-auto">
-        <span className="font-display text-2xl font-semibold tracking-tight text-dopl-cream">
-          dopl
-        </span>
+        <Link href="/" className="flex items-center gap-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/dopl-logo.svg"
+            alt=""
+            width={32}
+            height={32}
+            className="rounded-lg"
+          />
+          <span className="font-display text-2xl font-semibold tracking-tight text-dopl-cream">
+            dopl
+          </span>
+        </Link>
         <div className="flex items-center gap-4">
           <Link href="/login" className="text-sm text-dopl-cream/60 hover:text-dopl-cream transition-colors">
             log in

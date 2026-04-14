@@ -59,7 +59,11 @@ export const GlassCard = forwardRef<HTMLDivElement, GlassCardProps>(
             const y = ((e.clientY - rect.top) / rect.height) * 100;
             el.style.setProperty("--mx", `${x}%`);
             el.style.setProperty("--my", `${y}%`);
-            if (tilt && rect.width > 140) {
+            // Tilt only on hover-capable pointers (desktop mice, trackpads).
+            const canTilt =
+              typeof window !== "undefined" &&
+              window.matchMedia?.("(hover: hover) and (pointer: fine)").matches;
+            if (tilt && canTilt && rect.width > 140) {
               const rx = ((y - 50) / 50) * -2.5;
               const ry = ((x - 50) / 50) * 2.5;
               el.style.transform = `perspective(900px) rotateX(${rx}deg) rotateY(${ry}deg) translateZ(0)`;

@@ -1,34 +1,84 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { LoadingProvider } from "@/components/ui/aurora-loader";
 import { ToastProvider } from "@/components/ui/toast";
+import ServiceWorkerRegister from "@/components/pwa/sw-register";
+import PWAInstallPrompt from "@/components/pwa/install-prompt";
+import StandaloneSplash from "@/components/pwa/standalone-splash";
 
 export const metadata: Metadata = {
-  title: "dopl — infrastructure for fund managers",
-  description:
-    "Give your followers a way to invest alongside you. Connect your broker, create portfolios, set your price. dopl handles the rest.",
+  title: "dopl",
+  description: "your portfolio, mirrored",
+  manifest: "/manifest.json",
+  icons: {
+    icon: "/favicon.ico",
+    apple: "/apple-touch-icon.png",
+    shortcut: "/favicon.ico",
+  },
   openGraph: {
-    title: "dopl — infrastructure for fund managers",
-    description: "Give your followers a way to invest alongside you automatically.",
+    title: "dopl",
+    description: "your portfolio, mirrored",
     type: "website",
+    images: [
+      {
+        url: "/dopl-logo.png",
+        width: 512,
+        height: 512,
+        alt: "dopl",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "dopl",
+    description: "your portfolio, mirrored",
+    images: ["/dopl-logo.png"],
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "dopl",
   },
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export const viewport: Viewport = {
+  themeColor: "#0D261F",
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className="dark">
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          rel="preconnect"
+          href="https://fonts.gstatic.com"
+          crossOrigin="anonymous"
+        />
         <link
           href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
           rel="stylesheet"
         />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta
+          name="apple-mobile-web-app-status-bar-style"
+          content="black-translucent"
+        />
+        <meta name="apple-mobile-web-app-title" content="dopl" />
       </head>
       <body className="min-h-screen text-dopl-cream antialiased">
+        <StandaloneSplash />
         <LoadingProvider>
           <ToastProvider>{children}</ToastProvider>
         </LoadingProvider>
+        <PWAInstallPrompt />
+        <ServiceWorkerRegister />
       </body>
     </html>
   );
