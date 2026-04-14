@@ -1,5 +1,5 @@
 /* dopl service worker — cache-first for static assets, network-first for everything else. */
-const CACHE_NAME = "dopl-shell-v3";
+const CACHE_NAME = "dopl-shell-v4";
 const SHELL = [
   "/manifest.json",
   "/dopl-logo.svg",
