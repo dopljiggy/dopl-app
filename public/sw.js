@@ -1,7 +1,6 @@
 /* dopl service worker — cache-first for static assets, network-first for everything else. */
-const CACHE_NAME = "dopl-shell-v2";
+const CACHE_NAME = "dopl-shell-v3";
 const SHELL = [
-  "/",
   "/manifest.json",
   "/dopl-logo.svg",
   "/apple-touch-icon.png",
@@ -18,14 +17,19 @@ self.addEventListener("install", (event) => {
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((keys) =>
-        Promise.all(
-          keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))
-        )
-      )
-      .then(() => self.clients.claim())
+    (async () => {
+      // Nuke every old cache.
+      const keys = await caches.keys();
+      await Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)));
+      await self.clients.claim();
+      // Ask every open tab to reload so they pick up the new build.
+      const clientsList = await self.clients.matchAll({ type: "window" });
+      for (const client of clientsList) {
+        try {
+          client.postMessage({ type: "dopl-sw-updated" });
+        } catch {}
+      }
+    })()
   );
 });
 
@@ -34,8 +38,9 @@ self.addEventListener("fetch", (event) => {
   if (req.method !== "GET") return;
 
   const url = new URL(req.url);
+  const sameOrigin = url.origin === self.location.origin;
 
-  // Never cache Supabase realtime / API / Stripe / SnapTrade / our own /api.
+  // Never cache Supabase / Stripe / SnapTrade traffic.
   if (
     url.pathname.startsWith("/api/") ||
     url.hostname.includes("supabase") ||
@@ -47,15 +52,31 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Navigation requests: network-first, fall back to cached shell.
+  // Never cache authenticated dashboard or feed HTML — always go to network.
+  if (
+    req.mode === "navigate" &&
+    sameOrigin &&
+    (url.pathname.startsWith("/dashboard") ||
+      url.pathname.startsWith("/feed") ||
+      url.pathname.startsWith("/welcome") ||
+      url.pathname.startsWith("/settings") ||
+      url.pathname.startsWith("/notifications"))
+  ) {
+    event.respondWith(fetch(req));
+    return;
+  }
+
+  // Other navigation requests: network-first, offline fallback to "/".
   if (req.mode === "navigate") {
     event.respondWith(
-      fetch(req).catch(() => caches.match("/").then((r) => r || Response.error()))
+      fetch(req).catch(() =>
+        caches.match("/").then((r) => r || Response.error())
+      )
     );
     return;
   }
 
-  // Static: cache-first, refresh in background.
+  // Static assets: cache-first, refresh in background.
   event.respondWith(
     caches.match(req).then((cached) => {
       const fetchPromise = fetch(req)
