@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { LoadingProvider } from "@/components/ui/aurora-loader";
+import { ToastProvider } from "@/components/ui/toast";
 
 export const metadata: Metadata = {
   title: "dopl — infrastructure for fund managers",
-  description: "Give your followers a way to invest alongside you. Connect your broker, create portfolios, set your price. dopl handles the rest.",
+  description:
+    "Give your followers a way to invest alongside you. Connect your broker, create portfolios, set your price. dopl handles the rest.",
   openGraph: {
     title: "dopl — infrastructure for fund managers",
     description: "Give your followers a way to invest alongside you automatically.",
@@ -11,11 +14,7 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className="dark">
       <head>
@@ -26,8 +25,10 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="min-h-screen bg-dopl-deep text-dopl-cream antialiased">
-        {children}
+      <body className="min-h-screen text-dopl-cream antialiased">
+        <LoadingProvider>
+          <ToastProvider>{children}</ToastProvider>
+        </LoadingProvider>
       </body>
     </html>
   );

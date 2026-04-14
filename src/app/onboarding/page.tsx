@@ -1,0 +1,42 @@
+import { createServerSupabase } from "@/lib/supabase-server";
+import { redirect } from "next/navigation";
+import OnboardingClient from "./onboarding-client";
+
+export default async function OnboardingPage() {
+  const supabase = await createServerSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (profile?.role !== "fund_manager") redirect("/feed");
+
+  const { data: fm } = await supabase
+    .from("fund_managers")
+    .select("*")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const { data: portfolios } = await supabase
+    .from("portfolios")
+    .select("id")
+    .eq("fund_manager_id", user.id)
+    .limit(1);
+
+  const initial = {
+    hasBio: !!fm?.bio,
+    hasBroker: !!fm?.broker_connected,
+    hasPortfolio: !!portfolios?.length,
+    displayName: fm?.display_name ?? "",
+    handle: fm?.handle ?? "",
+    bio: fm?.bio ?? "",
+    avatarUrl: fm?.avatar_url ?? null,
+  };
+
+  return <OnboardingClient initial={initial} />;
+}

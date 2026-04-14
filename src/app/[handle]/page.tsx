@@ -1,6 +1,8 @@
 import { createServerSupabase } from "@/lib/supabase-server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import ProfileHero from "./profile-hero";
+import ProfileTiers from "./profile-tiers";
 
 export default async function FundManagerProfile({
   params,
@@ -10,7 +12,6 @@ export default async function FundManagerProfile({
   const { handle } = await params;
   const supabase = await createServerSupabase();
 
-  // Fetch fund manager
   const { data: fm } = await supabase
     .from("fund_managers")
     .select("*")
@@ -19,7 +20,6 @@ export default async function FundManagerProfile({
 
   if (!fm) return notFound();
 
-  // Fetch portfolios
   const { data: portfolios } = await supabase
     .from("portfolios")
     .select("*")
@@ -27,83 +27,79 @@ export default async function FundManagerProfile({
     .eq("is_active", true)
     .order("price_cents", { ascending: true });
 
+  // Fetch position counts so we can show a blurred preview count per tier.
+  const portfolioIds = (portfolios ?? []).map((p) => p.id);
+  const { data: positions } = portfolioIds.length
+    ? await supabase
+        .from("positions")
+        .select("portfolio_id, ticker, allocation_pct")
+        .in("portfolio_id", portfolioIds)
+    : { data: [] };
+
+  const positionStats = new Map<
+    string,
+    { count: number; topTickers: string[] }
+  >();
+  for (const p of positions ?? []) {
+    const s = positionStats.get(p.portfolio_id) ?? { count: 0, topTickers: [] };
+    s.count += 1;
+    if (s.topTickers.length < 4) s.topTickers.push(p.ticker);
+    positionStats.set(p.portfolio_id, s);
+  }
+
   return (
     <main className="min-h-screen">
-      {/* Banner */}
-      <div
-        className="h-48 md:h-64 bg-dopl-sage/30 relative"
-        style={
-          fm.banner_url
-            ? { backgroundImage: `url(${fm.banner_url})`, backgroundSize: "cover", backgroundPosition: "center" }
-            : {}
-        }
-      >
-        <div className="absolute inset-0 bg-gradient-to-t from-dopl-deep to-transparent" />
-      </div>
+      {/* Hero with parallax banner */}
+      <ProfileHero
+        bannerUrl={fm.banner_url}
+        avatarUrl={fm.avatar_url}
+        displayName={fm.display_name}
+        handle={fm.handle}
+        bio={fm.bio}
+        subscriberCount={fm.subscriber_count}
+        links={Array.isArray(fm.links) ? fm.links : []}
+      />
 
-      {/* Profile info */}
-      <div className="max-w-4xl mx-auto px-6 -mt-16 relative z-10">
-        <div className="flex items-end gap-6 mb-8">
-          <div className="w-24 h-24 md:w-32 md:h-32 rounded-2xl bg-dopl-sage border-4 border-dopl-deep overflow-hidden flex-shrink-0">
-            {fm.avatar_url ? (
-              <img src={fm.avatar_url} alt={fm.display_name} className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center font-display text-3xl text-dopl-lime">
-                {fm.display_name[0]}
-              </div>
-            )}
-          </div>
-          <div className="pb-2">
-            <h1 className="font-display text-2xl md:text-3xl font-semibold">{fm.display_name}</h1>
-            <p className="text-dopl-cream/50 text-sm">@{fm.handle}</p>
-          </div>
-          <div className="ml-auto pb-2">
-            <div className="glass-card-light px-4 py-2 text-center">
-              <p className="font-mono text-2xl text-dopl-lime font-bold">{fm.subscriber_count}</p>
-              <p className="text-xs text-dopl-cream/40">subscribers</p>
+      {/* Tier grid */}
+      <div className="max-w-5xl mx-auto px-6 pb-24 pt-4">
+        {portfolios && portfolios.length > 0 ? (
+          <>
+            <div className="flex items-baseline justify-between mb-6">
+              <h2 className="font-display text-2xl font-semibold">portfolios</h2>
+              <span className="text-xs font-mono text-[color:var(--dopl-cream)]/40 uppercase tracking-wider">
+                {portfolios.length} tier{portfolios.length === 1 ? "" : "s"}
+              </span>
             </div>
+            <ProfileTiers
+              portfolios={portfolios.map((p) => ({
+                ...p,
+                position_count: positionStats.get(p.id)?.count ?? 0,
+                preview_tickers: positionStats.get(p.id)?.topTickers ?? [],
+              }))}
+              handle={fm.handle}
+            />
+          </>
+        ) : (
+          <div className="glass-card p-12 text-center">
+            <p className="text-[color:var(--dopl-cream)]/50">
+              {fm.display_name} hasn&apos;t published portfolios yet.
+            </p>
           </div>
-        </div>
-
-        {fm.bio && (
-          <p className="text-dopl-cream/70 text-sm mb-8 max-w-2xl">{fm.bio}</p>
         )}
-
-        {/* Portfolio tiers */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mt-8">
-          {portfolios?.map((portfolio) => (
-            <div key={portfolio.id} className="glass-card p-6 flex flex-col">
-              <div className="flex items-center justify-between mb-3">
-                <span className={`text-xs font-mono font-semibold px-2 py-1 rounded ${
-                  portfolio.tier === 'free' ? 'bg-dopl-sage/50 text-dopl-cream/70' :
-                  portfolio.tier === 'vip' ? 'bg-dopl-lime/20 text-dopl-lime' :
-                  'bg-dopl-sage/30 text-dopl-cream/50'
-                }`}>
-                  {portfolio.tier}
-                </span>
-                <span className="font-mono text-lg font-bold text-dopl-lime">
-                  {portfolio.price_cents === 0 ? "free" : `$${(portfolio.price_cents / 100).toFixed(0)}/mo`}
-                </span>
-              </div>
-              <h3 className="font-display text-lg font-semibold mb-2">{portfolio.name}</h3>
-              {portfolio.description && (
-                <p className="text-dopl-cream/50 text-sm mb-4 flex-grow">{portfolio.description}</p>
-              )}
-              <div className="mt-auto pt-4">
-                {portfolio.tier === "free" ? (
-                  <Link href={`/feed/${portfolio.id}`} className="block text-center glass-card-light py-2.5 text-sm font-medium hover:bg-dopl-sage/40 transition-colors">
-                    view portfolio
-                  </Link>
-                ) : (
-                  <button className="btn-lime w-full text-sm py-2.5">
-                    subscribe
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
       </div>
+
+      {/* Powered by dopl */}
+      <footer className="pb-10 text-center">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass-card-light text-xs text-[color:var(--dopl-cream)]/50 hover:text-[color:var(--dopl-cream)] transition-colors"
+        >
+          <span className="font-mono">powered by</span>
+          <span className="font-display font-semibold text-[color:var(--dopl-lime)]">
+            dopl
+          </span>
+        </Link>
+      </footer>
     </main>
   );
 }

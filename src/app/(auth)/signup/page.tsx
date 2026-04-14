@@ -96,8 +96,8 @@ function SignupForm() {
       return;
     }
 
-    // 4) Redirect based on role.
-    router.replace(role === "fund_manager" ? "/dashboard" : "/feed");
+    // 4) Redirect — new fund managers get the onboarding wizard.
+    router.replace(role === "fund_manager" ? "/onboarding" : "/feed");
     router.refresh();
   };
 

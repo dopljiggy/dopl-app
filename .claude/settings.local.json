@@ -45,7 +45,12 @@
       "Bash('~/.local/bin/vercel' link:*)",
       "Bash('~/.local/bin/vercel' env:*)",
       "Bash('~/.local/bin/vercel' --prod --yes --token vcp_2YyPqstWyIrI1SlYqYLDhuk9iGyHm8htGdIb6Ei8IultmUTSDp40pXuW --scope jay-9042s-projects)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash('~/.local/bin/vercel' inspect:*)",
+      "Bash(curl -s -o /dev/null -w \"production URL status: %{http_code}\\\\n\" \"https://dopl-9nthwtard-jay-9042s-projects.vercel.app/\")",
+      "Bash('~/.local/bin/vercel' alias:*)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code} %{url_effective}\\\\n\" -L \"https://dopl-app.vercel.app/\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"https://dopl-app.vercel.app/login\")"
     ]
   }
 }

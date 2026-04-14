@@ -13,6 +13,7 @@ export interface FundManager {
   display_name: string;
   bio: string | null;
   banner_url: string | null;
+  avatar_url: string | null;
   links: { platform: string; url: string }[];
   snaptrade_user_id: string | null;
   snaptrade_user_secret: string | null;
