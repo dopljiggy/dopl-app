@@ -71,7 +71,8 @@
       "Bash(curl -s -o /dev/null -w \"/manifest.json %{http_code}\\\\n\" https://dopl-app.vercel.app/manifest.json)",
       "Bash(curl -s -o /dev/null -w \"/apple-touch-icon.png %{http_code}\\\\n\" https://dopl-app.vercel.app/apple-touch-icon.png)",
       "Bash(curl -s https://dopl-app.vercel.app/manifest.json)",
-      "Bash(curl -s \"https://dopl-app.vercel.app/sw.js\")"
+      "Bash(curl -s \"https://dopl-app.vercel.app/sw.js\")",
+      "Bash(curl -s -w \"\\\\n/api/subscriptions/free unauthed: %{http_code}\\\\n\" -X POST -H \"Content-Type: application/json\" -d '{\"portfolio_id\":\"00000000-0000-0000-0000-000000000000\"}' https://dopl-app.vercel.app/api/subscriptions/free)"
     ]
   }
 }

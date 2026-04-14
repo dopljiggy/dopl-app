@@ -39,37 +39,15 @@ export default function SharePage() {
         return;
       }
 
-      // Guarantee a fund_managers row exists. If it's missing, the ensure
-      // API creates one server-side with a derived handle.
-      let fm:
-        | {
-            handle: string;
-            display_name: string;
-            avatar_url: string | null;
-            subscriber_count: number;
-          }
-        | null = null;
-      try {
-        const res = await fetch("/api/fund-manager/ensure", { method: "POST" });
-        if (res.ok) {
-          const json = await res.json();
-          fm = json.fm ?? null;
-        } else {
-          console.error("ensure fund_manager failed:", await res.text());
-        }
-      } catch (err) {
-        console.error("ensure fund_manager threw:", err);
-      }
-
-      // Fallback: try a direct read, in case the ensure route is unreachable.
-      if (!fm) {
-        const { data } = await supabase
-          .from("fund_managers")
-          .select("handle, display_name, avatar_url, subscriber_count")
-          .eq("id", user.id)
-          .maybeSingle();
-        fm = data;
-      }
+      // The handle is read ONLY from fund_managers.handle. No email prefix
+      // fallback — if the row is missing or the handle column is empty, we
+      // render a "set your handle" notice rather than invent one that
+      // generates a 404 when shared.
+      const { data: fm } = await supabase
+        .from("fund_managers")
+        .select("handle, display_name, avatar_url, subscriber_count")
+        .eq("id", user.id)
+        .maybeSingle();
 
       const { data: portfolios } = await supabase
         .from("portfolios")
@@ -80,20 +58,9 @@ export default function SharePage() {
 
       if (!mounted) return;
 
-      const emailPrefix = (user.email ?? "you")
-        .split("@")[0]
-        .toLowerCase()
-        .replace(/[^a-z0-9-_]/g, "");
-
       setData({
-        // Always populate something so the card renders. Real handle first,
-        // else derive a placeholder from the email so we never show "".
-        handle: fm?.handle || emailPrefix || "you",
-        display_name:
-          fm?.display_name ||
-          (user.user_metadata as { full_name?: string } | null)?.full_name ||
-          emailPrefix ||
-          "you",
+        handle: fm?.handle ?? "",
+        display_name: fm?.display_name ?? "",
         avatar_url: fm?.avatar_url ?? null,
         subscriber_count: fm?.subscriber_count ?? 0,
         portfolioCount: portfolios?.length ?? 0,
@@ -172,6 +139,19 @@ export default function SharePage() {
       {loading ? (
         <div className="glass-card p-12 flex items-center justify-center">
           <Loader2 size={24} className="animate-spin text-[color:var(--dopl-lime)]" />
+        </div>
+      ) : !handle ? (
+        <div className="glass-card p-6 max-w-lg glow-loss">
+          <p className="text-sm font-semibold mb-1">set your handle first</p>
+          <p className="text-xs text-[color:var(--dopl-cream)]/60 mb-4">
+            your share link needs a handle registered in fund_managers.
+          </p>
+          <a
+            href="/dashboard/profile"
+            className="btn-lime text-sm px-6 py-2.5 inline-flex items-center"
+          >
+            edit profile
+          </a>
         </div>
       ) : (
         <div className="grid md:grid-cols-5 gap-6">
