@@ -3,7 +3,7 @@
 import { Suspense, useState } from "react";
 import { createClient } from "@/lib/supabase";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 export default function SignupPage() {
   return (
@@ -14,7 +14,6 @@ export default function SignupPage() {
 }
 
 function SignupForm() {
-  const router = useRouter();
   const params = useSearchParams();
   const queryError = params.get("error");
   const nextParam = params.get("next");
@@ -96,11 +95,12 @@ function SignupForm() {
     }
 
     // Routing — prefer explicit `next` when provided, else role default.
+    // Use window.location.href (not router.replace) so the server picks up
+    // the new session cookies on a full page load.
     const fallback =
-      role === "fund_manager" ? "/onboarding" : "/welcome";
+      role === "fund_manager" ? "/dashboard" : "/welcome";
     const target = nextParam && nextParam.startsWith("/") ? nextParam : fallback;
-    router.replace(target);
-    router.refresh();
+    window.location.href = target;
   };
 
   return (

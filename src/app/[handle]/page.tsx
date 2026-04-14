@@ -31,15 +31,45 @@ export default async function FundManagerProfile({
 
   const supabase = await createServerSupabase();
 
-  // Case-insensitive lookup so /Kai and /kai both resolve.
-  const { data: fm, error: fmErr } = await supabase
-    .from("fund_managers")
-    .select("*")
-    .ilike("handle", handle)
-    .maybeSingle();
+  // Case-insensitive lookup so /Kai and /kai both resolve. Wrap in try/catch
+  // so a transient Supabase error doesn't look like a 404 — show a graceful
+  // error page instead.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let fm: any = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let fmErr: any = null;
+  try {
+    const result = await supabase
+      .from("fund_managers")
+      .select("*")
+      .ilike("handle", handle)
+      .maybeSingle();
+    fm = result.data;
+    fmErr = result.error;
+  } catch (e) {
+    fmErr = e;
+  }
 
   if (fmErr) {
     console.error("[handle] fund_managers lookup failed:", fmErr);
+    return (
+      <main className="min-h-screen flex items-center justify-center px-6">
+        <div className="glass-card p-10 max-w-md text-center">
+          <h1 className="font-display text-2xl font-semibold mb-2">
+            couldn&apos;t load this profile
+          </h1>
+          <p className="text-sm text-[color:var(--dopl-cream)]/55 mb-6">
+            please try again in a moment.
+          </p>
+          <Link
+            href="/leaderboard"
+            className="btn-lime text-sm px-6 py-2.5 inline-block"
+          >
+            back to leaderboard
+          </Link>
+        </div>
+      </main>
+    );
   }
   if (!fm) return notFound();
 

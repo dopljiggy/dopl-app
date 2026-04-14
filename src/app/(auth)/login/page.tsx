@@ -3,7 +3,7 @@
 import { Suspense, useState } from "react";
 import { createClient } from "@/lib/supabase";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 export default function LoginPage() {
   return (
@@ -14,7 +14,6 @@ export default function LoginPage() {
 }
 
 function LoginForm() {
-  const router = useRouter();
   const params = useSearchParams();
   const queryError = params.get("error");
   const nextParam = params.get("next");
@@ -53,8 +52,7 @@ function LoginForm() {
 
     const fallback = role === "fund_manager" ? "/dashboard" : "/feed";
     const target = nextParam && nextParam.startsWith("/") ? nextParam : fallback;
-    router.replace(target);
-    router.refresh();
+    window.location.href = target;
   };
 
   return (
