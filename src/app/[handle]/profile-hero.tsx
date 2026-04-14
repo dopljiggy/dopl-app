@@ -168,7 +168,7 @@ export default function ProfileHero({
           {/* Subscribers stat */}
           <div className="glass-card p-5 md:min-w-[180px] text-center md:text-right">
             <p className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/40 mb-1">
-              subscribers
+              doplers
             </p>
             <p className="font-mono text-4xl font-bold text-[color:var(--dopl-lime)] leading-none">
               <CountUp value={subscriberCount} duration={1.4} />

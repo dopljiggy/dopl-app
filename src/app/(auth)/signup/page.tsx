@@ -17,12 +17,16 @@ function SignupForm() {
   const router = useRouter();
   const params = useSearchParams();
   const queryError = params.get("error");
+  const nextParam = params.get("next");
+  const roleParam = params.get("role");
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [role, setRole] = useState<"fund_manager" | "subscriber">(
-    "fund_manager"
+    roleParam === "dopler" || roleParam === "subscriber"
+      ? "subscriber"
+      : "fund_manager"
   );
   const [handle, setHandle] = useState("");
   const [loading, setLoading] = useState(false);
@@ -44,7 +48,6 @@ function SignupForm() {
 
     setLoading(true);
 
-    // 1) Create the auth user.
     const { error: signUpErr } = await supabase.auth.signUp({
       email,
       password,
@@ -62,9 +65,6 @@ function SignupForm() {
       return;
     }
 
-    // 2) Immediately sign them in (covers both "just created" and the case
-    //    where email confirmation is still on in Supabase but the account
-    //    already exists).
     const { error: signInErr } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -79,7 +79,6 @@ function SignupForm() {
       return;
     }
 
-    // 3) Provision profile + fund_manager rows server-side (service role).
     const provisionRes = await fetch("/api/auth/provision", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -96,8 +95,11 @@ function SignupForm() {
       return;
     }
 
-    // 4) Redirect — new fund managers get the onboarding wizard.
-    router.replace(role === "fund_manager" ? "/onboarding" : "/feed");
+    // Routing — prefer explicit `next` when provided, else role default.
+    const fallback =
+      role === "fund_manager" ? "/onboarding" : "/welcome";
+    const target = nextParam && nextParam.startsWith("/") ? nextParam : fallback;
+    router.replace(target);
     router.refresh();
   };
 
@@ -128,8 +130,8 @@ function SignupForm() {
               onClick={() => setRole("fund_manager")}
               className={`flex-1 py-3 rounded-lg text-sm font-medium transition-all ${
                 role === "fund_manager"
-                  ? "bg-dopl-lime text-dopl-deep"
-                  : "glass-card-light text-dopl-cream/50 hover:text-dopl-cream"
+                  ? "bg-[color:var(--dopl-lime)] text-[color:var(--dopl-deep)]"
+                  : "glass-card-light text-[color:var(--dopl-cream)]/50 hover:text-[color:var(--dopl-cream)]"
               }`}
             >
               fund manager
@@ -139,11 +141,11 @@ function SignupForm() {
               onClick={() => setRole("subscriber")}
               className={`flex-1 py-3 rounded-lg text-sm font-medium transition-all ${
                 role === "subscriber"
-                  ? "bg-dopl-lime text-dopl-deep"
-                  : "glass-card-light text-dopl-cream/50 hover:text-dopl-cream"
+                  ? "bg-[color:var(--dopl-lime)] text-[color:var(--dopl-deep)]"
+                  : "glass-card-light text-[color:var(--dopl-cream)]/50 hover:text-[color:var(--dopl-cream)]"
               }`}
             >
-              subscriber
+              dopler
             </button>
           </div>
 
@@ -153,18 +155,16 @@ function SignupForm() {
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
             required
-            className="w-full bg-dopl-deep border border-dopl-sage/30 rounded-lg px-4 py-3 text-sm text-dopl-cream placeholder:text-dopl-cream/30 focus:outline-none focus:border-dopl-lime/50 mb-3"
+            className="w-full bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/30 rounded-lg px-4 py-3 text-sm placeholder:text-[color:var(--dopl-cream)]/30 mb-3"
           />
-
           <input
             type="email"
             placeholder="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            className="w-full bg-dopl-deep border border-dopl-sage/30 rounded-lg px-4 py-3 text-sm text-dopl-cream placeholder:text-dopl-cream/30 focus:outline-none focus:border-dopl-lime/50 mb-3"
+            className="w-full bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/30 rounded-lg px-4 py-3 text-sm placeholder:text-[color:var(--dopl-cream)]/30 mb-3"
           />
-
           <input
             type="password"
             placeholder="password (8+ characters)"
@@ -172,12 +172,12 @@ function SignupForm() {
             onChange={(e) => setPassword(e.target.value)}
             required
             minLength={8}
-            className="w-full bg-dopl-deep border border-dopl-sage/30 rounded-lg px-4 py-3 text-sm text-dopl-cream placeholder:text-dopl-cream/30 focus:outline-none focus:border-dopl-lime/50 mb-3"
+            className="w-full bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/30 rounded-lg px-4 py-3 text-sm placeholder:text-[color:var(--dopl-cream)]/30 mb-3"
           />
 
           {role === "fund_manager" && (
             <div className="relative mb-3">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-dopl-cream/30 text-sm">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[color:var(--dopl-cream)]/30 text-sm">
                 dopl.com/
               </span>
               <input
@@ -190,7 +190,7 @@ function SignupForm() {
                   )
                 }
                 required
-                className="w-full bg-dopl-deep border border-dopl-sage/30 rounded-lg pl-[5.5rem] pr-4 py-3 text-sm text-dopl-cream placeholder:text-dopl-cream/30 focus:outline-none focus:border-dopl-lime/50"
+                className="w-full bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/30 rounded-lg pl-[5.5rem] pr-4 py-3 text-sm placeholder:text-[color:var(--dopl-cream)]/30"
               />
             </div>
           )}
@@ -203,9 +203,14 @@ function SignupForm() {
             {loading ? "creating account..." : "create account"}
           </button>
 
-          <p className="text-center text-xs text-dopl-cream/30 mt-4">
+          <p className="text-center text-xs text-[color:var(--dopl-cream)]/30 mt-4">
             already have an account?{" "}
-            <Link href="/login" className="text-dopl-lime hover:underline">
+            <Link
+              href={`/login${
+                nextParam ? `?next=${encodeURIComponent(nextParam)}` : ""
+              }`}
+              className="text-[color:var(--dopl-lime)] hover:underline"
+            >
               log in
             </Link>
           </p>

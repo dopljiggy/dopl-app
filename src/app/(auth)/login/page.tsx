@@ -17,6 +17,7 @@ function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
   const queryError = params.get("error");
+  const nextParam = params.get("next");
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -39,7 +40,6 @@ function LoginForm() {
       return;
     }
 
-    // Look up role and route accordingly.
     const userId = data.user?.id;
     let role: "fund_manager" | "subscriber" = "subscriber";
     if (userId) {
@@ -51,7 +51,9 @@ function LoginForm() {
       if (profile?.role === "fund_manager") role = "fund_manager";
     }
 
-    router.replace(role === "fund_manager" ? "/dashboard" : "/feed");
+    const fallback = role === "fund_manager" ? "/dashboard" : "/feed";
+    const target = nextParam && nextParam.startsWith("/") ? nextParam : fallback;
+    router.replace(target);
     router.refresh();
   };
 
@@ -82,7 +84,7 @@ function LoginForm() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            className="w-full bg-dopl-deep border border-dopl-sage/30 rounded-lg px-4 py-3 text-sm text-dopl-cream placeholder:text-dopl-cream/30 focus:outline-none focus:border-dopl-lime/50 mb-3"
+            className="w-full bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/30 rounded-lg px-4 py-3 text-sm placeholder:text-[color:var(--dopl-cream)]/30 mb-3"
           />
           <input
             type="password"
@@ -90,7 +92,7 @@ function LoginForm() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            className="w-full bg-dopl-deep border border-dopl-sage/30 rounded-lg px-4 py-3 text-sm text-dopl-cream placeholder:text-dopl-cream/30 focus:outline-none focus:border-dopl-lime/50 mb-4"
+            className="w-full bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/30 rounded-lg px-4 py-3 text-sm placeholder:text-[color:var(--dopl-cream)]/30 mb-4"
           />
 
           <button
@@ -101,9 +103,14 @@ function LoginForm() {
             {loading ? "signing in..." : "log in"}
           </button>
 
-          <p className="text-center text-xs text-dopl-cream/30 mt-4">
+          <p className="text-center text-xs text-[color:var(--dopl-cream)]/30 mt-4">
             no account?{" "}
-            <Link href="/signup" className="text-dopl-lime hover:underline">
+            <Link
+              href={`/signup${
+                nextParam ? `?next=${encodeURIComponent(nextParam)}` : ""
+              }`}
+              className="text-[color:var(--dopl-lime)] hover:underline"
+            >
               sign up
             </Link>
           </p>

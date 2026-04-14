@@ -40,7 +40,7 @@ export default function BillingClient({
             </p>
           </div>
           <div className="glass-card p-5">
-            <p className="text-xs text-dopl-cream/40 mb-1">subscribers</p>
+            <p className="text-xs text-dopl-cream/40 mb-1">doplers</p>
             <p className="font-mono text-2xl font-bold">{subscriberCount}</p>
           </div>
           <div className="glass-card p-5">

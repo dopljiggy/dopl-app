@@ -146,7 +146,7 @@ export default function ShareClient({
                       <CountUp value={subscriberCount} duration={1.2} />
                     </p>
                     <p className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/40 mt-2">
-                      subscribers
+                      doplers
                     </p>
                   </div>
                   <div>

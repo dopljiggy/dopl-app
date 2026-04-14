@@ -134,7 +134,7 @@ export default function PositionsClient({
         </button>
       </div>
       <p className="text-dopl-cream/50 text-sm mb-8">
-        assign positions from your broker to portfolios. subscribers see them
+        assign positions from your broker to portfolios. doplers see them
         instantly.
       </p>
 

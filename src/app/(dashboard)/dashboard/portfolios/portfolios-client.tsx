@@ -136,7 +136,7 @@ export default function PortfoliosClient({
               <div className="flex items-center gap-4 text-xs text-dopl-cream/40 mt-auto pt-4 border-t border-dopl-sage/20 relative z-10">
                 <span className="flex items-center gap-1">
                   <Users size={12} />
-                  <span className="font-mono">{p.subscriber_count}</span> subs
+                  <span className="font-mono">{p.subscriber_count}</span> doplers
                 </span>
                 <span className="flex items-center gap-1">
                   <Briefcase size={12} />

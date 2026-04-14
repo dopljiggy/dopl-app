@@ -44,7 +44,7 @@ export default async function DashboardPage() {
 
   const stats = [
     {
-      label: "subscribers",
+      label: "doplers",
       numeric: fm?.subscriber_count ?? 0,
       sub: "across all portfolios",
       spark: makeSpark(fm?.subscriber_count ?? 10, 1),

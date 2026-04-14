@@ -85,7 +85,7 @@ export default function LandingPage() {
         <div className="glass-card p-12">
           <p className="text-dopl-cream/50 text-sm mb-2">the math</p>
           <p className="font-mono text-4xl md:text-5xl text-dopl-lime font-bold mb-4">
-            200 subscribers × $49/mo
+            200 doplers × $49/mo
           </p>
           <p className="font-mono text-2xl text-dopl-cream/80">
             = $9,800/mo in your pocket

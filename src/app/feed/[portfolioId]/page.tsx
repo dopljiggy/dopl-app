@@ -2,6 +2,7 @@ import { createServerSupabase } from "@/lib/supabase-server";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import PortfolioDetailClient from "./portfolio-detail-client";
+import DoplerShell from "@/components/dopler-shell";
 
 export default async function PortfolioDetail({
   params,
@@ -56,19 +57,15 @@ export default async function PortfolioDetail({
     .limit(10);
 
   return (
-    <main className="min-h-screen">
-      <nav className="flex items-center justify-between px-6 py-4 max-w-5xl mx-auto">
+    <DoplerShell>
+      <div className="max-w-5xl mx-auto px-6 pt-4">
         <Link
           href="/feed"
-          className="text-sm text-[color:var(--dopl-cream)]/60 hover:text-[color:var(--dopl-cream)] link-underline"
+          className="text-sm text-[color:var(--dopl-cream)]/60 hover:text-[color:var(--dopl-cream)] link-underline inline-block mb-4"
         >
           ← back to feed
         </Link>
-        <Link href="/" className="font-display text-xl font-semibold">
-          dopl
-        </Link>
-      </nav>
-
+      </div>
       <PortfolioDetailClient
         portfolio={portfolio}
         positions={positions ?? []}
@@ -76,6 +73,6 @@ export default async function PortfolioDetail({
         canView={canView}
         portfolioId={portfolioId}
       />
-    </main>
+    </DoplerShell>
   );
 }

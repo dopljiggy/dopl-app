@@ -1,19 +1,34 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, Suspense } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { createClient } from "@/lib/supabase";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { PositionCard, type PositionLike } from "@/components/ui/position-card";
 import SlideToDopl from "@/components/ui/slide-to-dopl";
 import { GlassCard } from "@/components/ui/glass-card";
+import { fireToast } from "@/components/ui/toast";
 import type { Portfolio, PortfolioUpdate } from "@/types/database";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type PortfolioWithFm = Portfolio & { fund_manager: any };
 
-export default function PortfolioDetailClient({
+export default function PortfolioDetailClient(props: {
+  portfolio: PortfolioWithFm;
+  positions: PositionLike[];
+  updates: PortfolioUpdate[];
+  canView: boolean;
+  portfolioId: string;
+}) {
+  return (
+    <Suspense fallback={null}>
+      <Inner {...props} />
+    </Suspense>
+  );
+}
+
+function Inner({
   portfolio,
   positions,
   updates,
@@ -27,9 +42,24 @@ export default function PortfolioDetailClient({
   portfolioId: string;
 }) {
   const router = useRouter();
+  const params = useSearchParams();
   const fm = portfolio.fund_manager;
 
-  // Realtime — pulse any changed position, then refresh on portfolio_updates.
+  // Show a success toast when returning from Stripe checkout.
+  useEffect(() => {
+    if (params.get("subscribed") === "true") {
+      fireToast({
+        title: `you're now dopling ${fm.display_name}`,
+        body: `${portfolio.name} — positions unlocked`,
+        avatarLetter: fm.display_name?.[0],
+      });
+      const url = new URL(window.location.href);
+      url.searchParams.delete("subscribed");
+      window.history.replaceState({}, "", url.toString());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const [pulsingIds, setPulsingIds] = useState<Set<string>>(new Set());
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -86,8 +116,12 @@ export default function PortfolioDetailClient({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ portfolioId }),
     });
-    const { url } = await res.json();
-    if (url) window.location.href = url;
+    const { url, error } = await res.json();
+    if (url) {
+      window.location.href = url;
+      return;
+    }
+    fireToast({ title: "couldn't start checkout", body: error ?? "" });
   };
 
   const displayPositions: PositionLike[] = canView
@@ -105,7 +139,6 @@ export default function PortfolioDetailClient({
 
   return (
     <div className="max-w-5xl mx-auto px-6 pb-20">
-      {/* Header */}
       <GlassCard className="p-6 md:p-8 mb-6">
         <div className="flex flex-col md:flex-row md:items-center gap-6">
           <Link
@@ -139,10 +172,10 @@ export default function PortfolioDetailClient({
             <span
               className={`text-[10px] font-mono font-semibold px-2 py-1 rounded tracking-wider uppercase ${
                 portfolio.tier === "free"
-                  ? "bg-[color:var(--dopl-sage)]/50 text-[color:var(--dopl-cream)]/70"
+                  ? "bg-[color:var(--dopl-lime)]/15 text-[color:var(--dopl-lime)]"
                   : portfolio.tier === "vip"
                   ? "bg-[color:var(--dopl-lime)]/20 text-[color:var(--dopl-lime)]"
-                  : "bg-[color:var(--dopl-sage)]/30 text-[color:var(--dopl-cream)]/80"
+                  : "bg-[color:var(--dopl-sage)]/40 text-[color:var(--dopl-cream)]/80"
               }`}
             >
               {portfolio.tier}
@@ -164,19 +197,17 @@ export default function PortfolioDetailClient({
         )}
       </GlassCard>
 
-      {/* Subscribe gate */}
       {!canView && (
         <GlassCard className="p-8 mb-6 text-center" glow="gain">
           <p className="font-display text-xl font-semibold mb-2">
-            subscribe to see live positions
+            dopl {fm.display_name} to see live positions
           </p>
           <p className="text-[color:var(--dopl-cream)]/55 text-sm mb-6 max-w-md mx-auto">
-            real-time tickers, allocations, and instant notifications when{" "}
-            {fm.display_name} trades.
+            real-time tickers, allocations, and instant alerts when they trade.
           </p>
           <div className="max-w-sm mx-auto">
             <SlideToDopl
-              label={`slide to subscribe · $${(portfolio.price_cents / 100).toFixed(0)}/mo`}
+              label={`slide to dopl · $${(portfolio.price_cents / 100).toFixed(0)}/mo`}
               completedLabel="redirecting..."
               onComplete={handleSubscribe}
             />
@@ -184,7 +215,6 @@ export default function PortfolioDetailClient({
         </GlassCard>
       )}
 
-      {/* Positions grid */}
       <section className="mb-10">
         <div className="flex items-center justify-between mb-5">
           <h2 className="font-display text-xl font-semibold">positions</h2>
@@ -214,7 +244,6 @@ export default function PortfolioDetailClient({
         )}
       </section>
 
-      {/* Activity */}
       {updates && updates.length > 0 && (
         <section>
           <h2 className="font-display text-xl font-semibold mb-4">activity</h2>

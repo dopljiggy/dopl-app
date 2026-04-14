@@ -4,21 +4,50 @@ import Link from "next/link";
 import ProfileHero from "./profile-hero";
 import ProfileTiers from "./profile-tiers";
 
+// Reserve any paths that sit at the root alongside /[handle].
+const RESERVED = new Set([
+  "dashboard",
+  "feed",
+  "leaderboard",
+  "login",
+  "signup",
+  "notifications",
+  "onboarding",
+  "welcome",
+  "auth",
+  "api",
+  "favicon.ico",
+]);
+
 export default async function FundManagerProfile({
   params,
 }: {
   params: Promise<{ handle: string }>;
 }) {
-  const { handle } = await params;
+  const { handle: raw } = await params;
+  const handle = decodeURIComponent(raw).toLowerCase();
+
+  if (RESERVED.has(handle)) return notFound();
+
   const supabase = await createServerSupabase();
 
-  const { data: fm } = await supabase
+  // Case-insensitive lookup so /Kai and /kai both resolve.
+  const { data: fm, error: fmErr } = await supabase
     .from("fund_managers")
     .select("*")
-    .eq("handle", handle)
-    .single();
+    .ilike("handle", handle)
+    .maybeSingle();
 
+  if (fmErr) {
+    console.error("[handle] fund_managers lookup failed:", fmErr);
+  }
   if (!fm) return notFound();
+
+  // Current user (used to check subscriptions for live gating).
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const isOwner = user?.id === fm.id;
 
   const { data: portfolios } = await supabase
     .from("portfolios")
@@ -27,29 +56,55 @@ export default async function FundManagerProfile({
     .eq("is_active", true)
     .order("price_cents", { ascending: true });
 
-  // Fetch position counts so we can show a blurred preview count per tier.
   const portfolioIds = (portfolios ?? []).map((p) => p.id);
+
+  // All positions across this FM's portfolios.
   const { data: positions } = portfolioIds.length
     ? await supabase
         .from("positions")
-        .select("portfolio_id, ticker, allocation_pct")
+        .select(
+          "id, portfolio_id, ticker, name, allocation_pct, current_price, gain_loss_pct, shares, market_value"
+        )
         .in("portfolio_id", portfolioIds)
+        .order("allocation_pct", { ascending: false })
     : { data: [] };
 
-  const positionStats = new Map<
-    string,
-    { count: number; topTickers: string[] }
-  >();
-  for (const p of positions ?? []) {
-    const s = positionStats.get(p.portfolio_id) ?? { count: 0, topTickers: [] };
-    s.count += 1;
-    if (s.topTickers.length < 4) s.topTickers.push(p.ticker);
-    positionStats.set(p.portfolio_id, s);
+  // Current user's active subscriptions to this FM's portfolios.
+  let subscribedPortfolioIds = new Set<string>();
+  if (user && portfolioIds.length) {
+    const { data: subs } = await supabase
+      .from("subscriptions")
+      .select("portfolio_id")
+      .eq("user_id", user.id)
+      .eq("status", "active")
+      .in("portfolio_id", portfolioIds);
+    subscribedPortfolioIds = new Set((subs ?? []).map((s) => s.portfolio_id));
   }
+
+  // Bucket positions per portfolio.
+  const positionsByPortfolio = new Map<string, typeof positions>();
+  for (const p of positions ?? []) {
+    const list = positionsByPortfolio.get(p.portfolio_id) ?? [];
+    list.push(p);
+    positionsByPortfolio.set(p.portfolio_id, list);
+  }
+
+  const tierCards = (portfolios ?? []).map((p) => {
+    const ps = positionsByPortfolio.get(p.id) ?? [];
+    const isFree = p.tier === "free" || p.price_cents === 0;
+    const isSubscribed = subscribedPortfolioIds.has(p.id);
+    const canView = isFree || isSubscribed || isOwner;
+    return {
+      ...p,
+      position_count: ps.length,
+      preview_tickers: ps.slice(0, 5).map((x) => x.ticker),
+      can_view: canView,
+      positions: canView ? ps : [],
+    };
+  });
 
   return (
     <main className="min-h-screen">
-      {/* Hero with parallax banner */}
       <ProfileHero
         bannerUrl={fm.banner_url}
         avatarUrl={fm.avatar_url}
@@ -60,7 +115,6 @@ export default async function FundManagerProfile({
         links={Array.isArray(fm.links) ? fm.links : []}
       />
 
-      {/* Tier grid */}
       <div className="max-w-5xl mx-auto px-6 pb-24 pt-4">
         {portfolios && portfolios.length > 0 ? (
           <>
@@ -71,12 +125,10 @@ export default async function FundManagerProfile({
               </span>
             </div>
             <ProfileTiers
-              portfolios={portfolios.map((p) => ({
-                ...p,
-                position_count: positionStats.get(p.id)?.count ?? 0,
-                preview_tickers: positionStats.get(p.id)?.topTickers ?? [],
-              }))}
+              tiers={tierCards}
               handle={fm.handle}
+              displayName={fm.display_name}
+              isAuthed={!!user}
             />
           </>
         ) : (
@@ -88,7 +140,6 @@ export default async function FundManagerProfile({
         )}
       </div>
 
-      {/* Powered by dopl */}
       <footer className="pb-10 text-center">
         <Link
           href="/"

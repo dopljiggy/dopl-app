@@ -125,7 +125,7 @@ export async function GET(request: NextRequest) {
       ? next
       : role === "fund_manager"
       ? "/dashboard"
-      : "/feed";
+      : "/welcome";
 
   return NextResponse.redirect(`${url.origin}${target}`);
 }

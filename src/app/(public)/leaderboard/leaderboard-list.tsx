@@ -114,7 +114,7 @@ export default function LeaderboardList({
                     <CountUp value={fm.subscriber_count} duration={1} />
                   </p>
                   <p className="text-[10px] uppercase tracking-wider text-[color:var(--dopl-cream)]/30">
-                    subscribers
+                    doplers
                   </p>
                 </div>
               </GlassCard>

@@ -137,7 +137,7 @@ export async function GET(
                   marginTop: 8,
                 }}
               >
-                subscribers
+                doplers
               </div>
             </div>
             <div style={{ display: "flex", flexDirection: "column" }}>
