@@ -1,5 +1,5 @@
 /* dopl service worker — cache-first for static assets, network-first for everything else. */
-const CACHE_NAME = "dopl-shell-v1";
+const CACHE_NAME = "dopl-shell-v2";
 const SHELL = [
   "/",
   "/manifest.json",

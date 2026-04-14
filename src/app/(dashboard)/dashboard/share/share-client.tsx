@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Share2, Download, Copy, Check } from "lucide-react";
+import { Share2, Download, Copy, Check, AlertTriangle } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
 import CountUp from "@/components/ui/count-up";
 import { fireToast } from "@/components/ui/toast";
+
+const PROD_ORIGIN = "https://dopl-app.vercel.app";
 
 export default function ShareClient({
   handle,
@@ -21,12 +23,16 @@ export default function ShareClient({
   portfolioCount: number;
 }) {
   const [copied, setCopied] = useState(false);
-  const url =
-    typeof window !== "undefined" && handle
-      ? `${window.location.origin}/${handle}`
-      : `dopl.com/${handle}`;
+  const [downloading, setDownloading] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  const origin =
+    typeof window !== "undefined" ? window.location.origin : PROD_ORIGIN;
+  const url = handle ? `${origin}/${handle}` : "";
+  const shareUrl = handle ? `${PROD_ORIGIN}/${handle}` : "";
 
   const copy = async () => {
+    if (!url) return;
     await navigator.clipboard.writeText(url);
     setCopied(true);
     fireToast({
@@ -36,50 +42,65 @@ export default function ShareClient({
     setTimeout(() => setCopied(false), 1500);
   };
 
-  const download = () => {
-    if (!handle) return;
-    const a = document.createElement("a");
-    a.href = `/api/share-card/${handle}`;
-    a.download = `${handle}-dopl.png`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+  const download = async () => {
+    if (!handle || !cardRef.current || downloading) return;
+    setDownloading(true);
+    try {
+      // Try client-side html-to-image first (preserves exact styling).
+      const { toPng } = await import("html-to-image");
+      const dataUrl = await toPng(cardRef.current, {
+        pixelRatio: 2,
+        backgroundColor: "#0D261F",
+        cacheBust: true,
+      });
+      triggerDownload(dataUrl, `${handle}-dopl.png`);
+    } catch {
+      // Fallback: server-rendered OG image at /api/share-card/[handle].
+      triggerDownload(`/api/share-card/${handle}`, `${handle}-dopl.png`);
+    } finally {
+      setDownloading(false);
+    }
   };
 
   const shareOnX = () => {
-    const text = `follow my portfolio on dopl\n${url}`;
-    window.open(
-      `https://x.com/intent/tweet?text=${encodeURIComponent(text)}`,
-      "_blank"
-    );
+    if (!shareUrl) return;
+    const intent =
+      `https://twitter.com/intent/tweet` +
+      `?text=${encodeURIComponent("follow my portfolio on dopl")}` +
+      `&url=${encodeURIComponent(shareUrl)}`;
+    window.open(intent, "_blank", "noopener,noreferrer");
   };
-
-  if (!handle) {
-    return (
-      <div>
-        <h1 className="font-display text-3xl font-semibold mb-2">share</h1>
-        <GlassCard className="p-8 max-w-lg mb-6" glow="gain">
-          <p className="text-sm mb-2 font-semibold">finish your profile first</p>
-          <p className="text-xs text-[color:var(--dopl-cream)]/60 mb-5">
-            pick a handle in profile settings so your shareable link works.
-          </p>
-          <a
-            href="/dashboard/profile"
-            className="btn-lime text-sm px-6 py-2.5 inline-block"
-          >
-            edit profile
-          </a>
-        </GlassCard>
-      </div>
-    );
-  }
 
   return (
     <div>
-      <h1 className="font-display text-3xl font-semibold mb-2">share</h1>
+      <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight mb-2">
+        share
+      </h1>
       <p className="text-[color:var(--dopl-cream)]/50 text-sm mb-8">
         download a premium card and drop it anywhere
       </p>
+
+      {!handle && (
+        <GlassCard className="p-4 mb-6 flex items-start gap-3" glow="loss">
+          <AlertTriangle
+            size={18}
+            className="text-red-300 flex-shrink-0 mt-0.5"
+          />
+          <div className="text-sm">
+            <p className="font-semibold mb-1">set your handle</p>
+            <p className="text-xs text-[color:var(--dopl-cream)]/60">
+              your shareable link needs a handle.{" "}
+              <a
+                href="/dashboard/profile"
+                className="text-[color:var(--dopl-lime)] underline hover:no-underline"
+              >
+                edit profile
+              </a>
+              .
+            </p>
+          </div>
+        </GlassCard>
+      )}
 
       <div className="grid md:grid-cols-5 gap-6">
         {/* Premium trading card preview */}
@@ -92,12 +113,18 @@ export default function ShareClient({
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, ease: [0.2, 0.7, 0.2, 1] }}
             className="aspect-[16/9] relative"
+            ref={cardRef}
           >
-            <GlassCard
-              className="absolute inset-0 p-8 overflow-hidden"
-              tilt={true}
+            <div
+              className="absolute inset-0 rounded-[22px] overflow-hidden p-8"
+              style={{
+                background:
+                  "linear-gradient(135deg, #0A1F18 0%, #0D261F 55%, #112A22 100%)",
+                border: "1px solid rgba(197, 214, 52, 0.22)",
+                boxShadow:
+                  "inset 0 1px 0 rgba(243,239,232,0.08), 0 30px 60px -20px rgba(0,0,0,0.6)",
+              }}
             >
-              {/* Ambient glows */}
               <div
                 aria-hidden
                 className="absolute -top-20 -right-20 w-60 h-60 rounded-full blur-3xl"
@@ -110,7 +137,6 @@ export default function ShareClient({
               />
 
               <div className="relative h-full flex flex-col justify-between">
-                {/* Top row: avatar + name */}
                 <div className="flex items-center gap-4">
                   <div className="relative w-16 h-16">
                     <div
@@ -126,26 +152,26 @@ export default function ShareClient({
                         <img
                           src={avatarUrl}
                           alt=""
+                          crossOrigin="anonymous"
                           className="w-full h-full object-cover"
                         />
                       ) : (
                         <span className="font-display text-2xl text-[color:var(--dopl-lime)]">
-                          {(displayName || handle)[0]?.toUpperCase()}
+                          {((displayName || handle) || "?")[0]?.toUpperCase()}
                         </span>
                       )}
                     </div>
                   </div>
                   <div>
                     <h2 className="font-display text-2xl md:text-3xl font-semibold leading-tight tracking-tight">
-                      {displayName || handle}
+                      {displayName || handle || "set your name"}
                     </h2>
                     <p className="text-sm text-[color:var(--dopl-cream)]/50 font-mono">
-                      @{handle}
+                      @{handle || "handle"}
                     </p>
                   </div>
                 </div>
 
-                {/* Stats */}
                 <div className="flex items-end gap-8">
                   <div>
                     <p className="font-mono text-3xl md:text-4xl font-bold text-[color:var(--dopl-lime)] leading-none">
@@ -165,18 +191,21 @@ export default function ShareClient({
                   </div>
                   <div className="ml-auto text-right">
                     <p className="font-mono text-sm text-[color:var(--dopl-lime)]">
-                      {url.replace(/^https?:\/\//, "")}
+                      {(url || `${PROD_ORIGIN}/${handle}`).replace(
+                        /^https?:\/\//,
+                        ""
+                      )}
                     </p>
                     <p className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/30 mt-1">
-                      live portfolio · real positions
+                      powered by dopl
                     </p>
                   </div>
                 </div>
               </div>
-            </GlassCard>
+            </div>
           </motion.div>
           <p className="text-[10px] text-[color:var(--dopl-cream)]/30 mt-3 font-mono text-center">
-            download renders to 1200×630 PNG
+            exports as 2x-quality PNG from the live preview
           </p>
         </div>
 
@@ -185,13 +214,40 @@ export default function ShareClient({
           <p className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/40 mb-3">
             actions
           </p>
-          <ActionButton onClick={copy} icon={copied ? <Check size={18} /> : <Copy size={18} />} title={copied ? "copied" : "copy link"} sub={url.replace(/^https?:\/\//, "")} />
-          <ActionButton onClick={download} icon={<Download size={18} />} title="download PNG" sub="1200×630 · twitter / instagram" />
-          <ActionButton onClick={shareOnX} icon={<Share2 size={18} />} title="share on X" sub="opens tweet composer" />
+          <ActionButton
+            onClick={copy}
+            icon={copied ? <Check size={18} /> : <Copy size={18} />}
+            title={copied ? "copied" : "copy link"}
+            sub={url ? url.replace(/^https?:\/\//, "") : "set handle first"}
+            disabled={!handle}
+          />
+          <ActionButton
+            onClick={download}
+            icon={<Download size={18} />}
+            title={downloading ? "rendering..." : "download card"}
+            sub="save as PNG"
+            disabled={!handle || downloading}
+          />
+          <ActionButton
+            onClick={shareOnX}
+            icon={<Share2 size={18} />}
+            title="share on X"
+            sub="opens tweet composer"
+            disabled={!handle}
+          />
         </div>
       </div>
     </div>
   );
+}
+
+function triggerDownload(href: string, name: string) {
+  const a = document.createElement("a");
+  a.href = href;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 }
 
 function ActionButton({
@@ -199,16 +255,19 @@ function ActionButton({
   icon,
   title,
   sub,
+  disabled,
 }: {
   onClick: () => void;
   icon: React.ReactNode;
   title: string;
   sub: string;
+  disabled?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
-      className="glass-card p-4 w-full flex items-center gap-3 text-left hover:translate-y-[-1px] transition-transform"
+      disabled={disabled}
+      className="glass-card p-4 w-full flex items-center gap-3 text-left hover:translate-y-[-1px] transition-transform disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
     >
       <div className="w-10 h-10 rounded-xl bg-[color:var(--dopl-lime)]/12 border border-[color:var(--dopl-lime)]/25 flex items-center justify-center text-[color:var(--dopl-lime)] flex-shrink-0">
         {icon}
