@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run:*)",
+      "Bash(curl -s -o /dev/null -w \"/ %{http_code}\\\\n\" http://localhost:3000/)",
+      "Bash(curl -s -o /dev/null -w \"/login %{http_code}\\\\n\" http://localhost:3000/login)",
+      "Bash(curl -s -o /dev/null -w \"/signup %{http_code}\\\\n\" http://localhost:3000/signup)",
+      "Bash(curl -s -o /dev/null -w \"/leaderboard %{http_code}\\\\n\" http://localhost:3000/leaderboard)",
+      "Bash(curl -s -o /dev/null -w \"/dashboard %{http_code}\\\\n\" http://localhost:3000/dashboard)",
+      "Bash(curl -s -o /dev/null -w \"no params: %{http_code} → %{redirect_url}\\\\n\" -L --max-redirs 0 \"http://localhost:3000/auth/callback\")",
+      "Bash(curl -s -o /dev/null -w \"with bogus code: %{http_code} → %{redirect_url}\\\\n\" -L --max-redirs 0 \"http://localhost:3000/auth/callback?code=bogus\")",
+      "Bash(curl -s -o /dev/null -w \"/login %{http_code}\\\\n\" \"http://localhost:3000/login\")",
+      "Bash(curl -s -o /dev/null -w \"/login?error=test %{http_code}\\\\n\" \"http://localhost:3000/login?error=test\")",
+      "Bash(curl -s -o /dev/null -w \"/auth/callback \\(no params\\) %{http_code} -> %{redirect_url}\\\\n\" -L --max-redirs 0 \"http://localhost:3000/auth/callback\")",
+      "Bash(ls -la .env*)",
+      "Bash(git init:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ]
+  }
+}

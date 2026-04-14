@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+:root {
+  --dopl-deep: #0D261F;
+  --dopl-sage: #2D4A3E;
+  --dopl-lime: #C5D634;
+  --dopl-cream: #F3EFE8;
+  --dopl-glass: rgba(45, 74, 62, 0.4);
+  --dopl-glass-light: rgba(45, 74, 62, 0.2);
+  --dopl-glass-border: rgba(197, 214, 52, 0.15);
+}
+
+body {
+  background-color: var(--dopl-deep);
+  color: var(--dopl-cream);
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Fraunces', serif;
+}
+
+.font-mono, .tabular-nums, [data-numbers] {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Glassmorphism card */
+.glass-card {
+  background: var(--dopl-glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--dopl-glass-border);
+  border-radius: 16px;
+}
+
+.glass-card-light {
+  background: var(--dopl-glass-light);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--dopl-glass-border);
+  border-radius: 12px;
+}
+
+/* Lime gradient button */
+.btn-lime {
+  background: linear-gradient(135deg, #C5D634 0%, #a8b82c 100%);
+  color: #0D261F;
+  font-weight: 600;
+  border-radius: 12px;
+  padding: 12px 24px;
+  transition: all 0.2s ease;
+  border: none;
+  cursor: pointer;
+}
+
+.btn-lime:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(197, 214, 52, 0.3);
+}
+
+/* Blurred positions (for non-subscribers) */
+.blurred-content {
+  filter: blur(8px);
+  user-select: none;
+  pointer-events: none;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--dopl-deep);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--dopl-sage);
+  border-radius: 3px;
+}
+
+/* Number animation */
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-number {
+  animation: countUp 0.4s ease-out forwards;
+}
