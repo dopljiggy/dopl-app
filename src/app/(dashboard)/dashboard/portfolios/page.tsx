@@ -15,24 +15,21 @@ export default async function PortfoliosPage() {
     .eq("fund_manager_id", user.id)
     .order("created_at", { ascending: false });
 
-  const { data: positions } = await supabase
-    .from("positions")
-    .select("portfolio_id, ticker")
-    .in("portfolio_id", (portfolios ?? []).map((p) => p.id).length
-      ? (portfolios ?? []).map((p) => p.id)
-      : ["00000000-0000-0000-0000-000000000000"]);
+  const portfolioIds = (portfolios ?? []).map((p) => p.id);
 
-  const positionCounts = new Map<string, number>();
-  for (const p of positions ?? []) {
-    positionCounts.set(p.portfolio_id, (positionCounts.get(p.portfolio_id) ?? 0) + 1);
-  }
+  const { data: positions } = portfolioIds.length
+    ? await supabase
+        .from("positions")
+        .select(
+          "id, portfolio_id, ticker, name, allocation_pct, current_price, gain_loss_pct, shares, market_value"
+        )
+        .in("portfolio_id", portfolioIds)
+    : { data: [] };
 
   return (
     <PortfoliosClient
-      portfolios={(portfolios ?? []).map((p) => ({
-        ...p,
-        position_count: positionCounts.get(p.id) ?? 0,
-      }))}
+      portfolios={portfolios ?? []}
+      positions={positions ?? []}
     />
   );
 }

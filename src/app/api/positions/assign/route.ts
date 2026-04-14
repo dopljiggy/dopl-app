@@ -66,8 +66,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     positionId = inserted.id;
 
-    // Recompute allocation_pct for the portfolio.
-    await recalculateAllocations(supabase, body.portfolio_id);
+    // Seed allocation_pct from market_value if this is the very first
+    // position in the portfolio. Once the fund manager starts setting
+    // custom allocations, we stop auto-recalculating on assignment.
+    const { count: existingCount } = await supabase
+      .from("positions")
+      .select("id", { count: "exact", head: true })
+      .eq("portfolio_id", body.portfolio_id);
+    if ((existingCount ?? 0) <= 1) {
+      await recalculateAllocations(supabase, body.portfolio_id);
+    }
 
     // Log a portfolio update + fan out notifications to subscribers.
     await logUpdateAndNotify(supabase, {
@@ -103,7 +111,8 @@ export async function DELETE(request: Request) {
   }
 
   await supabase.from("positions").delete().eq("id", id);
-  await recalculateAllocations(supabase, pos.portfolio_id);
+  // Don't auto-recalc on delete — fund manager's custom allocations stay
+  // intact; the "rebalance to 100%" button in the UI lets them fix sums.
   await logUpdateAndNotify(supabase, {
     portfolio_id: pos.portfolio_id,
     fund_manager_id: user.id,

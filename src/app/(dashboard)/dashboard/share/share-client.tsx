@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { Share2, Download, Copy, Check } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
 import CountUp from "@/components/ui/count-up";
+import { fireToast } from "@/components/ui/toast";
 
 export default function ShareClient({
   handle,
@@ -28,6 +29,10 @@ export default function ShareClient({
   const copy = async () => {
     await navigator.clipboard.writeText(url);
     setCopied(true);
+    fireToast({
+      title: "copied!",
+      body: url.replace(/^https?:\/\//, ""),
+    });
     setTimeout(() => setCopied(false), 1500);
   };
 
@@ -42,7 +47,7 @@ export default function ShareClient({
   };
 
   const shareOnX = () => {
-    const text = `i'm now on dopl. follow my portfolio live: ${url}`;
+    const text = `follow my portfolio on dopl\n${url}`;
     window.open(
       `https://x.com/intent/tweet?text=${encodeURIComponent(text)}`,
       "_blank"
@@ -53,13 +58,14 @@ export default function ShareClient({
     return (
       <div>
         <h1 className="font-display text-3xl font-semibold mb-2">share</h1>
-        <GlassCard className="p-12 text-center max-w-lg">
-          <p className="text-[color:var(--dopl-cream)]/60 mb-4">
-            set your handle in profile first to get a shareable link
+        <GlassCard className="p-8 max-w-lg mb-6" glow="gain">
+          <p className="text-sm mb-2 font-semibold">finish your profile first</p>
+          <p className="text-xs text-[color:var(--dopl-cream)]/60 mb-5">
+            pick a handle in profile settings so your shareable link works.
           </p>
           <a
             href="/dashboard/profile"
-            className="btn-lime text-sm px-6 py-2.5"
+            className="btn-lime text-sm px-6 py-2.5 inline-block"
           >
             edit profile
           </a>
