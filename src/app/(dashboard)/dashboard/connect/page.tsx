@@ -2,7 +2,15 @@ import { createServerSupabase } from "@/lib/supabase-server";
 import { redirect } from "next/navigation";
 import ConnectClient from "./connect-client";
 
-export default async function ConnectBrokerPage() {
+export default async function ConnectBrokerPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    connected?: string;
+    positions?: string;
+    error?: string;
+  }>;
+}) {
   const supabase = await createServerSupabase();
   const {
     data: { user },
@@ -15,21 +23,29 @@ export default async function ConnectBrokerPage() {
     .eq("id", user.id)
     .maybeSingle();
 
-  let positionCount = 0;
+  const params = await searchParams;
+  const justConnected = params.connected === "true";
+  const syncedPositionCount = params.positions
+    ? parseInt(params.positions, 10)
+    : 0;
+
+  // Real count from DB (positions already assigned to portfolios).
+  let dbPositionCount = 0;
   if (fm?.broker_connected) {
-    const { count } = await supabase
-      .from("positions")
-      .select("id", { count: "exact", head: true })
-      .in(
-        "portfolio_id",
-        (
-          await supabase
-            .from("portfolios")
-            .select("id")
-            .eq("fund_manager_id", user.id)
-        ).data?.map((p) => p.id) ?? ["00000000-0000-0000-0000-000000000000"]
-      );
-    positionCount = count ?? 0;
+    const portfolios = (
+      await supabase
+        .from("portfolios")
+        .select("id")
+        .eq("fund_manager_id", user.id)
+    ).data;
+    const ids = portfolios?.map((p) => p.id) ?? [];
+    if (ids.length) {
+      const { count } = await supabase
+        .from("positions")
+        .select("id", { count: "exact", head: true })
+        .in("portfolio_id", ids);
+      dbPositionCount = count ?? 0;
+    }
   }
 
   return (
@@ -37,7 +53,9 @@ export default async function ConnectBrokerPage() {
       alreadyConnected={!!fm?.broker_connected}
       brokerName={fm?.broker_name ?? null}
       hasSnaptradeUser={!!fm?.snaptrade_user_id}
-      positionCount={positionCount}
+      positionCount={Math.max(syncedPositionCount, dbPositionCount)}
+      justConnected={justConnected}
+      errorMessage={params.error ?? null}
     />
   );
 }

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { snaptrade } from "@/lib/snaptrade";
 import { createServerSupabase } from "@/lib/supabase-server";
 
-export async function POST() {
+export async function POST(request: Request) {
   const supabase = await createServerSupabase();
   const { data: { user } } = await supabase.auth.getUser();
   
@@ -19,10 +19,17 @@ export async function POST() {
   }
 
   try {
+    const origin =
+      process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
+      new URL(request.url).origin;
+    const customRedirect = `${origin}/api/snaptrade/callback?success=true`;
+
     const response = await snaptrade.authentication.loginSnapTradeUser({
       userId: fm.snaptrade_user_id,
       userSecret: fm.snaptrade_user_secret!,
-    });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      customRedirect,
+    } as any);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const redirectUrl = (response.data as any).redirectURI;

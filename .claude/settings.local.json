@@ -50,7 +50,11 @@
       "Bash(curl -s -o /dev/null -w \"production URL status: %{http_code}\\\\n\" \"https://dopl-9nthwtard-jay-9042s-projects.vercel.app/\")",
       "Bash('~/.local/bin/vercel' alias:*)",
       "Bash(curl -s -o /dev/null -w \"%{http_code} %{url_effective}\\\\n\" -L \"https://dopl-app.vercel.app/\")",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"https://dopl-app.vercel.app/login\")"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"https://dopl-app.vercel.app/login\")",
+      "Bash(curl -s -o /dev/null -w \"status: %{http_code}\\\\ntime: %{time_total}s\\\\n\" \"https://dopl-app.vercel.app/\")",
+      "Bash(curl -s -o /dev/null -w \"leaderboard: %{http_code}\\\\nlogin: \" \"https://dopl-app.vercel.app/leaderboard\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\nsignup: \" \"https://dopl-app.vercel.app/login\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"https://dopl-app.vercel.app/signup\")"
     ]
   }
 }
