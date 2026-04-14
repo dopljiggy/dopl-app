@@ -1,139 +1,106 @@
-import { createServerSupabase } from "@/lib/supabase-server";
+import { createClient } from "@supabase/supabase-js";
+import { cookies } from "next/headers";
+import { createServerClient } from "@supabase/ssr";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import DoplerShell from "@/components/dopler-shell";
 import { GlassCard } from "@/components/ui/glass-card";
 import { PositionCard, type PositionLike } from "@/components/ui/position-card";
 
-type PortfolioSub = {
-  sub_id: string;
-  portfolio_id: string;
-  portfolio_name: string;
-  portfolio_description: string | null;
-  portfolio_tier: string;
+type FundManagerRow = {
+  id: string;
+  handle: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+  bio: string | null;
+  subscriber_count: number | null;
+};
+
+type PortfolioRow = {
+  id: string;
+  name: string;
+  description: string | null;
+  tier: string;
   fund_manager_id: string;
-  fm_handle: string | null;
-  fm_display_name: string | null;
-  fm_avatar_url: string | null;
+};
+
+type PositionRow = PositionLike & { portfolio_id: string };
+
+type SubscriptionRow = {
+  id: string;
+  portfolio_id: string;
+  fund_manager_id: string;
+  portfolio: PortfolioRow | null;
 };
 
 export default async function FeedPage() {
-  const supabase = await createServerSupabase();
-
-  let user: { id: string } | null = null;
-  try {
-    const res = await supabase.auth.getUser();
-    user = res.data.user ?? null;
-  } catch (e) {
-    console.error("[feed] getUser failed:", e);
-  }
+  // Auth via cookie-based client.
+  const cookieStore = await cookies();
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll() {},
+      },
+    }
+  );
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  // 1) Simple subscription query — just scalar columns, no joins. This can't
-  //    return weird nested shapes.
-  let subRows: {
-    id: string;
-    portfolio_id: string;
-    fund_manager_id: string;
-  }[] = [];
-  try {
-    const { data } = await supabase
-      .from("subscriptions")
-      .select("id, portfolio_id, fund_manager_id")
-      .eq("user_id", user.id)
-      .eq("status", "active")
-      .order("created_at", { ascending: false });
-    subRows = data ?? [];
-  } catch (e) {
-    console.error("[feed] subscriptions query failed:", e);
-  }
+  // Service role: bypass RLS so joins on fund_managers always resolve.
+  const admin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
 
-  // 2) Fetch portfolio + fund_manager metadata in two parallel, flat queries.
-  const portfolioIds = Array.from(new Set(subRows.map((s) => s.portfolio_id)));
-  const fmIds = Array.from(new Set(subRows.map((s) => s.fund_manager_id)));
+  // 1) subscriptions + portfolio in one go.
+  const { data: subsData } = await admin
+    .from("subscriptions")
+    .select(
+      "id, portfolio_id, fund_manager_id, portfolio:portfolios(id, name, description, tier, fund_manager_id)"
+    )
+    .eq("user_id", user.id)
+    .eq("status", "active")
+    .order("created_at", { ascending: false });
 
-  let portfolioMap = new Map<
-    string,
-    {
-      id: string;
-      name: string;
-      description: string | null;
-      tier: string;
-      fund_manager_id: string;
-    }
-  >();
-  let fmMap = new Map<
-    string,
-    { id: string; handle: string; display_name: string; avatar_url: string | null }
-  >();
+  const subs = (subsData ?? []) as unknown as SubscriptionRow[];
 
-  if (portfolioIds.length) {
-    try {
-      const { data } = await supabase
-        .from("portfolios")
-        .select("id, name, description, tier, fund_manager_id")
-        .in("id", portfolioIds);
-      portfolioMap = new Map((data ?? []).map((p) => [p.id, p]));
-    } catch (e) {
-      console.error("[feed] portfolios query failed:", e);
-    }
-  }
+  // 2) fund managers by id — separate query, indexed on id, guaranteed to hit.
+  const fmIds = Array.from(new Set(subs.map((s) => s.fund_manager_id)));
+  const fmMap = new Map<string, FundManagerRow>();
   if (fmIds.length) {
-    try {
-      const { data } = await supabase
-        .from("fund_managers")
-        .select("id, handle, display_name, avatar_url")
-        .in("id", fmIds);
-      fmMap = new Map((data ?? []).map((f) => [f.id, f]));
-    } catch (e) {
-      console.error("[feed] fund_managers query failed:", e);
+    const { data: fmRows } = await admin
+      .from("fund_managers")
+      .select("id, handle, display_name, avatar_url, bio, subscriber_count")
+      .in("id", fmIds);
+    for (const row of (fmRows ?? []) as FundManagerRow[]) {
+      fmMap.set(row.id, row);
     }
   }
 
-  // 3) Positions across all subscribed portfolios.
-  type PositionWithPortfolio = PositionLike & { portfolio_id: string };
-  let positions: PositionWithPortfolio[] = [];
-  if (portfolioIds.length) {
-    try {
-      const { data } = await supabase
-        .from("positions")
-        .select(
-          "id, portfolio_id, ticker, name, allocation_pct, current_price, gain_loss_pct, shares, market_value"
-        )
-        .in("portfolio_id", portfolioIds)
-        .order("market_value", { ascending: false });
-      positions = (data as PositionWithPortfolio[]) ?? [];
-    } catch (e) {
-      console.error("[feed] positions query failed:", e);
-    }
-  }
-
+  // 3) positions for every subscribed portfolio.
+  const portfolioIds = subs.map((s) => s.portfolio_id);
   const positionsByPortfolio = new Map<string, PositionLike[]>();
-  for (const p of positions) {
-    const list = positionsByPortfolio.get(p.portfolio_id) ?? [];
-    list.push(p);
-    positionsByPortfolio.set(p.portfolio_id, list);
+  if (portfolioIds.length) {
+    const { data: posRows } = await admin
+      .from("positions")
+      .select(
+        "id, portfolio_id, ticker, name, allocation_pct, current_price, gain_loss_pct, shares, market_value"
+      )
+      .in("portfolio_id", portfolioIds)
+      .order("market_value", { ascending: false });
+    for (const p of (posRows ?? []) as PositionRow[]) {
+      const list = positionsByPortfolio.get(p.portfolio_id) ?? [];
+      list.push(p);
+      positionsByPortfolio.set(p.portfolio_id, list);
+    }
   }
-
-  // Compose final rows, skipping anything whose portfolio/fm was missing.
-  const subs: PortfolioSub[] = subRows.flatMap((s) => {
-    const p = portfolioMap.get(s.portfolio_id);
-    const fm = fmMap.get(s.fund_manager_id);
-    if (!p) return [];
-    return [
-      {
-        sub_id: s.id,
-        portfolio_id: p.id,
-        portfolio_name: p.name,
-        portfolio_description: p.description,
-        portfolio_tier: p.tier,
-        fund_manager_id: p.fund_manager_id,
-        fm_handle: fm?.handle ?? null,
-        fm_display_name: fm?.display_name ?? null,
-        fm_avatar_url: fm?.avatar_url ?? null,
-      },
-    ];
-  });
 
   return (
     <DoplerShell>
@@ -160,60 +127,59 @@ export default async function FeedPage() {
         ) : (
           <div className="space-y-10">
             {subs.map((s) => {
+              if (!s.portfolio) return null;
+              const fm = fmMap.get(s.fund_manager_id);
+              const displayName = fm?.display_name || fm?.handle || "fund manager";
+              const handleStr = fm?.handle || null;
+              const avatarUrl = fm?.avatar_url ?? null;
               const items = positionsByPortfolio.get(s.portfolio_id) ?? [];
+
               return (
-                <section key={s.sub_id}>
-                  <div className="flex items-center gap-4 mb-5">
-                    <Link
-                      href={s.fm_handle ? `/${s.fm_handle}` : "#"}
-                      className="flex items-center gap-3 group"
-                    >
-                      <div className="w-11 h-11 rounded-xl overflow-hidden bg-[color:var(--dopl-sage)] flex items-center justify-center">
-                        {s.fm_avatar_url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={s.fm_avatar_url}
-                            alt=""
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <span className="font-display text-base text-[color:var(--dopl-lime)]">
-                            {(s.fm_display_name ?? "?")[0]?.toUpperCase()}
-                          </span>
-                        )}
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold group-hover:text-[color:var(--dopl-lime)] transition-colors">
-                          {s.fm_display_name ?? "unknown"}
-                        </p>
+                <section key={s.id}>
+                  {/* Fund manager header — links to their public profile */}
+                  <Link
+                    href={handleStr ? `/${handleStr}` : "#"}
+                    className="flex items-center gap-4 mb-5 group"
+                  >
+                    <div className="w-11 h-11 rounded-xl overflow-hidden bg-[color:var(--dopl-sage)] flex items-center justify-center">
+                      {avatarUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={avatarUrl}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <span className="font-display text-base text-[color:var(--dopl-lime)]">
+                          {displayName[0]?.toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold group-hover:text-[color:var(--dopl-lime)] transition-colors">
+                        {displayName}
+                      </p>
+                      {handleStr && (
                         <p className="text-xs font-mono text-[color:var(--dopl-cream)]/40">
-                          @{s.fm_handle ?? "—"}
+                          @{handleStr}
                         </p>
-                      </div>
-                    </Link>
-                    <span className="ml-auto flex items-center gap-2">
-                      <span
-                        className={`text-[10px] font-mono font-semibold px-2 py-1 rounded uppercase tracking-wider ${
-                          s.portfolio_tier === "free"
-                            ? "bg-[color:var(--dopl-sage)]/40 text-[color:var(--dopl-cream)]/70"
-                            : s.portfolio_tier === "vip"
-                            ? "bg-[color:var(--dopl-lime)]/15 text-[color:var(--dopl-lime)]"
-                            : "bg-[color:var(--dopl-sage)]/30 text-[color:var(--dopl-cream)]/80"
-                        }`}
-                      >
-                        {s.portfolio_tier}
-                      </span>
-                      <Link
-                        href={`/feed/${s.portfolio_id}`}
-                        className="text-xs text-[color:var(--dopl-lime)] hover:underline"
-                      >
-                        open
-                      </Link>
+                      )}
+                    </div>
+                    <span
+                      className={`text-[10px] font-mono font-semibold px-2 py-1 rounded uppercase tracking-wider ${
+                        s.portfolio.tier === "free"
+                          ? "bg-[color:var(--dopl-lime)]/15 text-[color:var(--dopl-lime)]"
+                          : s.portfolio.tier === "vip"
+                          ? "bg-[color:var(--dopl-lime)]/20 text-[color:var(--dopl-lime)]"
+                          : "bg-[color:var(--dopl-sage)]/40 text-[color:var(--dopl-cream)]/80"
+                      }`}
+                    >
+                      {s.portfolio.tier}
                     </span>
-                  </div>
+                  </Link>
 
                   <h3 className="font-display text-xl font-semibold mb-4">
-                    {s.portfolio_name}
+                    {s.portfolio.name}
                   </h3>
 
                   {items.length === 0 ? (
