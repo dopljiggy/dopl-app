@@ -79,7 +79,9 @@
       "Bash(grep -n \"view positions\\\\|view portfolio\\\\|feed/\\\\${p.id}\" src/app/\\\\[handle\\\\]/profile-tiers.tsx)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" -X POST https://dopl-app.vercel.app/api/subscriptions/free)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" https://dopl-app.vercel.app/feed)",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" https://dopl-app.vercel.app/dashboard/share)"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" https://dopl-app.vercel.app/dashboard/share)",
+      "Bash(curl -s -X DELETE -o /dev/null -w \"%{http_code}\\\\n\" https://dopl-app.vercel.app/api/subscriptions)",
+      "Bash(env)"
     ]
   }
 }

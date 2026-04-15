@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
-import { Check, ArrowRight, Copy, Link2, Briefcase, User } from "lucide-react";
+import { Check, ArrowRight, Copy, Link2, Briefcase, User, Globe } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
+import { REGIONS } from "@/components/connect/region-selector";
 
 type Initial = {
   hasBio: boolean;
@@ -16,7 +17,7 @@ type Initial = {
   avatarUrl: string | null;
 };
 
-const STEPS = ["profile", "broker", "portfolio", "share"] as const;
+const STEPS = ["profile", "region", "broker", "portfolio", "share"] as const;
 
 export default function OnboardingClient({ initial }: { initial: Initial }) {
   const router = useRouter();
@@ -24,6 +25,9 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
   const [bio, setBio] = useState(initial.bio);
   const [displayName, setDisplayName] = useState(initial.displayName);
   const [saving, setSaving] = useState(false);
+
+  const [region, setRegion] = useState<string | null>(null);
+  const [regionSaving, setRegionSaving] = useState<string | null>(null);
 
   const [portfolioName, setPortfolioName] = useState("Main Portfolio");
   const [portfolioTier, setPortfolioTier] = useState<"free" | "basic" | "premium" | "vip">("basic");
@@ -43,6 +47,21 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
     });
     setSaving(false);
     next();
+  };
+
+  const chooseRegion = async (key: string) => {
+    setRegionSaving(key);
+    try {
+      await fetch("/api/fund-manager/region", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ region: key }),
+      });
+      setRegion(key);
+      next();
+    } finally {
+      setRegionSaving(null);
+    }
   };
 
   const createPortfolio = async () => {
@@ -144,6 +163,46 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
 
             {step === 1 && (
               <StepCard
+                icon={<Globe size={22} />}
+                title="where do you trade?"
+                subtitle="we route you to the right broker network for your region."
+              >
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {REGIONS.map((r) => {
+                    const busy = regionSaving === r.key;
+                    const selected = region === r.key;
+                    return (
+                      <button
+                        key={r.key}
+                        onClick={() => chooseRegion(r.key)}
+                        disabled={regionSaving !== null}
+                        className={`text-left p-3 rounded-xl border transition-all ${
+                          selected
+                            ? "border-[color:var(--dopl-lime)]/60 bg-[color:var(--dopl-lime)]/10"
+                            : "border-[color:var(--dopl-sage)]/30 bg-[color:var(--dopl-deep)] hover:border-[color:var(--dopl-lime)]/40"
+                        } disabled:opacity-50`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="text-2xl leading-none">{r.flag}</div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-display text-sm font-semibold">
+                              {r.label}
+                            </div>
+                            <div className="text-[11px] text-[color:var(--dopl-cream)]/45 truncate">
+                              {busy ? "saving…" : r.subtitle}
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                <ActionRow onSkip={next} onBack={prev} primary={<span />} />
+              </StepCard>
+            )}
+
+            {step === 2 && (
+              <StepCard
                 icon={<Link2 size={22} />}
                 title="connect your broker"
                 subtitle="dopl reads your positions in real time — read-only, never executes."
@@ -173,7 +232,7 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
               </StepCard>
             )}
 
-            {step === 2 && (
+            {step === 3 && (
               <StepCard
                 icon={<Briefcase size={22} />}
                 title="create your first portfolio"
@@ -233,7 +292,7 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
               </StepCard>
             )}
 
-            {step === 3 && (
+            {step === 4 && (
               <StepCard
                 icon={<Check size={22} />}
                 title="you're live."
