@@ -1,9 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { saltedge } from "@/lib/saltedge";
+import { saltedge, connectionId } from "@/lib/saltedge";
 import { createServerSupabase } from "@/lib/supabase-server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { syncSaltedgePositions } from "../sync/sync";
 
+/**
+ * Salt Edge redirects the user back here after finishing Connect.
+ * We pick the newest connection for this customer, save the connection_id,
+ * run a sync, and bounce back to the dashboard.
+ */
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const origin =
@@ -33,8 +38,14 @@ export async function GET(request: NextRequest) {
 
   try {
     const connections = await saltedge.listConnections(fm.saltedge_customer_id);
-    const connection = connections[0];
-    if (!connection) {
+    // Newest first — the most recently created connection is the one the
+    // user just finished.
+    const sorted = [...connections].sort((a, b) =>
+      (b.created_at ?? "").localeCompare(a.created_at ?? "")
+    );
+    const connection = sorted[0];
+    const connId = connection ? connectionId(connection) : null;
+    if (!connection || !connId) {
       return NextResponse.redirect(
         `${origin}/dashboard/connect?error=${encodeURIComponent(
           "no salt edge connection found"
@@ -46,14 +57,14 @@ export async function GET(request: NextRequest) {
     await admin
       .from("fund_managers")
       .update({
-        saltedge_connection_id: connection.id,
+        saltedge_connection_id: connId,
         broker_connected: true,
         broker_name: connection.provider_name ?? "Bank",
         broker_provider: "saltedge",
       })
       .eq("id", user.id);
 
-    const positionCount = await syncSaltedgePositions(user.id, connection.id);
+    const positionCount = await syncSaltedgePositions(user.id, connId);
 
     return NextResponse.redirect(
       `${origin}/dashboard/connect?connected=true&positions=${positionCount}`

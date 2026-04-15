@@ -86,7 +86,9 @@
       "Bash(npx --yes vercel@latest whoami)",
       "Bash(npx --yes vercel@latest env add SALTEDGE_APP_ID production)",
       "Bash(npx --yes vercel@latest env add SALTEDGE_SECRET production)",
-      "Bash(npx --yes vercel@latest --prod --yes)"
+      "Bash(npx --yes vercel@latest --prod --yes)",
+      "Bash(curl:*)",
+      "Read(//tmp/**)"
     ]
   }
 }

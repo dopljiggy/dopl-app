@@ -26,7 +26,7 @@ export async function POST() {
     const positions = extractPositions(accounts);
 
     const accountSummary = accounts.map((a) => ({
-      id: a.id,
+      id: a.account_id ?? a.id,
       name: a.name,
       nature: a.nature,
       balance: a.balance,

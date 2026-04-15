@@ -109,24 +109,25 @@ export default function ConnectClient({
     setError(null);
     setStatus("starting");
 
-    if (!hasSaltedgeCustomer) {
-      const regRes = await fetch("/api/saltedge/register", { method: "POST" });
-      if (!regRes.ok) {
-        const j = await regRes.json().catch(() => ({}));
-        setError(j.error ?? "failed to register with salt edge");
-        setStatus("error");
-        return;
-      }
-    }
-
-    const connRes = await fetch("/api/saltedge/connect", { method: "POST" });
-    const { redirectUrl, error: connErr } = await connRes.json();
-    if (!redirectUrl) {
-      setError(connErr ?? "could not start salt edge connection");
+    // Register is idempotent — safe to call every time. It will either
+    // return the existing customer_id from the DB, match it from
+    // Salt Edge's customers list, or create a new one.
+    const regRes = await fetch("/api/saltedge/register", { method: "POST" });
+    const regJson = await regRes.json().catch(() => ({}));
+    if (!regRes.ok || !regJson.customer_id) {
+      setError(regJson.error ?? "failed to register with salt edge");
       setStatus("error");
       return;
     }
-    window.location.href = redirectUrl;
+
+    const connRes = await fetch("/api/saltedge/connect", { method: "POST" });
+    const connJson = await connRes.json().catch(() => ({}));
+    if (!connRes.ok || !connJson.redirectUrl) {
+      setError(connJson.error ?? "could not start salt edge connection");
+      setStatus("error");
+      return;
+    }
+    window.location.href = connJson.redirectUrl;
   };
 
   const runResync = async () => {
