@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Link2, CheckCircle, Loader2, RefreshCw, AlertCircle, Unplug, X, AlertTriangle } from "lucide-react";
+import { Link2, CheckCircle, Loader2, RefreshCw, AlertCircle, Unplug, X, AlertTriangle, ArrowLeft, Repeat } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { GlassCard } from "@/components/ui/glass-card";
@@ -38,13 +38,20 @@ export default function ConnectClient({
   const [status, setStatus] = useState<Status>(
     errorMessage ? "error" : alreadyConnected ? "done" : "idle"
   );
-  const [provider, setProvider] = useState<Provider>(initialProvider);
-  const [region, setRegion] = useState<string | null>(initialRegion);
+  // `activeChoice` is session-only: starts null every page load so the
+  // three-card selector is always the first thing a non-connected fund
+  // manager sees, regardless of any persisted region from a prior visit.
+  const [activeChoice, setActiveChoice] = useState<Provider>(null);
   const [positionCount, setPositionCount] = useState(initialCount);
   const [error, setError] = useState<string | null>(errorMessage);
   const [isConnected, setIsConnected] = useState(alreadyConnected);
   const [showDisconnect, setShowDisconnect] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
+
+  // Unused but retained to satisfy the server-provided props without
+  // cluttering the consumer site.
+  void initialRegion;
+  void initialProvider;
 
   const disconnect = async () => {
     setDisconnecting(true);
@@ -61,9 +68,8 @@ export default function ConnectClient({
       setDisconnecting(false);
       setIsConnected(false);
       setStatus("idle");
-      // Drop region too so the user lands back on the selector.
-      setRegion(null);
-      setProvider(null);
+      // Back to the three-card selector.
+      setActiveChoice(null);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "disconnect failed");
@@ -134,7 +140,9 @@ export default function ConnectClient({
     setStatus("syncing");
     setError(null);
     const endpoint =
-      provider === "saltedge" ? "/api/saltedge/sync" : "/api/snaptrade/sync";
+      activeChoice === "saltedge"
+        ? "/api/saltedge/sync"
+        : "/api/snaptrade/sync";
     const res = await fetch(endpoint, { method: "POST" });
     const data = await res.json();
     if (!res.ok) {
@@ -147,28 +155,103 @@ export default function ConnectClient({
     router.refresh();
   };
 
-  if (!region && !isConnected) {
+  // SELECTOR — shown whenever the fund manager has NOT connected yet and
+  // hasn't clicked into a provider on this visit. This is the default
+  // landing view every time they open the page.
+  if (!isConnected && !activeChoice) {
     return (
       <div>
         <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight mb-2">
           connect broker
         </h1>
         <p className="text-[color:var(--dopl-cream)]/50 text-sm mb-8">
-          choose your region. dopl reads your positions — read-only, never
-          executes trades.
+          pick how you want to link your portfolio. dopl reads positions —
+          read-only, never executes trades.
         </p>
         <BrokerTypeSelector
-          onSelected={(c) => {
-            setRegion(c.key);
-            setProvider(c.key);
-            router.refresh();
-          }}
+          onSelected={(c) => setActiveChoice(c.key)}
         />
       </div>
     );
   }
 
-  const activeProvider: Provider = provider;
+  // CONNECTED — show the success state with disconnect + change provider.
+  if (isConnected) {
+    return (
+      <div>
+        <div className="flex items-start justify-between gap-4 mb-8">
+          <div>
+            <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight mb-2">
+              connect broker
+            </h1>
+            <p className="text-[color:var(--dopl-cream)]/50 text-sm">
+              your portfolio is linked.
+            </p>
+          </div>
+        </div>
+
+        <GlassCard className="p-8 md:p-10 max-w-lg">
+          <div className="text-center py-2">
+            <CheckCircle
+              size={48}
+              className="text-[color:var(--dopl-lime)] mx-auto mb-4"
+            />
+            <h2 className="font-display text-xl font-semibold mb-2">
+              {brokerName ? `${brokerName} connected` : "broker connected"}
+            </h2>
+            <p className="text-[color:var(--dopl-cream)]/55 text-sm mb-6">
+              <span className="font-mono text-[color:var(--dopl-lime)] font-semibold">
+                {positionCount}
+              </span>{" "}
+              position{positionCount === 1 ? "" : "s"} synced
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                onClick={runResync}
+                className="flex-1 glass-card-light py-2.5 text-sm hover:bg-[color:var(--dopl-sage)]/40 transition-colors flex items-center justify-center gap-2 rounded-xl"
+              >
+                <RefreshCw size={14} />
+                resync
+              </button>
+              <a
+                href="/dashboard/positions"
+                className="flex-1 btn-lime text-sm py-2.5 inline-flex items-center justify-center"
+              >
+                assign positions →
+              </a>
+            </div>
+            <div className="mt-6 pt-5 border-t border-[color:var(--glass-border)] flex flex-col sm:flex-row gap-2 justify-center">
+              <button
+                onClick={() => setShowDisconnect(true)}
+                className="text-xs text-[color:var(--dopl-cream)]/50 hover:text-[color:var(--dopl-cream)] transition-colors inline-flex items-center justify-center gap-1.5 px-3 py-2"
+              >
+                <Repeat size={12} />
+                change provider
+              </button>
+              <button
+                onClick={() => setShowDisconnect(true)}
+                className="text-xs text-[color:var(--dopl-cream)]/40 hover:text-red-300 transition-colors inline-flex items-center justify-center gap-1.5 px-3 py-2"
+              >
+                <Unplug size={12} />
+                disconnect broker
+              </button>
+            </div>
+          </div>
+        </GlassCard>
+
+        <DisconnectModal
+          open={showDisconnect}
+          subscriberCount={subscriberCount}
+          disconnecting={disconnecting}
+          onClose={() => !disconnecting && setShowDisconnect(false)}
+          onConfirm={disconnect}
+        />
+      </div>
+    );
+  }
+
+  // PROVIDER-SPECIFIC SCREEN — the fund manager has picked a card.
+  const activeProvider: Provider = activeChoice;
 
   return (
     <div>
@@ -185,17 +268,17 @@ export default function ConnectClient({
               : "secure connect via snaptrade. read-only — we never execute trades."}
           </p>
         </div>
-        {region && !isConnected && (
-          <button
-            onClick={() => {
-              setRegion(null);
-              setProvider(null);
-            }}
-            className="text-xs text-[color:var(--dopl-cream)]/50 hover:text-[color:var(--dopl-cream)] shrink-0"
-          >
-            change region
-          </button>
-        )}
+        <button
+          onClick={() => {
+            setActiveChoice(null);
+            setStatus("idle");
+            setError(null);
+          }}
+          className="text-xs text-[color:var(--dopl-cream)]/50 hover:text-[color:var(--dopl-cream)] shrink-0 inline-flex items-center gap-1.5"
+        >
+          <ArrowLeft size={12} />
+          change provider
+        </button>
       </div>
 
       {activeProvider === "manual" && <ManualEntry />}
