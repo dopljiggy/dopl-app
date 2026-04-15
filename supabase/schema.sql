@@ -197,3 +197,8 @@ alter table public.fund_managers add column if not exists region text;
 alter table public.fund_managers add column if not exists broker_provider text default 'snaptrade';
 alter table public.fund_managers add column if not exists saltedge_customer_id text;
 alter table public.fund_managers add column if not exists saltedge_connection_id text;
+
+-- Dopler trading connection columns (2026-04-15)
+alter table public.profiles add column if not exists trading_provider text;
+alter table public.profiles add column if not exists trading_connected boolean default false;
+alter table public.profiles add column if not exists trading_connection_data jsonb default '{}'::jsonb;

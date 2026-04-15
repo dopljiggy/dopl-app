@@ -5,7 +5,7 @@ import { Link2, CheckCircle, Loader2, RefreshCw, AlertCircle, Unplug, X, AlertTr
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { GlassCard } from "@/components/ui/glass-card";
-import { RegionSelector } from "@/components/connect/region-selector";
+import { BrokerTypeSelector } from "@/components/connect/broker-type-selector";
 import { ManualEntry } from "@/components/connect/manual-entry";
 
 type Status = "idle" | "starting" | "syncing" | "done" | "error";
@@ -157,10 +157,10 @@ export default function ConnectClient({
           choose your region. dopl reads your positions — read-only, never
           executes trades.
         </p>
-        <RegionSelector
-          onSelected={(r) => {
-            setRegion(r.key);
-            setProvider(r.provider);
+        <BrokerTypeSelector
+          onSelected={(c) => {
+            setRegion(c.key);
+            setProvider(c.key);
             router.refresh();
           }}
         />
