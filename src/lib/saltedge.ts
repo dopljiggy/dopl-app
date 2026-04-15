@@ -175,24 +175,31 @@ export const saltedge = {
     scopes?: string[];
     from_date?: string;
     locale?: string;
+    country_code?: string;
   }): Promise<SaltEdgeConnectResponse> {
+    // Explicitly construct the payload so no `provider_code` /
+    // `provider_codes` / `provider_id` can ever leak in and trigger the
+    // "Provider with id … was not found" error. Widget restriction is by
+    // `country_code` only (optional).
+    const body: Record<string, unknown> = {
+      customer_id: opts.customer_id,
+      consent: {
+        scopes: opts.scopes ?? ["accounts", "transactions"],
+        from_date: opts.from_date ?? MIN_FROM_DATE,
+      },
+      attempt: {
+        return_to: opts.return_to,
+        locale: opts.locale ?? "en",
+      },
+    };
+    if (opts.country_code) {
+      body.country_code = opts.country_code;
+    }
     const res = await se<{ data: SaltEdgeConnectResponse }>(
       "/connections/connect",
       {
         method: "POST",
-        body: {
-          data: {
-            customer_id: opts.customer_id,
-            consent: {
-              scopes: opts.scopes ?? ["accounts", "transactions"],
-              from_date: opts.from_date ?? MIN_FROM_DATE,
-            },
-            attempt: {
-              return_to: opts.return_to,
-              locale: opts.locale ?? "en",
-            },
-          },
-        },
+        body: { data: body },
       }
     );
     return res.data;

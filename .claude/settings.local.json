@@ -90,7 +90,8 @@
       "Bash(curl:*)",
       "Read(//tmp/**)",
       "Bash(grep -rn \"\\\\.from\\(\\\\\"notifications\\\\\"\\)\" /Users/jayandthejuice/Downloads/dopl-app/src --include=*.ts --include=*.tsx)",
-      "Bash([ -f \"/Users/jayandthejuice/Downloads/dopl-app/$f\" ])"
+      "Bash([ -f \"/Users/jayandthejuice/Downloads/dopl-app/$f\" ])",
+      "Bash(grep:*)"
     ]
   }
 }
