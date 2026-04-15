@@ -1,12 +1,12 @@
 /**
- * Salt Edge API v5 client.
- * Docs: https://docs.saltedge.com/v5/
+ * Salt Edge API v6 client.
+ * Docs: https://docs.saltedge.com/v6/
  *
  * Auth: App-id / Secret headers on every request.
- * Base URL: https://www.saltedge.com/api/v5
+ * Base URL: https://www.saltedge.com/api/v6
  */
 
-const BASE_URL = "https://www.saltedge.com/api/v5";
+const BASE_URL = "https://www.saltedge.com/api/v6";
 
 function headers() {
   const appId = process.env.SALTEDGE_APP_ID;
@@ -107,12 +107,9 @@ export const saltedge = {
   async createConnectSession(opts: {
     customer_id: string;
     return_to: string;
-    provider_modes?: string[]; // e.g. ["oauth","web","api"]
-    categorization?: "none" | "personal" | "business";
     locale?: string;
-    consent?: {
-      scopes: string[];
-    };
+    from_date?: string; // YYYY-MM-DD
+    scopes?: string[];
   }): Promise<SaltEdgeConnectSession> {
     const res = await request<{ data: SaltEdgeConnectSession }>(
       "/connect_sessions/create",
@@ -121,20 +118,30 @@ export const saltedge = {
         body: {
           data: {
             customer_id: opts.customer_id,
-            consent: opts.consent ?? {
-              scopes: ["account_details", "transactions_details"],
+            consent: {
+              scopes: opts.scopes ?? [
+                "account_details",
+                "transactions_details",
+              ],
+              from_date: opts.from_date ?? "2020-01-01",
             },
             attempt: {
               return_to: opts.return_to,
               locale: opts.locale ?? "en",
             },
-            provider_modes: opts.provider_modes ?? ["oauth", "web", "api"],
-            categorization: opts.categorization ?? "none",
           },
         },
       }
     );
     return res.data;
+  },
+
+  async deleteConnection(connectionId: string): Promise<void> {
+    await request(`/connections/${connectionId}`, { method: "DELETE" });
+  },
+
+  async deleteCustomer(customerId: string): Promise<void> {
+    await request(`/customers/${customerId}`, { method: "DELETE" });
   },
 
   async listConnections(customerId: string): Promise<SaltEdgeConnection[]> {

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Save, Check } from "lucide-react";
 import { useRouter } from "next/navigation";
+import SignOutLink from "@/components/sign-out-link";
 
 interface ProfileForm {
   display_name: string;
@@ -173,6 +174,10 @@ export default function ProfileClient({ initial }: { initial: ProfileForm }) {
           >
             + add link
           </button>
+        </div>
+
+        <div className="mt-10 pt-6 border-t border-[color:var(--glass-border)]">
+          <SignOutLink />
         </div>
       </div>
     </div>

@@ -18,6 +18,7 @@ import { motion } from "framer-motion";
 import PageTransition from "@/components/ui/page-transition";
 import NotificationBell from "@/components/ui/notification-bell";
 import { createClient } from "@/lib/supabase";
+import SignOutLink from "@/components/sign-out-link";
 
 const sideNav = [
   { href: "/dashboard", icon: LayoutDashboard, label: "overview" },
@@ -159,11 +160,14 @@ export default function DashboardLayout({
 
   return (
     <div className="min-h-screen flex">
-      <aside className="w-64 border-r border-[color:var(--glass-border)] p-6 hidden md:block sticky top-0 h-screen overflow-y-auto">
+      <aside className="w-64 border-r border-[color:var(--glass-border)] p-6 hidden md:flex md:flex-col sticky top-0 h-screen overflow-y-auto">
         <div className="mb-10">
           <DoplLogo />
         </div>
         <SideNav />
+        <div className="mt-auto pt-6 border-t border-[color:var(--glass-border)]">
+          <SignOutLink />
+        </div>
       </aside>
 
       <main className="flex-1 p-5 md:p-10 pb-28 md:pb-10 min-w-0 max-w-[1200px] mx-auto w-full">

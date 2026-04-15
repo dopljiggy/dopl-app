@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Link2, CheckCircle, Loader2, RefreshCw, AlertCircle } from "lucide-react";
+import { Link2, CheckCircle, Loader2, RefreshCw, AlertCircle, Unplug, X, AlertTriangle } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { GlassCard } from "@/components/ui/glass-card";
 import { RegionSelector } from "@/components/connect/region-selector";
@@ -18,6 +19,7 @@ export default function ConnectClient({
   region: initialRegion,
   provider: initialProvider,
   positionCount: initialCount,
+  subscriberCount,
   justConnected,
   errorMessage,
 }: {
@@ -28,6 +30,7 @@ export default function ConnectClient({
   region: string | null;
   provider: Provider;
   positionCount: number;
+  subscriberCount: number;
   justConnected: boolean;
   errorMessage: string | null;
 }) {
@@ -39,6 +42,34 @@ export default function ConnectClient({
   const [region, setRegion] = useState<string | null>(initialRegion);
   const [positionCount, setPositionCount] = useState(initialCount);
   const [error, setError] = useState<string | null>(errorMessage);
+  const [isConnected, setIsConnected] = useState(alreadyConnected);
+  const [showDisconnect, setShowDisconnect] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+
+  const disconnect = async () => {
+    setDisconnecting(true);
+    try {
+      const res = await fetch("/api/broker/disconnect", { method: "DELETE" });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(json.error ?? "could not disconnect");
+        setShowDisconnect(false);
+        setDisconnecting(false);
+        return;
+      }
+      setShowDisconnect(false);
+      setDisconnecting(false);
+      setIsConnected(false);
+      setStatus("idle");
+      // Drop region too so the user lands back on the selector.
+      setRegion(null);
+      setProvider(null);
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "disconnect failed");
+      setDisconnecting(false);
+    }
+  };
 
   useEffect(() => {
     if (justConnected || errorMessage) {
@@ -115,7 +146,7 @@ export default function ConnectClient({
     router.refresh();
   };
 
-  if (!region && !alreadyConnected) {
+  if (!region && !isConnected) {
     return (
       <div>
         <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight mb-2">
@@ -153,7 +184,7 @@ export default function ConnectClient({
               : "secure connect via snaptrade. read-only — we never execute trades."}
           </p>
         </div>
-        {region && !alreadyConnected && (
+        {region && !isConnected && (
           <button
             onClick={() => {
               setRegion(null);
@@ -247,6 +278,13 @@ export default function ConnectClient({
                   assign positions →
                 </a>
               </div>
+              <button
+                onClick={() => setShowDisconnect(true)}
+                className="mt-5 text-xs text-[color:var(--dopl-cream)]/40 hover:text-red-300 transition-colors inline-flex items-center gap-1.5"
+              >
+                <Unplug size={12} />
+                disconnect broker
+              </button>
             </div>
           )}
 
@@ -273,6 +311,128 @@ export default function ConnectClient({
           )}
         </GlassCard>
       )}
+
+      <DisconnectModal
+        open={showDisconnect}
+        subscriberCount={subscriberCount}
+        disconnecting={disconnecting}
+        onClose={() => !disconnecting && setShowDisconnect(false)}
+        onConfirm={disconnect}
+      />
     </div>
+  );
+}
+
+function DisconnectModal({
+  open,
+  subscriberCount,
+  disconnecting,
+  onClose,
+  onConfirm,
+}: {
+  open: boolean;
+  subscriberCount: number;
+  disconnecting: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  const hasDoplers = subscriberCount > 0;
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-5"
+          onClick={onClose}
+        >
+          <div
+            className="absolute inset-0 bg-[color:var(--dopl-deep)]/70 backdrop-blur-md"
+            aria-hidden
+          />
+          <motion.div
+            initial={{ opacity: 0, y: 20, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.97 }}
+            transition={{ duration: 0.25, ease: [0.2, 0.7, 0.2, 1] }}
+            onClick={(e) => e.stopPropagation()}
+            className="glass-card glass-card-strong relative w-full max-w-md rounded-2xl p-6 md:p-7"
+          >
+            <button
+              onClick={onClose}
+              disabled={disconnecting}
+              className="absolute top-4 right-4 text-[color:var(--dopl-cream)]/40 hover:text-[color:var(--dopl-cream)]"
+              aria-label="close"
+            >
+              <X size={16} />
+            </button>
+
+            <div
+              className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-5 ${
+                hasDoplers
+                  ? "bg-red-500/15 border border-red-400/30 text-red-300"
+                  : "bg-[color:var(--dopl-lime)]/12 border border-[color:var(--dopl-lime)]/25 text-[color:var(--dopl-lime)]"
+              }`}
+            >
+              {hasDoplers ? (
+                <AlertTriangle size={20} />
+              ) : (
+                <Unplug size={20} />
+              )}
+            </div>
+
+            <h3 className="font-display text-xl font-semibold mb-2">
+              disconnect broker?
+            </h3>
+
+            {hasDoplers ? (
+              <>
+                <p className="text-sm text-[color:var(--dopl-cream)]/65 leading-relaxed mb-4">
+                  you have{" "}
+                  <span className="font-mono font-semibold text-red-300">
+                    {subscriberCount}
+                  </span>{" "}
+                  dopler{subscriberCount === 1 ? "" : "s"} following your
+                  portfolios. disconnecting your broker will stop position
+                  updates for all of them.
+                </p>
+                <p className="text-xs text-[color:var(--dopl-cream)]/45 mb-5">
+                  your portfolios and last known positions stay live — only
+                  sync stops. are you sure?
+                </p>
+              </>
+            ) : (
+              <p className="text-sm text-[color:var(--dopl-cream)]/65 leading-relaxed mb-5">
+                disconnect your broker? your positions will stop updating.
+                you can reconnect anytime.
+              </p>
+            )}
+
+            <div className="flex flex-col sm:flex-row gap-3 mt-2">
+              <button
+                onClick={onClose}
+                disabled={disconnecting}
+                className="flex-1 glass-card-light py-2.5 text-sm rounded-xl hover:bg-[color:var(--dopl-sage)]/40 transition-colors"
+              >
+                keep connected
+              </button>
+              <button
+                onClick={onConfirm}
+                disabled={disconnecting}
+                className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 text-sm rounded-xl bg-red-500/15 border border-red-400/40 text-red-200 hover:bg-red-500/25 transition-colors disabled:opacity-50"
+              >
+                {disconnecting ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Unplug size={14} />
+                )}
+                {disconnecting ? "disconnecting…" : "disconnect"}
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

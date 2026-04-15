@@ -81,7 +81,12 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" https://dopl-app.vercel.app/feed)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" https://dopl-app.vercel.app/dashboard/share)",
       "Bash(curl -s -X DELETE -o /dev/null -w \"%{http_code}\\\\n\" https://dopl-app.vercel.app/api/subscriptions)",
-      "Bash(env)"
+      "Bash(env)",
+      "Bash(vercel whoami:*)",
+      "Bash(npx --yes vercel@latest whoami)",
+      "Bash(npx --yes vercel@latest env add SALTEDGE_APP_ID production)",
+      "Bash(npx --yes vercel@latest env add SALTEDGE_SECRET production)",
+      "Bash(npx --yes vercel@latest --prod --yes)"
     ]
   }
 }

@@ -1,19 +1,17 @@
 "use client";
 
 import { createClient } from "@/lib/supabase";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 export default function SignOutButton() {
-  const router = useRouter();
   const [loading, setLoading] = useState(false);
 
   const signOut = async () => {
     setLoading(true);
     const supabase = createClient();
     await supabase.auth.signOut();
-    router.replace("/");
-    router.refresh();
+    // Full page reload — stale session cookies cause bugs with router.push.
+    window.location.href = "/";
   };
 
   return (

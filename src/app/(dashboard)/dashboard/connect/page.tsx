@@ -72,6 +72,13 @@ export default async function ConnectBrokerPage({
   const provider =
     fm?.broker_provider ?? (fm?.snaptrade_user_id ? "snaptrade" : null);
 
+  const { data: fmCount } = await supabase
+    .from("fund_managers")
+    .select("subscriber_count")
+    .eq("id", user.id)
+    .maybeSingle();
+  const subscriberCount = fmCount?.subscriber_count ?? 0;
+
   return (
     <ConnectClient
       alreadyConnected={!!fm?.broker_connected}
@@ -81,6 +88,7 @@ export default async function ConnectBrokerPage({
       region={fm?.region ?? null}
       provider={provider}
       positionCount={Math.max(syncedPositionCount, dbPositionCount)}
+      subscriberCount={subscriberCount}
       justConnected={justConnected}
       errorMessage={params.error ?? null}
     />
