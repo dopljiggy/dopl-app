@@ -26,10 +26,23 @@ export default async function PortfoliosPage() {
         .in("portfolio_id", portfolioIds)
     : { data: [] };
 
+  let brokerProvider: string | null = null;
+  const fm = await supabase
+    .from("fund_managers")
+    .select("broker_provider")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (!fm.error) {
+    brokerProvider =
+      (fm.data as { broker_provider?: string | null } | null)?.broker_provider ??
+      null;
+  }
+
   return (
     <PortfoliosClient
       portfolios={portfolios ?? []}
       positions={positions ?? []}
+      brokerProvider={brokerProvider}
     />
   );
 }

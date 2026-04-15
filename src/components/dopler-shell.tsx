@@ -25,10 +25,34 @@ export default function DoplerShell({
   const pathname = usePathname();
   const [userId, setUserId] = useState<string | null>(null);
 
+  const [trading, setTrading] = useState<{
+    connected: boolean;
+    name: string | null;
+    website: string | null;
+  }>({ connected: false, name: null, website: null });
+
   useEffect(() => {
     const supabase = createClient();
-    void supabase.auth.getUser().then(({ data }) => {
-      setUserId(data.user?.id ?? null);
+    void supabase.auth.getUser().then(async ({ data }) => {
+      const uid = data.user?.id ?? null;
+      setUserId(uid);
+      if (!uid) return;
+      try {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("trading_connected, trading_connection_data")
+          .eq("id", uid)
+          .maybeSingle();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const d: any = profile?.trading_connection_data ?? {};
+        setTrading({
+          connected: !!profile?.trading_connected,
+          name: d.broker_name ?? d.bank_name ?? null,
+          website: d.website_url ?? null,
+        });
+      } catch {
+        /* ignore — cols may not exist yet */
+      }
     });
   }, []);
 
@@ -84,7 +108,12 @@ export default function DoplerShell({
           </div>
 
           <div className="ml-auto flex items-center gap-2">
-            <NotificationBell userId={userId} />
+            <NotificationBell
+              userId={userId}
+              tradingConnected={trading.connected}
+              tradingName={trading.name}
+              tradingWebsite={trading.website}
+            />
           </div>
         </div>
       </nav>

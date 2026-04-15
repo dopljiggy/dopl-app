@@ -26,6 +26,7 @@ import {
 import { useRouter } from "next/navigation";
 import { GlassCard } from "@/components/ui/glass-card";
 import { fireToast } from "@/components/ui/toast";
+import { SyncBadge } from "@/components/ui/sync-badge";
 import type { Portfolio } from "@/types/database";
 
 export type PositionRow = {
@@ -56,12 +57,14 @@ export default function ExpandablePortfolioCard({
   isExpanded,
   onToggle,
   onDelete,
+  brokerProvider,
 }: {
   portfolio: Portfolio;
   positions: PositionRow[];
   isExpanded: boolean;
   onToggle: () => void;
   onDelete: () => void;
+  brokerProvider?: string | null;
 }) {
   const router = useRouter();
 
@@ -193,6 +196,7 @@ export default function ExpandablePortfolioCard({
             <h3 className="font-display text-lg md:text-xl font-semibold truncate">
               {portfolio.name}
             </h3>
+            <SyncBadge provider={brokerProvider} />
           </div>
           {portfolio.description && (
             <p className="text-xs text-[color:var(--dopl-cream)]/40 truncate">

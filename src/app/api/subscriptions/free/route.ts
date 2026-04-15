@@ -90,6 +90,23 @@ export async function POST(request: Request) {
       p_portfolio_id: portfolio_id,
       p_fund_manager_id: portfolio.fund_manager_id,
     });
+
+    // Inbound notification for the fund manager: "new dopler subscribed".
+    const { data: doplerProfile } = await admin
+      .from("profiles")
+      .select("full_name, email")
+      .eq("id", user.id)
+      .maybeSingle();
+    const doplerName =
+      (doplerProfile?.full_name as string | null) ||
+      (doplerProfile?.email as string | null)?.split("@")[0] ||
+      "a new dopler";
+    await admin.from("notifications").insert({
+      user_id: portfolio.fund_manager_id,
+      portfolio_update_id: null,
+      title: `new dopler on ${portfolio.name}`,
+      body: `${doplerName} just dopled your portfolio`,
+    });
   }
 
   return NextResponse.json({ ok: true, portfolio_name: portfolio.name });

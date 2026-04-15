@@ -78,7 +78,7 @@ export default async function FeedPage() {
   if (fmIds.length) {
     const { data: fmRows } = await admin
       .from("fund_managers")
-      .select("id, handle, display_name, avatar_url, bio, subscriber_count")
+      .select("id, handle, display_name, avatar_url, bio, subscriber_count, broker_provider")
       .in("id", fmIds);
     for (const row of (fmRows ?? []) as FundManagerRow[]) {
       fmMap.set(row.id, row);
@@ -142,6 +142,8 @@ export default async function FeedPage() {
                     fm_display_name:
                       fm?.display_name || fm?.handle || "fund manager",
                     fm_avatar_url: fm?.avatar_url ?? null,
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    fm_broker_provider: (fm as any)?.broker_provider ?? null,
                     positions: positionsByPortfolio.get(s.portfolio_id) ?? [],
                   },
                 ];

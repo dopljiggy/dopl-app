@@ -6,10 +6,25 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Bell } from "lucide-react";
 import { useNotifications } from "@/hooks/use-notifications";
 import { fireToast } from "@/components/ui/toast";
+import {
+  NotificationPopup,
+  type PopupNotification,
+} from "@/components/ui/notification-popup";
 
-export default function NotificationBell({ userId }: { userId: string | null }) {
+export default function NotificationBell({
+  userId,
+  tradingConnected = false,
+  tradingName = null,
+  tradingWebsite = null,
+}: {
+  userId: string | null;
+  tradingConnected?: boolean;
+  tradingName?: string | null;
+  tradingWebsite?: string | null;
+}) {
   const { notifications, unreadCount, markAllRead } = useNotifications(userId);
   const [open, setOpen] = useState(false);
+  const [popup, setPopup] = useState<PopupNotification | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const lastIdRef = useRef<string | null>(null);
 
@@ -87,9 +102,23 @@ export default function NotificationBell({ userId }: { userId: string | null }) 
             ) : (
               <div className="max-h-80 overflow-y-auto space-y-1">
                 {notifications.slice(0, 8).map((n) => (
-                  <div
+                  <button
                     key={n.id}
-                    className="p-3 rounded-lg hover:bg-[color:var(--dopl-sage)]/25 transition-colors"
+                    type="button"
+                    onClick={() => {
+                      setPopup({
+                        id: n.id,
+                        title: n.title,
+                        body: n.body,
+                        created_at: n.created_at,
+                      });
+                      setOpen(false);
+                    }}
+                    className={`w-full text-left p-3 rounded-lg hover:bg-[color:var(--dopl-sage)]/25 transition-colors ${
+                      !n.read
+                        ? "border-l-2 border-[color:var(--dopl-lime)]"
+                        : ""
+                    }`}
                   >
                     <p className="text-sm font-semibold">{n.title}</p>
                     {n.body && (
@@ -97,13 +126,21 @@ export default function NotificationBell({ userId }: { userId: string | null }) 
                         {n.body}
                       </p>
                     )}
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
           </motion.div>
         )}
       </AnimatePresence>
+
+      <NotificationPopup
+        notification={popup}
+        tradingConnected={tradingConnected}
+        tradingName={tradingName}
+        tradingWebsite={tradingWebsite}
+        onClose={() => setPopup(null)}
+      />
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { GlassCard } from "@/components/ui/glass-card";
 import SlideToDopl from "@/components/ui/slide-to-dopl";
 import UndoplButton from "@/components/ui/undopl-button";
+import { SyncBadge } from "@/components/ui/sync-badge";
 import { fireToast } from "@/components/ui/toast";
 import { Lock, Users, TrendingUp, TrendingDown, Sparkles } from "lucide-react";
 import type { Portfolio } from "@/types/database";
@@ -32,11 +33,13 @@ export default function ProfileTiers({
   handle,
   displayName,
   isAuthed,
+  brokerProvider,
 }: {
   tiers: TierPortfolio[];
   handle: string;
   displayName: string;
   isAuthed: boolean;
+  brokerProvider?: string | null;
 }) {
   const router = useRouter();
 
@@ -142,9 +145,12 @@ export default function ProfileTiers({
                 </div>
               </div>
 
-              <h3 className="font-display text-xl font-semibold mb-1">
-                {p.name}
-              </h3>
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                <h3 className="font-display text-xl font-semibold">
+                  {p.name}
+                </h3>
+                <SyncBadge provider={brokerProvider} />
+              </div>
               {p.description && (
                 <p className="text-xs text-[color:var(--dopl-cream)]/50 mb-4 line-clamp-2">
                   {p.description}

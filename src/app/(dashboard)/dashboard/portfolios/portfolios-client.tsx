@@ -27,9 +27,11 @@ const tiers = [
 export default function PortfoliosClient({
   portfolios,
   positions,
+  brokerProvider,
 }: {
   portfolios: Portfolio[];
   positions: PositionRow[];
+  brokerProvider?: string | null;
 }) {
   const router = useRouter();
   const [showCreate, setShowCreate] = useState(false);
@@ -124,6 +126,7 @@ export default function PortfoliosClient({
                 setExpandedId(expandedId === p.id ? null : p.id)
               }
               onDelete={() => handleDelete(p.id)}
+              brokerProvider={brokerProvider}
             />
           ))}
         </div>

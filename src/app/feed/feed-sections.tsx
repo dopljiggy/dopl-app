@@ -6,6 +6,7 @@ import { useState } from "react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { PositionCard, type PositionLike } from "@/components/ui/position-card";
 import UndoplButton from "@/components/ui/undopl-button";
+import { SyncBadge } from "@/components/ui/sync-badge";
 
 type Section = {
   sub_id: string;
@@ -16,6 +17,7 @@ type Section = {
   fm_handle: string | null;
   fm_display_name: string;
   fm_avatar_url: string | null;
+  fm_broker_provider?: string | null;
   positions: PositionLike[];
 };
 
@@ -86,9 +88,12 @@ export default function FeedSections({ initial }: { initial: Section[] }) {
             </span>
           </div>
 
-          <h3 className="font-display text-xl font-semibold mb-4">
-            {s.portfolio_name}
-          </h3>
+          <div className="flex items-center gap-2 mb-4 flex-wrap">
+            <h3 className="font-display text-xl font-semibold">
+              {s.portfolio_name}
+            </h3>
+            <SyncBadge provider={s.fm_broker_provider} />
+          </div>
 
           {s.positions.length === 0 ? (
             <GlassCard className="p-6 text-center">

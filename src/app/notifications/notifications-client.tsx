@@ -6,6 +6,10 @@ import { useNotifications } from "@/hooks/use-notifications";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Copy, ExternalLink, Link2, Check } from "lucide-react";
 import Link from "next/link";
+import {
+  NotificationPopup,
+  type PopupNotification,
+} from "@/components/ui/notification-popup";
 
 function extractTicker(body: string | null | undefined): string | null {
   if (!body) return null;
@@ -29,6 +33,7 @@ export default function NotificationsClient({
 }) {
   const { notifications, unreadCount, markAllRead } = useNotifications(userId);
   const [copied, setCopied] = useState<string | null>(null);
+  const [popup, setPopup] = useState<PopupNotification | null>(null);
 
   useEffect(() => {
     void markAllRead();
@@ -76,7 +81,17 @@ export default function NotificationsClient({
                   initial={{ opacity: 0, y: -8 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
-                  className={`glass-card p-4 ${!n.read ? "glow-gain" : ""}`}
+                  className={`glass-card p-4 cursor-pointer ${
+                    !n.read ? "glow-gain" : ""
+                  }`}
+                  onClick={() =>
+                    setPopup({
+                      id: n.id,
+                      title: n.title,
+                      body: n.body,
+                      created_at: n.created_at,
+                    })
+                  }
                 >
                   <div className="flex items-start gap-3">
                     <span
@@ -99,7 +114,10 @@ export default function NotificationsClient({
                     </span>
                   </div>
 
-                  <div className="mt-3 pl-5 flex flex-wrap gap-2">
+                  <div
+                    className="mt-3 pl-5 flex flex-wrap gap-2"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     {ticker && (
                       <button
                         onClick={() => copyTicker(ticker, n.id)}
@@ -148,6 +166,14 @@ export default function NotificationsClient({
           </AnimatePresence>
         </div>
       )}
+
+      <NotificationPopup
+        notification={popup}
+        tradingConnected={tradingConnected}
+        tradingName={tradingName}
+        tradingWebsite={tradingWebsite}
+        onClose={() => setPopup(null)}
+      />
     </div>
   );
 }
