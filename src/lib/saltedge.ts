@@ -47,9 +47,22 @@ async function request<T = unknown>(
     const msg =
       (json as { error?: { message?: string } } | null)?.error?.message ||
       `Salt Edge ${res.status}`;
-    throw new Error(msg);
+    const err = new Error(msg) as Error & {
+      status?: number;
+      body?: unknown;
+    };
+    err.status = res.status;
+    err.body = json;
+    throw err;
   }
   return json as T;
+}
+
+export function errorBody(err: unknown): unknown {
+  if (err && typeof err === "object" && "body" in err) {
+    return (err as { body?: unknown }).body;
+  }
+  return null;
 }
 
 export type SaltEdgeCustomer = { id: string; identifier: string };
@@ -107,12 +120,23 @@ export const saltedge = {
   async findCustomerByIdentifier(
     identifier: string
   ): Promise<SaltEdgeCustomer | null> {
-    // v6 supports filtering the customers index by identifier.
-    const res = await request<{ data: SaltEdgeCustomer[] }>("/customers", {
-      query: { identifier },
-    });
-    const match = res.data?.find((c) => c.identifier === identifier);
-    return match ?? res.data?.[0] ?? null;
+    // v6 `GET /customers` doesn't support an `identifier` filter — it returns
+    // a paginated list. Walk up to 10 pages looking for a match (the
+    // Salt Edge test sandbox caps at ~1000 customers per app).
+    let nextId: string | null = null;
+    for (let page = 0; page < 10; page++) {
+      const query: Record<string, string> = {};
+      if (nextId) query.from_id = nextId;
+      const res = await request<{
+        data: SaltEdgeCustomer[];
+        meta?: { next_id?: string | null; next_page?: string | null };
+      }>("/customers", { query });
+      const match = res.data?.find((c) => c.identifier === identifier);
+      if (match) return match;
+      nextId = res.meta?.next_id ?? null;
+      if (!nextId) break;
+    }
+    return null;
   },
 
   async createConnectSession(opts: {
