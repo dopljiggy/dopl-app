@@ -72,18 +72,80 @@ export default async function FeedPage() {
 
   const subs = (subsData ?? []) as unknown as SubscriptionRow[];
 
-  // 2) fund managers by id — separate query, indexed on id, guaranteed to hit.
-  const fmIds = Array.from(new Set(subs.map((s) => s.fund_manager_id)));
+  // 2) fund managers by id. Use both subscriptions.fund_manager_id and the
+  //    nested portfolio.fund_manager_id as sources — covers the case where
+  //    an older subscription row has an unexpected fund_manager_id.
+  const fmIds = Array.from(
+    new Set(
+      subs.flatMap((s) =>
+        [s.fund_manager_id, s.portfolio?.fund_manager_id].filter(
+          (id): id is string => typeof id === "string" && id.length > 0
+        )
+      )
+    )
+  );
   const fmMap = new Map<string, FundManagerRow>();
   if (fmIds.length) {
     const { data: fmRows } = await admin
       .from("fund_managers")
-      .select("id, handle, display_name, avatar_url, bio, subscriber_count, broker_provider")
+      .select(
+        "id, handle, display_name, avatar_url, bio, subscriber_count, broker_provider"
+      )
       .in("id", fmIds);
     for (const row of (fmRows ?? []) as FundManagerRow[]) {
       fmMap.set(row.id, row);
     }
   }
+
+  // 2b) Backstop: if any fund_manager is missing or has a blank display_name,
+  //     look them up in profiles for `full_name` / `email`. This catches
+  //     fund managers whose fund_managers row hasn't been provisioned yet
+  //     (ensure runs on the share page).
+  const profileMap = new Map<
+    string,
+    { full_name: string | null; email: string | null }
+  >();
+  if (fmIds.length) {
+    const { data: profileRows } = await admin
+      .from("profiles")
+      .select("id, full_name, email")
+      .in("id", fmIds);
+    for (const row of profileRows ?? []) {
+      profileMap.set(
+        (row as { id: string }).id,
+        {
+          full_name: (row as { full_name: string | null }).full_name,
+          email: (row as { email: string | null }).email,
+        }
+      );
+    }
+  }
+
+  const norm = (s: string | null | undefined) => {
+    const v = (s ?? "").trim();
+    return v.length ? v : null;
+  };
+  const resolveFm = (id: string) => {
+    const fm = fmMap.get(id);
+    const p = profileMap.get(id);
+    const handle =
+      norm(fm?.handle) ??
+      norm(p?.email?.split("@")[0]) ??
+      null;
+    const display =
+      norm(fm?.display_name) ??
+      norm(p?.full_name) ??
+      handle ??
+      "fund manager";
+    return {
+      handle,
+      display_name: display,
+      avatar_url: fm?.avatar_url ?? null,
+      broker_provider:
+        (fm as FundManagerRow & { broker_provider?: string | null })
+          ?.broker_provider ?? null,
+    };
+  };
 
   // 3) positions for every subscribed portfolio.
   const portfolioIds = subs.map((s) => s.portfolio_id);
@@ -130,7 +192,12 @@ export default async function FeedPage() {
             <FeedSections
               initial={subs.flatMap((s) => {
                 if (!s.portfolio) return [];
-                const fm = fmMap.get(s.fund_manager_id);
+                // Portfolio.fund_manager_id is authoritative; fall back to
+                // subscriptions.fund_manager_id only if the nested row is
+                // missing for some reason.
+                const fmId =
+                  s.portfolio.fund_manager_id || s.fund_manager_id;
+                const fm = resolveFm(fmId);
                 return [
                   {
                     sub_id: s.id,
@@ -138,12 +205,10 @@ export default async function FeedPage() {
                     portfolio_name: s.portfolio.name,
                     portfolio_description: s.portfolio.description,
                     portfolio_tier: s.portfolio.tier,
-                    fm_handle: fm?.handle ?? null,
-                    fm_display_name:
-                      fm?.display_name || fm?.handle || "fund manager",
-                    fm_avatar_url: fm?.avatar_url ?? null,
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    fm_broker_provider: (fm as any)?.broker_provider ?? null,
+                    fm_handle: fm.handle,
+                    fm_display_name: fm.display_name,
+                    fm_avatar_url: fm.avatar_url,
+                    fm_broker_provider: fm.broker_provider,
                     positions: positionsByPortfolio.get(s.portfolio_id) ?? [],
                   },
                 ];
