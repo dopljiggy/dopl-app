@@ -104,6 +104,17 @@ export const saltedge = {
     return res.data;
   },
 
+  async findCustomerByIdentifier(
+    identifier: string
+  ): Promise<SaltEdgeCustomer | null> {
+    // v6 supports filtering the customers index by identifier.
+    const res = await request<{ data: SaltEdgeCustomer[] }>("/customers", {
+      query: { identifier },
+    });
+    const match = res.data?.find((c) => c.identifier === identifier);
+    return match ?? res.data?.[0] ?? null;
+  },
+
   async createConnectSession(opts: {
     customer_id: string;
     return_to: string;
