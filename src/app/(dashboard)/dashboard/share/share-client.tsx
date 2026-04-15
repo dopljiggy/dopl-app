@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { Copy, Download, Share2, Check, Link2 } from "lucide-react";
+import { motion } from "framer-motion";
 
 interface Props {
   handle: string;
@@ -10,10 +12,18 @@ interface Props {
   origin: string;
 }
 
-export default function ShareClient({ handle, displayName, subscriberCount, portfolioNames, origin }: Props) {
+export default function ShareClient({
+  handle,
+  displayName,
+  subscriberCount,
+  portfolioNames,
+  origin,
+}: Props) {
   const [copied, setCopied] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
   const shareUrl = `${origin}/${handle}`;
+  const shareLabel = shareUrl.replace(/^https?:\/\//, "");
 
   const copyLink = () => {
     navigator.clipboard.writeText(shareUrl);
@@ -22,10 +32,17 @@ export default function ShareClient({ handle, displayName, subscriberCount, port
   };
 
   const downloadPng = async () => {
+    if (!cardRef.current) return;
+    setDownloading(true);
     try {
       const { toBlob } = await import("html-to-image");
-      if (!cardRef.current) return;
-      const blob = await toBlob(cardRef.current, { pixelRatio: 2 });
+      // The preview card renders at 540px. Export at 1200x630 (2.22× scale
+      // locks the proportions to the Twitter / OG standard).
+      const blob = await toBlob(cardRef.current, {
+        pixelRatio: 2.222,
+        canvasWidth: 1200,
+        canvasHeight: 630,
+      });
       if (!blob) return;
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -34,76 +51,470 @@ export default function ShareClient({ handle, displayName, subscriberCount, port
       a.click();
       URL.revokeObjectURL(url);
     } catch {
-      // Fallback: try server-side generation
       window.open(`${origin}/api/share-card/${handle}`, "_blank");
+    } finally {
+      setDownloading(false);
     }
   };
 
   const shareOnX = () => {
     const text = encodeURIComponent(`follow my portfolio on dopl`);
     const url = encodeURIComponent(shareUrl);
-    window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, "_blank");
+    window.open(
+      `https://twitter.com/intent/tweet?text=${text}&url=${url}`,
+      "_blank"
+    );
   };
+
+  // Card dimensions — preview fixed at 540×283 so export hits 1200×630 cleanly.
+  const CARD_W = 540;
+  const CARD_H = 283;
 
   return (
     <div>
-      <h1 className="font-display text-3xl font-semibold mb-2">share</h1>
-      <p className="text-[color:var(--dopl-cream)]/50 text-sm mb-8">download a premium card and drop it anywhere</p>
+      <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight mb-2">
+        share
+      </h1>
+      <p className="text-[color:var(--dopl-cream)]/50 text-sm mb-10">
+        download a premium card and drop it anywhere
+      </p>
 
-      <div className="grid md:grid-cols-[1fr,300px] gap-8">
+      <div className="grid lg:grid-cols-[auto,300px] gap-8 items-start">
         <div>
-          <p className="text-xs text-[color:var(--dopl-cream)]/40 mb-3 uppercase tracking-wider">preview</p>
-          <div ref={cardRef} style={{ background: "linear-gradient(135deg, #0D261F 0%, #1a3d32 100%)", borderRadius: 16, padding: 32, maxWidth: 500 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 24 }}>
-              <div style={{ width: 56, height: 56, borderRadius: 14, background: "#2D4A3E", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, fontWeight: 600, color: "#C5D634" }}>
-                {displayName.charAt(0).toUpperCase()}
-              </div>
-              <div>
-                <div style={{ fontSize: 22, fontWeight: 600, color: "#F3EFE8" }}>{displayName}</div>
-                <div style={{ fontSize: 14, color: "#F3EFE880" }}>@{handle}</div>
+          <p className="text-[10px] text-[color:var(--dopl-cream)]/40 mb-3 uppercase tracking-[0.2em] font-mono">
+            preview
+          </p>
+
+          {/* Floating pedestal */}
+          <motion.div
+            animate={{ y: [0, -4, 0] }}
+            transition={{
+              duration: 6,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+            style={{ width: CARD_W, maxWidth: "100%" }}
+            className="relative"
+          >
+            {/* Animated gradient border shell */}
+            <div
+              className="share-card-shell"
+              style={{
+                borderRadius: 22,
+                padding: 1,
+                maxWidth: "100%",
+              }}
+            >
+              <div
+                ref={cardRef}
+                style={{
+                  width: CARD_W,
+                  height: CARD_H,
+                  maxWidth: "100%",
+                  borderRadius: 20,
+                  padding: 28,
+                  position: "relative",
+                  overflow: "hidden",
+                  color: "#F3EFE8",
+                  fontFamily:
+                    "Inter, ui-sans-serif, system-ui, -apple-system, sans-serif",
+                  // Layered background: radial vignette + linear wash
+                  background:
+                    "radial-gradient(110% 120% at 50% 30%, #152E26 0%, #0E241D 55%, #0A1F18 100%)",
+                  backdropFilter: "blur(20px)",
+                  WebkitBackdropFilter: "blur(20px)",
+                  boxShadow:
+                    "inset 0 1px 0 rgba(197,214,52,0.10), 0 20px 60px rgba(0,0,0,0.4), 0 0 80px rgba(197,214,52,0.08)",
+                }}
+              >
+                {/* Grid / noise overlay */}
+                <div
+                  aria-hidden
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    pointerEvents: "none",
+                    opacity: 0.03,
+                    backgroundImage:
+                      "linear-gradient(rgba(243,239,232,1) 1px, transparent 1px), linear-gradient(90deg, rgba(243,239,232,1) 1px, transparent 1px)",
+                    backgroundSize: "22px 22px",
+                  }}
+                />
+                {/* Soft top-right lime ambient */}
+                <div
+                  aria-hidden
+                  style={{
+                    position: "absolute",
+                    top: -90,
+                    right: -80,
+                    width: 260,
+                    height: 260,
+                    borderRadius: "50%",
+                    background:
+                      "radial-gradient(circle, rgba(197,214,52,0.22) 0%, transparent 65%)",
+                    pointerEvents: "none",
+                  }}
+                />
+
+                {/* Top row: avatar + name */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 18,
+                    marginBottom: 18,
+                    position: "relative",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 72,
+                      height: 72,
+                      borderRadius: 18,
+                      background:
+                        "linear-gradient(135deg, #2D4A3E 0%, #1e372d 100%)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 30,
+                      fontWeight: 600,
+                      color: "#C5D634",
+                      fontFamily:
+                        "'Fraunces', ui-serif, Georgia, Cambria, serif",
+                      border: "2px solid rgba(197,214,52,0.30)",
+                      boxShadow:
+                        "0 0 20px rgba(197,214,52,0.15), inset 0 1px 0 rgba(255,255,255,0.08)",
+                      flexShrink: 0,
+                    }}
+                  >
+                    {displayName.charAt(0).toUpperCase()}
+                  </div>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div
+                      style={{
+                        fontSize: 28,
+                        fontWeight: 700,
+                        lineHeight: 1.1,
+                        color: "#F3EFE8",
+                        fontFamily:
+                          "'Fraunces', ui-serif, Georgia, Cambria, serif",
+                        letterSpacing: "-0.01em",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      {displayName}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 15,
+                        color: "rgba(197,214,52,0.70)",
+                        fontFamily:
+                          "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace",
+                        marginTop: 2,
+                      }}
+                    >
+                      @{handle}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Portfolio tags */}
+                {portfolioNames.length > 0 && (
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 8,
+                      flexWrap: "wrap",
+                      marginBottom: 20,
+                      position: "relative",
+                    }}
+                  >
+                    {portfolioNames.slice(0, 3).map((name, i) => (
+                      <span
+                        key={i}
+                        style={{
+                          background: "rgba(45,74,62,0.60)",
+                          backdropFilter: "blur(10px)",
+                          WebkitBackdropFilter: "blur(10px)",
+                          border: "1px solid rgba(197,214,52,0.15)",
+                          color: "rgba(243,239,232,0.90)",
+                          fontSize: 12,
+                          padding: "6px 16px",
+                          borderRadius: 20,
+                          fontWeight: 500,
+                          letterSpacing: "0.01em",
+                        }}
+                      >
+                        {name}
+                      </span>
+                    ))}
+                    {portfolioNames.length > 3 && (
+                      <span
+                        style={{
+                          color: "rgba(243,239,232,0.45)",
+                          fontSize: 12,
+                          padding: "6px 4px",
+                          fontFamily:
+                            "'JetBrains Mono', ui-monospace, monospace",
+                        }}
+                      >
+                        +{portfolioNames.length - 3}
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {/* Stats row */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 28,
+                    marginBottom: 18,
+                    position: "relative",
+                  }}
+                >
+                  <div>
+                    <div
+                      style={{
+                        fontSize: 32,
+                        fontWeight: 700,
+                        color: "#C5D634",
+                        fontFamily:
+                          "'JetBrains Mono', ui-monospace, monospace",
+                        lineHeight: 1,
+                        letterSpacing: "-0.01em",
+                      }}
+                    >
+                      {subscriberCount}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: "rgba(243,239,232,0.40)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.18em",
+                        marginTop: 6,
+                        fontFamily:
+                          "'JetBrains Mono', ui-monospace, monospace",
+                      }}
+                    >
+                      doplers
+                    </div>
+                  </div>
+                  <div
+                    aria-hidden
+                    style={{
+                      width: 1,
+                      height: 32,
+                      background:
+                        "linear-gradient(180deg, transparent, rgba(197,214,52,0.25), transparent)",
+                    }}
+                  />
+                  <div>
+                    <div
+                      style={{
+                        fontSize: 32,
+                        fontWeight: 700,
+                        color: "#F3EFE8",
+                        fontFamily:
+                          "'JetBrains Mono', ui-monospace, monospace",
+                        lineHeight: 1,
+                        letterSpacing: "-0.01em",
+                      }}
+                    >
+                      {portfolioNames.length}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: "rgba(243,239,232,0.40)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.18em",
+                        marginTop: 6,
+                        fontFamily:
+                          "'JetBrains Mono', ui-monospace, monospace",
+                      }}
+                    >
+                      portfolios
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div
+                  style={{
+                    position: "absolute",
+                    left: 28,
+                    right: 28,
+                    bottom: 22,
+                    paddingTop: 14,
+                    borderTop: "1px solid rgba(197,214,52,0.10)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 12,
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 13,
+                      color: "rgba(197,214,52,0.50)",
+                      fontFamily:
+                        "'JetBrains Mono', ui-monospace, monospace",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {origin.replace(/^https?:\/\//, "")}/{handle}
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      fontSize: 11,
+                      color: "rgba(243,239,232,0.45)",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.18em",
+                      fontFamily:
+                        "'JetBrains Mono', ui-monospace, monospace",
+                    }}
+                  >
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        width: 16,
+                        height: 16,
+                        borderRadius: 4,
+                        background: "#C5D634",
+                        color: "#0D261F",
+                        fontFamily:
+                          "'Fraunces', ui-serif, Georgia, Cambria, serif",
+                        fontWeight: 700,
+                        fontSize: 11,
+                        lineHeight: 1,
+                      }}
+                    >
+                      d
+                    </span>
+                    powered by dopl
+                  </div>
+                </div>
               </div>
             </div>
-            {portfolioNames.length > 0 && (
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 20 }}>
-                {portfolioNames.map((name, i) => (
-                  <span key={i} style={{ background: "#2D4A3E", color: "#F3EFE8", fontSize: 12, padding: "4px 12px", borderRadius: 6 }}>{name}</span>
-                ))}
-              </div>
-            )}
-            <div style={{ display: "flex", gap: 32, marginBottom: 16 }}>
-              <div>
-                <div style={{ fontSize: 24, fontWeight: 700, color: "#C5D634", fontFamily: "JetBrains Mono" }}>{subscriberCount}</div>
-                <div style={{ fontSize: 11, color: "#F3EFE860", textTransform: "uppercase", letterSpacing: 1 }}>doplers</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 24, fontWeight: 700, color: "#F3EFE8", fontFamily: "JetBrains Mono" }}>{portfolioNames.length}</div>
-                <div style={{ fontSize: 11, color: "#F3EFE860", textTransform: "uppercase", letterSpacing: 1 }}>portfolios</div>
-              </div>
-            </div>
-            <div style={{ borderTop: "1px solid #2D4A3E", paddingTop: 12, fontSize: 12, color: "#F3EFE840", fontFamily: "JetBrains Mono" }}>
-              {origin.replace("https://", "")}/{handle} · powered by dopl
-            </div>
-          </div>
+          </motion.div>
         </div>
 
-        <div>
-          <p className="text-xs text-[color:var(--dopl-cream)]/40 mb-3 uppercase tracking-wider">actions</p>
+        {/* Action panel */}
+        <div className="w-full lg:w-auto">
+          <p className="text-[10px] text-[color:var(--dopl-cream)]/40 mb-3 uppercase tracking-[0.2em] font-mono">
+            actions
+          </p>
           <div className="space-y-3">
-            <button onClick={copyLink} className="glass-card p-4 w-full text-left hover:border-[#C5D634]/30 transition-colors">
-              <p className="text-sm font-semibold">{copied ? "copied!" : "copy link"}</p>
-              <p className="text-xs text-[color:var(--dopl-cream)]/40">{shareUrl.replace("https://", "")}</p>
-            </button>
-            <button onClick={downloadPng} className="glass-card p-4 w-full text-left hover:border-[#C5D634]/30 transition-colors">
-              <p className="text-sm font-semibold">download PNG</p>
-              <p className="text-xs text-[color:var(--dopl-cream)]/40">save card as image</p>
-            </button>
-            <button onClick={shareOnX} className="glass-card p-4 w-full text-left hover:border-[#C5D634]/30 transition-colors">
-              <p className="text-sm font-semibold">share on X</p>
-              <p className="text-xs text-[color:var(--dopl-cream)]/40">opens tweet composer</p>
-            </button>
+            <ActionButton
+              icon={copied ? <Check size={16} /> : <Copy size={16} />}
+              title={copied ? "copied!" : "copy link"}
+              subtitle={shareLabel}
+              onClick={copyLink}
+            />
+            <ActionButton
+              icon={<Download size={16} />}
+              title={downloading ? "rendering..." : "download PNG"}
+              subtitle="1200 × 630 · og-ready"
+              onClick={downloadPng}
+              disabled={downloading}
+            />
+            <ActionButton
+              icon={<Share2 size={16} />}
+              title="share on X"
+              subtitle="opens tweet composer"
+              onClick={shareOnX}
+            />
+          </div>
+
+          <div className="mt-6 glass-card-light rounded-xl p-4 text-xs text-[color:var(--dopl-cream)]/50 flex items-start gap-2">
+            <Link2
+              size={14}
+              className="mt-0.5 text-[color:var(--dopl-lime)]/70 shrink-0"
+            />
+            <p className="leading-relaxed">
+              the downloaded PNG is 1200×630 — perfect for X, LinkedIn, Discord
+              previews and stories.
+            </p>
           </div>
         </div>
       </div>
+
+      <style jsx>{`
+        .share-card-shell {
+          position: relative;
+          background: linear-gradient(
+            135deg,
+            rgba(45, 74, 62, 0.9) 0%,
+            rgba(197, 214, 52, 0.55) 50%,
+            rgba(45, 74, 62, 0.9) 100%
+          );
+          background-size: 220% 220%;
+          animation: share-border-shift 9s ease-in-out infinite;
+        }
+        @keyframes share-border-shift {
+          0% {
+            background-position: 0% 50%;
+          }
+          50% {
+            background-position: 100% 50%;
+          }
+          100% {
+            background-position: 0% 50%;
+          }
+        }
+      `}</style>
     </div>
+  );
+}
+
+function ActionButton({
+  icon,
+  title,
+  subtitle,
+  onClick,
+  disabled,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  subtitle: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <motion.button
+      onClick={onClick}
+      disabled={disabled}
+      whileHover={{ scale: disabled ? 1 : 1.02 }}
+      whileTap={{ scale: 0.98 }}
+      className="glass-card group relative w-full text-left p-4 rounded-xl overflow-hidden border border-[color:var(--glass-border)] hover:border-[color:var(--dopl-lime)]/30 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+    >
+      <span
+        aria-hidden
+        className="absolute left-0 top-3 bottom-3 w-[2px] rounded-full bg-[color:var(--dopl-lime)]/40 group-hover:bg-[color:var(--dopl-lime)] transition-colors"
+      />
+      <div className="flex items-start gap-3 pl-2">
+        <div className="w-9 h-9 rounded-lg bg-[color:var(--dopl-lime)]/10 border border-[color:var(--dopl-lime)]/25 flex items-center justify-center text-[color:var(--dopl-lime)] shrink-0 group-hover:bg-[color:var(--dopl-lime)]/15 transition-colors">
+          {icon}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold truncate">{title}</p>
+          <p className="text-xs text-[color:var(--dopl-cream)]/40 font-mono truncate">
+            {subtitle}
+          </p>
+        </div>
+      </div>
+    </motion.button>
   );
 }
