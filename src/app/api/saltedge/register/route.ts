@@ -1,28 +1,50 @@
 import { NextResponse } from "next/server";
-import { saltedge, errorBody } from "@/lib/saltedge";
 import { createServerSupabase } from "@/lib/supabase-server";
 import { createAdminClient } from "@/lib/supabase-admin";
+
+const SALTEDGE_BASE = "https://www.saltedge.com/api/v6";
+
+function seHeaders() {
+  const appId = process.env.SALTEDGE_APP_ID;
+  const secret = process.env.SALTEDGE_SECRET;
+  if (!appId || !secret) {
+    throw new Error("SALTEDGE_APP_ID / SALTEDGE_SECRET missing");
+  }
+  return {
+    "App-id": appId,
+    Secret: secret,
+    "Content-type": "application/json",
+    Accept: "application/json",
+  };
+}
+
+type Customer = {
+  id?: string;
+  customer_id?: string;
+  identifier?: string;
+};
 
 export async function POST() {
   const supabase = await createServerSupabase();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user)
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
-  // 1) If we've already saved a customer_id, skip Salt Edge entirely.
+  // 1. Short-circuit if we've already stored a Salt Edge customer id.
   const { data: fm } = await supabase
     .from("fund_managers")
     .select("saltedge_customer_id")
     .eq("id", user.id)
     .maybeSingle();
   if (fm?.saltedge_customer_id) {
-    return NextResponse.json({ customerId: fm.saltedge_customer_id });
+    return NextResponse.json({ customer_id: fm.saltedge_customer_id });
   }
 
-  const admin = createAdminClient();
   const identifier = `dopl-${user.id}`;
+  const admin = createAdminClient();
 
   const saveCustomer = async (customerId: string) => {
     await admin
@@ -34,69 +56,115 @@ export async function POST() {
       .eq("id", user.id);
   };
 
-  // 2) Try to create.
+  // 2. Try to create.
+  const createRes = await fetch(`${SALTEDGE_BASE}/customers`, {
+    method: "POST",
+    headers: seHeaders(),
+    body: JSON.stringify({ data: { identifier } }),
+    cache: "no-store",
+  });
+
+  const createText = await createRes.text();
+  let createJson: {
+    data?: Customer;
+    error?: { message?: string; class?: string };
+  } | null = null;
   try {
-    const customer = await saltedge.createCustomer(identifier);
-    await saveCustomer(customer.id);
-    return NextResponse.json({ customerId: customer.id });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "salt edge register failed";
-    const isDuplicate =
-      /already exists|duplicated|duplicate/i.test(msg) ||
-      /DuplicatedCustomer/i.test(msg);
+    createJson = createText ? JSON.parse(createText) : null;
+  } catch {
+    // ignore
+  }
 
-    if (!isDuplicate) {
-      return NextResponse.json({ error: msg }, { status: 500 });
+  if (createRes.ok) {
+    const id = createJson?.data?.id ?? createJson?.data?.customer_id ?? null;
+    if (!id) {
+      return NextResponse.json(
+        { error: "salt edge returned no customer id", raw: createJson },
+        { status: 500 }
+      );
     }
+    await saveCustomer(id);
+    return NextResponse.json({ customer_id: id });
+  }
 
-    // 2a) Salt Edge sometimes returns the existing customer_id inside the
-    //     error body. Grab it if it's there.
-    const body = errorBody(err) as
-      | {
-          error?: {
-            message?: string;
-            documentation_url?: string;
-            request_id?: string;
-            class?: string;
-          };
-          data?: { id?: string; identifier?: string; customer_id?: string };
-        }
-      | null;
-    const inlineId =
-      body?.data?.id ?? body?.data?.customer_id ?? null;
-    if (inlineId) {
-      await saveCustomer(inlineId);
-      return NextResponse.json({
-        customerId: inlineId,
-        recovered: true,
-        source: "error_body",
-      });
-    }
+  const errMsg = createJson?.error?.message ?? `Salt Edge ${createRes.status}`;
+  const isDuplicate =
+    /already exists|duplicated|duplicate/i.test(errMsg) ||
+    /DuplicatedCustomer/i.test(createJson?.error?.class ?? "");
 
-    // 2b) Fall back to paginating GET /customers and matching by identifier.
-    try {
-      const existing = await saltedge.findCustomerByIdentifier(identifier);
-      if (existing?.id) {
-        await saveCustomer(existing.id);
-        return NextResponse.json({
-          customerId: existing.id,
-          recovered: true,
-          source: "list",
-        });
-      }
-    } catch (lookupErr) {
-      // swallow — we still want to surface the original duplicate error below
-      console.warn("salt edge customer lookup failed:", lookupErr);
-    }
+  if (!isDuplicate) {
+    return NextResponse.json({ error: errMsg }, { status: 500 });
+  }
 
+  // 3. Duplicate — list customers and find by identifier.
+  const listRes = await fetch(`${SALTEDGE_BASE}/customers`, {
+    method: "GET",
+    headers: seHeaders(),
+    cache: "no-store",
+  });
+  const listText = await listRes.text();
+  let listJson: {
+    data?: Customer[];
+    meta?: { next_id?: string | null };
+    error?: { message?: string };
+  } | null = null;
+  try {
+    listJson = listText ? JSON.parse(listText) : null;
+  } catch {
+    // ignore
+  }
+
+  if (!listRes.ok) {
     return NextResponse.json(
       {
         error:
-          "salt edge says this customer already exists but we could not look it up. contact support.",
+          "customer exists but GET /customers failed: " +
+          (listJson?.error?.message ?? listRes.status),
         identifier,
-        detail: msg,
       },
       { status: 500 }
     );
   }
+
+  // Walk pages until we find it (cap at 20 pages just in case).
+  let data: Customer[] = listJson?.data ?? [];
+  let nextId = listJson?.meta?.next_id ?? null;
+  let match = data.find((c) => c.identifier === identifier);
+  let pages = 1;
+  while (!match && nextId && pages < 20) {
+    const pageRes = await fetch(
+      `${SALTEDGE_BASE}/customers?from_id=${encodeURIComponent(nextId)}`,
+      { method: "GET", headers: seHeaders(), cache: "no-store" }
+    );
+    const pageJson = (await pageRes.json().catch(() => null)) as {
+      data?: Customer[];
+      meta?: { next_id?: string | null };
+    } | null;
+    data = pageJson?.data ?? [];
+    match = data.find((c) => c.identifier === identifier);
+    nextId = pageJson?.meta?.next_id ?? null;
+    pages++;
+  }
+
+  if (!match) {
+    return NextResponse.json(
+      {
+        error:
+          "salt edge says this customer already exists but it was not found in GET /customers",
+        identifier,
+      },
+      { status: 500 }
+    );
+  }
+
+  const foundId = match.id ?? match.customer_id ?? null;
+  if (!foundId) {
+    return NextResponse.json(
+      { error: "matched customer has no id field", raw: match },
+      { status: 500 }
+    );
+  }
+
+  await saveCustomer(foundId);
+  return NextResponse.json({ customer_id: foundId, recovered: true });
 }
