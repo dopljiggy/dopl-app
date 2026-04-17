@@ -5,6 +5,25 @@ Format: date, description, files, why, impact, testing, risks.
 
 ---
 
+## [2026-04-17] — Sprint 1 Task 7: Onboarding handle + display_name enforcement
+
+**Files changed:**
+- `src/app/onboarding/onboarding-client.tsx` — surfaces handle field on Step 0, removes skip button from Step 0, disables continue until both display_name and handle are valid
+- `src/app/api/profile/route.ts` — PATCH now rejects empty/whitespace display_name (400), validates handle against `/^[a-z0-9_-]{2,32}$/` (400 on mismatch)
+- `src/app/api/profile/__tests__/route.test.ts` — new (7 tests covering all rejection paths)
+
+**Why:** Root-cause fix for Sprint 1 Task 1's symptom. The id-stub fallback in `resolveFm` handles the render side, but a fund_manager could still land on `/dashboard` with `display_name=''` or a blank handle by skipping Step 0 or relying on the unvalidated PATCH path. This closes that gap at the source.
+
+**Impact:**
+- No new fund_manager rows can reach the dashboard without a valid handle + display_name.
+- The `fm_{first6-of-id}` fallback from Task 1 becomes defense-in-depth only, not a regular path.
+
+**Testing:** `npm test` (36 passing, 7 new); manual onboarding smoke test from fresh signup → Step 0 → advance to Step 1.
+
+**Risks:** None identified. Existing fund_managers are unaffected (DB writes go through PATCH only on profile edit). The 4 live FMs in prod all have valid handles.
+
+---
+
 ## [2026-04-17] — Plan 3.1: Lazy supabaseAdmin in Stripe webhook route
 
 **Files changed:**
