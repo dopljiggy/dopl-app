@@ -49,7 +49,10 @@ export function buildChain(state: MockState, tableName: string) {
   let singleCalled = false
   let orderCol: string | null = null
   let orderAsc = true
-  const chain: Record<string, (...args: unknown[]) => unknown> = {}
+  // Loose typing: chain methods take heterogeneous args (eq takes string+unknown,
+  // in takes string+array, etc). Using `any` here is contained to this mock helper.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const chain: Record<string, (...args: any[]) => unknown> = {}
   const self = () => chain
 
   chain.select = () => chain
