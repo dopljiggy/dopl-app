@@ -7,6 +7,7 @@ import DoplerShell from "@/components/dopler-shell";
 import { GlassCard } from "@/components/ui/glass-card";
 import { type PositionLike } from "@/components/ui/position-card";
 import FeedSections from "./feed-sections";
+import { resolveFm } from "@/lib/fm-resolver";
 
 type FundManagerRow = {
   id: string;
@@ -121,31 +122,11 @@ export default async function FeedPage() {
     }
   }
 
-  const norm = (s: string | null | undefined) => {
-    const v = (s ?? "").trim();
-    return v.length ? v : null;
-  };
-  const resolveFm = (id: string) => {
-    const fm = fmMap.get(id);
-    const p = profileMap.get(id);
-    const handle =
-      norm(fm?.handle) ??
-      norm(p?.email?.split("@")[0]) ??
-      null;
-    const display =
-      norm(fm?.display_name) ??
-      norm(p?.full_name) ??
-      handle ??
-      "fund manager";
-    return {
-      handle,
-      display_name: display,
-      avatar_url: fm?.avatar_url ?? null,
-      broker_provider:
-        (fm as FundManagerRow & { broker_provider?: string | null })
-          ?.broker_provider ?? null,
-    };
-  };
+  const resolveFmById = (id: string) =>
+    resolveFm(
+      fmMap.get(id) as (FundManagerRow & { broker_provider?: string | null }) | undefined,
+      profileMap.get(id)
+    );
 
   // 3) positions for every subscribed portfolio.
   const portfolioIds = subs.map((s) => s.portfolio_id);
@@ -197,7 +178,7 @@ export default async function FeedPage() {
                 // missing for some reason.
                 const fmId =
                   s.portfolio.fund_manager_id || s.fund_manager_id;
-                const fm = resolveFm(fmId);
+                const fm = resolveFmById(fmId);
                 return [
                   {
                     sub_id: s.id,
