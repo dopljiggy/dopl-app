@@ -5,6 +5,35 @@ Format: date, description, files, why, impact, testing, risks.
 
 ---
 
+## [2026-04-17] — Plan 3: Sprint 1 launch blockers
+
+**Files changed:**
+- `src/lib/fm-resolver.ts` — `resolveFm` accepts optional id, falls back to `fm_{first6}` then `'unknown'` (no more literal `'fund manager'`)
+- `src/lib/__tests__/fm-resolver.test.ts` — updated pinned fallback test, added id-stub + never-literal tests
+- `src/app/feed/page.tsx` — passes fm id into `resolveFm`
+- `src/app/api/migrate/route.ts` — gated behind `MIGRATION_ADMIN_TOKEN` with `crypto.timingSafeEqual`
+- `src/app/api/migrate/__tests__/route.test.ts` — new (5 tests)
+- `src/proxy.ts` — renamed from `src/middleware.ts`; export `proxy` instead of `middleware` (Next.js 16)
+- `src/lib/stripe.ts` — lazy `getStripe()` replaces eager module-level `stripe`
+- `src/lib/__tests__/stripe.test.ts` — new (4 tests)
+- `src/app/api/stripe/{connect,checkout,webhook}/route.ts`, `src/app/api/subscriptions/route.ts` — call `getStripe()` at handler entry
+- `.env.example` — documents `MIGRATION_ADMIN_TOKEN`
+- `docs/SECURITY-CHECKLIST.md` — ticked migrate-gate item, updated issues-log
+
+**Why:** Close the four launch blockers identified in `research/state-of-repo-2026-04-17.md` §7.6 / §7.8 before Sprint 2 (notification loop v1) begins.
+
+**Impact:**
+- Doplers no longer see literal `'fund manager'` rendered as a display name.
+- `/api/migrate` requires an admin token (401 otherwise); removes an unauthenticated service-role endpoint.
+- `npm run build` emits zero `middleware`-convention deprecation warnings.
+- `npm run build` succeeds with `STRIPE_SECRET_KEY` unset — unblocks future CI.
+
+**Testing:** `npm test` (resolver tests expanded, 5 new migrate tests, 4 new stripe tests); manual `npm run build` with and without `STRIPE_SECRET_KEY`; verified proxy warning absent.
+
+**Risks:** None identified beyond those flagged in the plan's Risks section.
+
+---
+
 ## [2026-04-17] — Plan 1: Transition Setup + Code Audit
 
 **Plan:** `plans/2026-04-17-transition-and-audit.md` (implemented)
