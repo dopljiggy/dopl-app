@@ -10,7 +10,7 @@ import { NextResponse, type NextRequest } from "next/server";
  * Public (not matched):
  *   /, /login, /signup, /leaderboard, /[handle], /api/*, /_next/*, /auth/*
  */
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(

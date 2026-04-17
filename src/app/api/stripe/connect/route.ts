@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { stripe } from "@/lib/stripe";
+import { getStripe } from "@/lib/stripe";
 import { createServerSupabase } from "@/lib/supabase-server";
 
 export async function POST() {
@@ -9,6 +9,7 @@ export async function POST() {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
+    const stripe = getStripe();
     // Create or retrieve Stripe Connect account
     const { data: fm } = await supabase
       .from("fund_managers")

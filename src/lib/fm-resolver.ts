@@ -34,17 +34,23 @@ export interface ResolvedFm {
 
 export function resolveFm(
   fm: FmRow | null | undefined,
-  profile: ProfileRow | null | undefined
+  profile: ProfileRow | null | undefined,
+  id?: string | null
 ): ResolvedFm {
+  const idStub =
+    typeof id === 'string' && id.length > 0
+      ? `fm_${id.slice(0, 6)}`
+      : null
   const handle =
     norm(fm?.handle) ??
     norm(profile?.email?.split('@')[0]) ??
+    idStub ??
     null
   const display_name =
     norm(fm?.display_name) ??
     norm(profile?.full_name) ??
     handle ??
-    'fund manager'
+    'unknown'
   return {
     handle,
     display_name,

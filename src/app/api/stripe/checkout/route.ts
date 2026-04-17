@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { stripe, DOPL_FEE_PERCENT } from "@/lib/stripe";
+import { getStripe, DOPL_FEE_PERCENT } from "@/lib/stripe";
 import { createServerSupabase } from "@/lib/supabase-server";
 
 export async function POST(request: Request) {
@@ -22,6 +22,7 @@ export async function POST(request: Request) {
   }
 
   try {
+    const stripe = getStripe();
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       line_items: [
