@@ -125,7 +125,8 @@ export default async function FeedPage() {
   const resolveFmById = (id: string) =>
     resolveFm(
       fmMap.get(id) as (FundManagerRow & { broker_provider?: string | null }) | undefined,
-      profileMap.get(id)
+      profileMap.get(id),
+      id
     );
 
   // 3) positions for every subscribed portfolio.

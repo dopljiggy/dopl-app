@@ -48,14 +48,37 @@ describe('resolveFm', () => {
     expect(result.handle).toBe('alice')
   })
 
-  it('nothing resolves → returns "fund manager" (pinning current fallback)', () => {
+  it('nothing resolves, no id passed → returns "unknown"', () => {
     const result = resolveFm(
       { display_name: null, handle: null, avatar_url: null },
       { full_name: null, email: null }
     )
-    expect(result.display_name).toBe('fund manager')
+    expect(result.display_name).toBe('unknown')
     expect(result.handle).toBeNull()
     expect(result.avatar_url).toBeNull()
+  })
+
+  it('nothing resolves, id passed → returns fm_{first6 of id}', () => {
+    const result = resolveFm(
+      { display_name: null, handle: null, avatar_url: null },
+      { full_name: null, email: null },
+      'abc123def456'
+    )
+    expect(result.display_name).toBe('fm_abc123')
+    expect(result.handle).toBe('fm_abc123')
+  })
+
+  it('never returns the literal "fund manager"', () => {
+    const inputs = [
+      [undefined, undefined, undefined],
+      [undefined, undefined, ''],
+      [{ display_name: null }, { full_name: null, email: null }, 'id-1'],
+      [{ display_name: '   ' }, { full_name: '  ' }, undefined],
+    ] as const
+    for (const [fm, profile, id] of inputs) {
+      const r = resolveFm(fm, profile, id)
+      expect(r.display_name).not.toBe('fund manager')
+    }
   })
 
   it('fm missing, profile has email → handle derived from email local part', () => {
