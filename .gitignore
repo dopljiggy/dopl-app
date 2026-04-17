@@ -40,3 +40,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# internal workflow artifacts (3-instance pipeline, not shipped with product)
+/PIPELINE.md
+/STATUS.md
+/plans/
+/research/
