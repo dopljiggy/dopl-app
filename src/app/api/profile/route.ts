@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase-server";
 
+const HANDLE_RE = /^[a-z0-9_-]{2,32}$/;
+
 export async function PATCH(request: Request) {
   const supabase = await createServerSupabase();
   const {
@@ -17,23 +19,40 @@ export async function PATCH(request: Request) {
     links?: { platform: string; url: string }[];
   };
 
-  // Upsert into fund_managers — supports first save where row may not exist
+  const normalizedDisplayName = display_name?.trim() ?? "";
+  if (!normalizedDisplayName) {
+    return NextResponse.json(
+      { error: "display name is required" },
+      { status: 400 }
+    );
+  }
+
+  const normalizedHandle = handle?.trim() ?? "";
+  if (!normalizedHandle) {
+    return NextResponse.json({ error: "handle is required" }, { status: 400 });
+  }
+  if (!HANDLE_RE.test(normalizedHandle)) {
+    return NextResponse.json(
+      {
+        error:
+          "handle must be 2-32 characters, lowercase a-z, 0-9, underscore, or hyphen",
+      },
+      { status: 400 }
+    );
+  }
+
+  const payload = {
+    display_name: normalizedDisplayName,
+    handle: normalizedHandle,
+    bio: bio?.trim() || null,
+    links: links ?? [],
+  };
+
   const { data: existing } = await supabase
     .from("fund_managers")
     .select("id")
     .eq("id", user.id)
     .maybeSingle();
-
-  const payload = {
-    display_name: display_name ?? "",
-    handle: handle ?? "",
-    bio: bio ?? null,
-    links: links ?? [],
-  };
-
-  if (!handle) {
-    return NextResponse.json({ error: "handle is required" }, { status: 400 });
-  }
 
   if (!existing) {
     const { error } = await supabase
@@ -41,7 +60,11 @@ export async function PATCH(request: Request) {
       .insert({ id: user.id, ...payload });
     if (error)
       return NextResponse.json(
-        { error: error.message.includes("unique") ? "handle is taken" : error.message },
+        {
+          error: error.message.includes("unique")
+            ? "handle is taken"
+            : error.message,
+        },
         { status: 400 }
       );
   } else {
@@ -51,7 +74,11 @@ export async function PATCH(request: Request) {
       .eq("id", user.id);
     if (error)
       return NextResponse.json(
-        { error: error.message.includes("unique") ? "handle is taken" : error.message },
+        {
+          error: error.message.includes("unique")
+            ? "handle is taken"
+            : error.message,
+        },
         { status: 400 }
       );
   }

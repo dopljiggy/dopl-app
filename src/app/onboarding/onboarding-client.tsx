@@ -24,6 +24,7 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
   const [step, setStep] = useState(0);
   const [bio, setBio] = useState(initial.bio);
   const [displayName, setDisplayName] = useState(initial.displayName);
+  const [handle, setHandle] = useState(initial.handle);
   const [saving, setSaving] = useState(false);
 
   const [region, setRegion] = useState<string | null>(null);
@@ -35,17 +36,22 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
 
   const saveProfile = async () => {
     setSaving(true);
-    await fetch("/api/profile", {
+    const res = await fetch("/api/profile", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        display_name: displayName,
-        handle: initial.handle,
-        bio,
+        display_name: displayName.trim(),
+        handle,
+        bio: bio.trim(),
         links: [],
       }),
     });
     setSaving(false);
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      alert(j.error ?? "could not save profile");
+      return;
+    }
     next();
   };
 
@@ -125,7 +131,7 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
               <StepCard
                 icon={<User size={22} />}
                 title="tell your audience who you are"
-                subtitle="a bio + display name is the bare minimum. avatar later from profile settings."
+                subtitle="display name + handle are required. bio + avatar can come later from profile settings."
               >
                 <input
                   type="text"
@@ -134,11 +140,27 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
                   placeholder="display name"
                   className="w-full bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/30 rounded-xl px-4 py-3 text-sm mb-3"
                 />
+                <div className="relative mb-3">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[color:var(--dopl-cream)]/40 text-sm">
+                    dopl.com/
+                  </span>
+                  <input
+                    type="text"
+                    value={handle}
+                    onChange={(e) =>
+                      setHandle(
+                        e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, "")
+                      )
+                    }
+                    placeholder="handle"
+                    className="w-full bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/30 rounded-xl pl-[5.5rem] pr-4 py-3 text-sm"
+                  />
+                </div>
                 <textarea
                   value={bio}
                   onChange={(e) => setBio(e.target.value.slice(0, 280))}
                   rows={4}
-                  placeholder="what do you trade and why should they follow?"
+                  placeholder="what do you trade and why should they follow? (optional)"
                   className="w-full bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/30 rounded-xl px-4 py-3 text-sm resize-none"
                 />
                 <p className="text-[10px] text-[color:var(--dopl-cream)]/30 text-right mt-1 font-mono">
@@ -146,11 +168,11 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
                 </p>
 
                 <ActionRow
-                  onSkip={next}
+                  onBack={undefined}
                   primary={
                     <button
                       onClick={saveProfile}
-                      disabled={saving || !displayName}
+                      disabled={saving || !displayName.trim() || handle.length < 2}
                       className="btn-lime text-sm px-6 py-2.5 flex items-center gap-2"
                     >
                       {saving ? "saving..." : "continue"}
@@ -360,7 +382,7 @@ function ActionRow({
   onBack,
   primary,
 }: {
-  onSkip: () => void;
+  onSkip?: () => void;
   onBack?: () => void;
   primary: React.ReactNode;
 }) {
@@ -375,12 +397,14 @@ function ActionRow({
             ← back
           </button>
         )}
-        <button
-          onClick={onSkip}
-          className="text-xs text-[color:var(--dopl-cream)]/50 hover:text-[color:var(--dopl-cream)]"
-        >
-          skip
-        </button>
+        {onSkip && (
+          <button
+            onClick={onSkip}
+            className="text-xs text-[color:var(--dopl-cream)]/50 hover:text-[color:var(--dopl-cream)]"
+          >
+            skip
+          </button>
+        )}
       </div>
       {primary}
     </div>
