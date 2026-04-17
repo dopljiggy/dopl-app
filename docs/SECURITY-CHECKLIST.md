@@ -12,7 +12,7 @@ Trimmed from dopl-mvp's SECURITY-AUDIT.md into a checklist format so it stays sh
 - [ ] No client components import `supabase-admin` (service role key must not enter the client bundle)
 - [ ] All API routes that mutate data check ownership of the target row, even when RLS is enabled (defense in depth)
 - [ ] No service-role route performs a public read without an explicit allowlist of fields returned
-- [ ] Middleware enforces role-based access (`fund_manager` → `/dashboard`, `subscriber` → `/feed`, unauthenticated → `/login`)
+- [ ] Proxy enforces role-based access (`fund_manager` → `/dashboard`, `subscriber` → `/feed`, unauthenticated → `/login`)
 
 ## Data Exposure
 
