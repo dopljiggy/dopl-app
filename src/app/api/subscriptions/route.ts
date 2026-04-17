@@ -2,7 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { stripe } from "@/lib/stripe";
+import { getStripe } from "@/lib/stripe";
 
 /**
  * Undopl a subscription. Cancels the Stripe sub if it's paid, flips the row
@@ -29,6 +29,8 @@ export async function DELETE(request: Request) {
   } = await supabase.auth.getUser();
   if (!user)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const stripe = getStripe();
 
   const body = (await request.json().catch(() => ({}))) as {
     subscription_id?: string;
