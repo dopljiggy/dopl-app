@@ -91,7 +91,13 @@
       "Read(//tmp/**)",
       "Bash(grep -rn \"\\\\.from\\(\\\\\"notifications\\\\\"\\)\" /Users/jayandthejuice/Downloads/dopl-app/src --include=*.ts --include=*.tsx)",
       "Bash([ -f \"/Users/jayandthejuice/Downloads/dopl-app/$f\" ])",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(git checkout *)",
+      "Bash(npx vitest *)",
+      "Bash(npm test *)",
+      "Bash(git mv *)",
+      "Bash(unset STRIPE_SECRET_KEY)",
+      "Bash(git merge --no-ff fix/sprint-1-launch-blockers -m ' *)"
     ]
   }
 }
