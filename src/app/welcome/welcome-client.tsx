@@ -1,0 +1,166 @@
+"use client";
+
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Sparkles, Globe, Link2, ArrowRight } from "lucide-react";
+import { GlassCard } from "@/components/ui/glass-card";
+import { REGIONS } from "@/components/connect/region-selector";
+import { TradingConnect } from "@/components/connect/trading-connect";
+
+type Initial = {
+  provider: "snaptrade" | "saltedge" | null;
+  connected: boolean;
+  name: string | null;
+  websiteUrl: string | null;
+};
+
+const STEPS = ["welcome", "region", "connect"] as const;
+
+export default function WelcomeClient({
+  firstName,
+  initial,
+}: {
+  firstName: string;
+  initial: Initial;
+}) {
+  const [step, setStep] = useState(0);
+  const [region, setRegion] = useState<string | null>(null);
+  const [regionSaving, setRegionSaving] = useState<string | null>(null);
+
+  const next = () => setStep((s) => Math.min(s + 1, STEPS.length - 1));
+  const prev = () => setStep((s) => Math.max(s - 1, 0));
+
+  const chooseRegion = async (key: string) => {
+    setRegionSaving(key);
+    try {
+      await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ trading_region: key }),
+      });
+      setRegion(key);
+      next();
+    } finally {
+      setRegionSaving(null);
+    }
+  };
+
+  return (
+    <main className="min-h-screen relative overflow-hidden flex items-center justify-center px-6 py-10">
+      <div
+        aria-hidden
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background:
+            "radial-gradient(800px 400px at 50% -10%, rgba(197,214,52,0.1), transparent 60%), radial-gradient(700px 400px at 100% 100%, rgba(45,74,62,0.5), transparent 60%)",
+        }}
+      />
+
+      <div className="relative w-full max-w-xl">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={step}
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -16 }}
+            transition={{ duration: 0.35 }}
+          >
+            {step === 0 && (
+              <GlassCard className="p-10 md:p-12 text-center">
+                <div className="w-14 h-14 rounded-2xl bg-[color:var(--dopl-lime)]/12 border border-[color:var(--dopl-lime)]/25 flex items-center justify-center text-[color:var(--dopl-lime)] mx-auto mb-6">
+                  <Sparkles size={22} />
+                </div>
+                <h1 className="font-display text-4xl md:text-5xl font-semibold leading-tight tracking-tight">
+                  welcome to dopl
+                  {firstName ? `, ${firstName}` : ""}
+                </h1>
+                <p className="text-[color:var(--dopl-cream)]/60 text-sm md:text-base mt-4 mb-6 max-w-md mx-auto">
+                  find a fund manager worth dopling. when they trade, you&apos;ll see it live — tap to execute in your own broker.
+                </p>
+                <p className="text-[color:var(--dopl-cream)]/50 text-xs mb-6">
+                  first, connect where you trade. takes about 30 seconds.
+                </p>
+                <button
+                  onClick={next}
+                  className="btn-lime text-sm px-7 py-3 inline-flex items-center gap-2"
+                >
+                  let&apos;s go
+                  <ArrowRight size={14} />
+                </button>
+              </GlassCard>
+            )}
+
+            {step === 1 && (
+              <GlassCard className="p-8 md:p-10">
+                <div className="w-12 h-12 rounded-2xl bg-[color:var(--dopl-lime)]/12 border border-[color:var(--dopl-lime)]/25 flex items-center justify-center text-[color:var(--dopl-lime)] mb-5">
+                  <Globe size={22} />
+                </div>
+                <h2 className="font-display text-2xl md:text-3xl font-semibold leading-tight tracking-tight">
+                  where do you trade?
+                </h2>
+                <p className="text-[color:var(--dopl-cream)]/55 text-sm mt-2 mb-6">
+                  pick your region so we show you the right broker network.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {REGIONS.map((r) => {
+                    const busy = regionSaving === r.key;
+                    const selected = region === r.key;
+                    return (
+                      <button
+                        key={r.key}
+                        onClick={() => chooseRegion(r.key)}
+                        disabled={regionSaving !== null}
+                        className={`text-left p-3 rounded-xl border transition-all ${
+                          selected
+                            ? "border-[color:var(--dopl-lime)]/60 bg-[color:var(--dopl-lime)]/10"
+                            : "border-[color:var(--dopl-sage)]/30 bg-[color:var(--dopl-deep)] hover:border-[color:var(--dopl-lime)]/40"
+                        } disabled:opacity-50`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="text-2xl leading-none">{r.flag}</div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-display text-sm font-semibold">{r.label}</div>
+                            <div className="text-[11px] text-[color:var(--dopl-cream)]/45 truncate">
+                              {busy ? "saving…" : r.subtitle}
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  onClick={prev}
+                  className="text-xs text-[color:var(--dopl-cream)]/50 hover:text-[color:var(--dopl-cream)] mt-6"
+                >
+                  ← back
+                </button>
+              </GlassCard>
+            )}
+
+            {step === 2 && (
+              <GlassCard className="p-8 md:p-10">
+                <div className="w-12 h-12 rounded-2xl bg-[color:var(--dopl-lime)]/12 border border-[color:var(--dopl-lime)]/25 flex items-center justify-center text-[color:var(--dopl-lime)] mb-5">
+                  <Link2 size={22} />
+                </div>
+                <h2 className="font-display text-2xl md:text-3xl font-semibold leading-tight tracking-tight">
+                  connect your broker
+                </h2>
+                <p className="text-[color:var(--dopl-cream)]/55 text-sm mt-2 mb-6">
+                  read-only. dopl never executes trades on your behalf — you tap in the app, execute manually in your broker.
+                </p>
+                <TradingConnect initial={initial} />
+                <button
+                  onClick={prev}
+                  className="text-xs text-[color:var(--dopl-cream)]/50 hover:text-[color:var(--dopl-cream)] mt-6"
+                >
+                  ← back
+                </button>
+              </GlassCard>
+            )}
+          </motion.div>
+        </AnimatePresence>
+      </div>
+    </main>
+  );
+}
