@@ -5,6 +5,25 @@ Format: date, description, files, why, impact, testing, risks.
 
 ---
 
+## [2026-04-21] — Sprint 3 hotfix round (Tasks 9-12)
+
+**Files changed:**
+- `src/app/onboarding/onboarding-client.tsx` — Stripe step unconditional (removes circular gate where paid portfolio creation was blocked until Stripe, and Stripe step only showed after paid portfolio existed). Surfaces 400 `error + next` from `/api/portfolios` inline. Broker step now uses a `launchBrokerConnect()` helper that sets a short-lived `dopl_onboarding_flow` cookie and navigates to `/dashboard/connect?from=onboarding`; on return (`?connected=true`), the wizard auto-advances past the broker step.
+- `src/app/(dashboard)/dashboard/portfolios/portfolios-client.tsx` — same error-surfacing pattern in the create modal (inline red banner with billing link).
+- `src/app/api/snaptrade/callback/route.ts` + `src/app/api/saltedge/callback/route.ts` — cookie-based branching: when `dopl_onboarding_flow=1` is present, success redirects to `/onboarding?connected=true` (and errors to `/onboarding?error=…`) instead of `/dashboard/connect`. Cookie cleared on every redirect response.
+- `src/components/ui/notification-bell.tsx` — dropdown uses `top-full` for explicit anchoring (was relying on static-position + `mt-2`).
+- `src/components/dopler-shell.tsx` — bell wrapper gains `relative z-40` to isolate its stacking layer inside the sticky nav's backdrop-blur context.
+
+**Why:** Surfer's 2026-04-21 browser smoke of the deployed Sprint 3 code surfaced 4 blockers: (1) circular Stripe-gate made new FMs unable to reach the "set up stripe" step, (2) paid portfolio create appeared stuck because the 400 response wasn't surfaced to the UI, (3) broker step sent FMs to `/dashboard/connect` with no return path back to the onboarding wizard, (4) notification bell click visibly distorted the top nav layout.
+
+**Impact:** Phase 1 ship readiness unblocked. New FMs can now complete the onboarding wizard end-to-end: profile → region → broker (with auto-return) → portfolio (paid tiers show a pre-creation warning instead of silently failing) → stripe → share.
+
+**Testing:** `npm test` 71/71 green, `npm run build` clean. Manual verification pending on Surfer side.
+
+**Risks:** Bell UI fix is defensive — applied without being able to reproduce the distortion in a headless env. If the symptom persists, a second pass with DOM-inspector evidence is needed.
+
+---
+
 ## [2026-04-20] — Sprint 3: Ship-to-Real-Users (Phase 1)
 
 **Files changed:**

@@ -9,17 +9,36 @@ import { syncSaltedgePositions } from "../sync/sync";
  * We pick the newest connection for this customer, save the connection_id,
  * run a sync, and bounce back to the dashboard.
  */
+function isFromOnboarding(request: NextRequest): boolean {
+  return /(?:^|; )dopl_onboarding_flow=1(?:;|$)/.test(
+    request.headers.get("cookie") ?? ""
+  );
+}
+
+function clearOnboardingCookie(res: NextResponse): NextResponse {
+  res.cookies.set("dopl_onboarding_flow", "", {
+    path: "/",
+    maxAge: 0,
+    sameSite: "lax",
+  });
+  return res;
+}
+
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const origin =
     process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || url.origin;
+  const fromOnboarding = isFromOnboarding(request);
+  const returnBase = fromOnboarding ? "/onboarding" : "/dashboard/connect";
 
   const supabase = await createServerSupabase();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.redirect(`${origin}/login?error=session%20expired`);
+    return clearOnboardingCookie(
+      NextResponse.redirect(`${origin}/login?error=session%20expired`)
+    );
   }
 
   const { data: fm } = await supabase
@@ -29,10 +48,12 @@ export async function GET(request: NextRequest) {
     .maybeSingle();
 
   if (!fm?.saltedge_customer_id) {
-    return NextResponse.redirect(
-      `${origin}/dashboard/connect?error=${encodeURIComponent(
-        "salt edge customer missing — try again"
-      )}`
+    return clearOnboardingCookie(
+      NextResponse.redirect(
+        `${origin}${returnBase}?error=${encodeURIComponent(
+          "salt edge customer missing — try again"
+        )}`
+      )
     );
   }
 
@@ -46,10 +67,12 @@ export async function GET(request: NextRequest) {
     const connection = sorted[0];
     const connId = connection ? connectionId(connection) : null;
     if (!connection || !connId) {
-      return NextResponse.redirect(
-        `${origin}/dashboard/connect?error=${encodeURIComponent(
-          "no salt edge connection found"
-        )}`
+      return clearOnboardingCookie(
+        NextResponse.redirect(
+          `${origin}${returnBase}?error=${encodeURIComponent(
+            "no salt edge connection found"
+          )}`
+        )
       );
     }
 
@@ -66,13 +89,16 @@ export async function GET(request: NextRequest) {
 
     const positionCount = await syncSaltedgePositions(user.id, connId);
 
-    return NextResponse.redirect(
-      `${origin}/dashboard/connect?connected=true&positions=${positionCount}`
-    );
+    const successUrl = fromOnboarding
+      ? `${origin}/onboarding?connected=true`
+      : `${origin}/dashboard/connect?connected=true&positions=${positionCount}`;
+    return clearOnboardingCookie(NextResponse.redirect(successUrl));
   } catch (err) {
     const msg = err instanceof Error ? err.message : "sync failed";
-    return NextResponse.redirect(
-      `${origin}/dashboard/connect?error=${encodeURIComponent(msg)}`
+    return clearOnboardingCookie(
+      NextResponse.redirect(
+        `${origin}${returnBase}?error=${encodeURIComponent(msg)}`
+      )
     );
   }
 }
