@@ -27,6 +27,7 @@ import { useRouter } from "next/navigation";
 import { GlassCard } from "@/components/ui/glass-card";
 import { fireToast } from "@/components/ui/toast";
 import { SyncBadge } from "@/components/ui/sync-badge";
+import { SendManualUpdateModal } from "@/components/ui/send-manual-update-modal";
 import type { Portfolio } from "@/types/database";
 
 export type PositionRow = {
@@ -93,6 +94,7 @@ export default function ExpandablePortfolioCard({
     )
   );
   const [saving, setSaving] = useState(false);
+  const [showManualUpdate, setShowManualUpdate] = useState(false);
 
   const sum = Object.values(draft).reduce((a, b) => a + (Number(b) || 0), 0);
   const isBalanced = Math.abs(sum - 100) < 0.1;
@@ -463,6 +465,15 @@ export default function ExpandablePortfolioCard({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
+                    setShowManualUpdate(true);
+                  }}
+                  className="glass-card-light px-4 py-2 text-xs rounded-xl hover:bg-[color:var(--dopl-sage)]/40 transition-colors inline-flex items-center gap-2"
+                >
+                  send manual update →
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
                     onDelete();
                   }}
                   className="glass-card-light px-4 py-2 text-xs rounded-xl hover:bg-red-500/10 hover:text-red-300 transition-colors inline-flex items-center gap-2 ml-auto"
@@ -475,6 +486,12 @@ export default function ExpandablePortfolioCard({
           </motion.div>
         )}
       </AnimatePresence>
+      <SendManualUpdateModal
+        open={showManualUpdate}
+        portfolioId={portfolio.id}
+        portfolioName={portfolio.name}
+        onClose={() => setShowManualUpdate(false)}
+      />
     </GlassCard>
   );
 }
