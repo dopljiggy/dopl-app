@@ -30,8 +30,14 @@ export async function POST(request: Request) {
     let accountId = fm?.stripe_account_id;
 
     if (!accountId) {
+      // business_type: "individual" skips the UAE-heavy business-docs flow
+      // (trade license, memorandum of association, etc.) and sends the FM
+      // through personal ID verification instead. Dopl's model is
+      // individual fund managers — LLC/company FMs can still switch
+      // business_type inside Stripe's hosted flow if needed.
       const account = await stripe.accounts.create({
         type: "express",
+        business_type: "individual",
         metadata: { dopl_user_id: user.id },
       });
       accountId = account.id;
