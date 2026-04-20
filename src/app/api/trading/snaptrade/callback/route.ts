@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
       })
       .eq("id", user.id);
 
-    return NextResponse.redirect(`${origin}/settings?connected=true`);
+    return NextResponse.redirect(`${origin}/feed?connected=true`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "callback failed";
     return NextResponse.redirect(

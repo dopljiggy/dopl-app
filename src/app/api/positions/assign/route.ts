@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase-server";
+import { createAdminClient } from "@/lib/supabase-admin";
+import { fanOutPortfolioUpdate } from "@/lib/notification-fanout";
 
 interface AssignBody {
   portfolio_id: string;
@@ -77,11 +79,16 @@ export async function POST(request: Request) {
       await recalculateAllocations(supabase, body.portfolio_id);
     }
 
-    // Log a portfolio update + fan out notifications to subscribers.
-    await logUpdateAndNotify(supabase, {
+    await fanOutPortfolioUpdate(createAdminClient(), {
       portfolio_id: body.portfolio_id,
       fund_manager_id: user.id,
-      update_type: "position_added",
+      changes: [
+        {
+          type: "buy",
+          ticker: body.ticker,
+          shares: body.shares ?? 0,
+        },
+      ],
       description: `added ${body.ticker}`,
       thesis_note: body.thesis_note ?? null,
     });
@@ -101,7 +108,7 @@ export async function DELETE(request: Request) {
   const { id } = await request.json();
   const { data: pos } = await supabase
     .from("positions")
-    .select("id, ticker, portfolio_id, portfolios!inner(fund_manager_id)")
+    .select("id, ticker, shares, portfolio_id, portfolios!inner(fund_manager_id)")
     .eq("id", id)
     .maybeSingle();
 
@@ -113,10 +120,16 @@ export async function DELETE(request: Request) {
   await supabase.from("positions").delete().eq("id", id);
   // Don't auto-recalc on delete — fund manager's custom allocations stay
   // intact; the "rebalance to 100%" button in the UI lets them fix sums.
-  await logUpdateAndNotify(supabase, {
+  await fanOutPortfolioUpdate(createAdminClient(), {
     portfolio_id: pos.portfolio_id,
     fund_manager_id: user.id,
-    update_type: "position_removed",
+    changes: [
+      {
+        type: "sell",
+        ticker: pos.ticker,
+        prevShares: Number(pos.shares) || 0,
+      },
+    ],
     description: `removed ${pos.ticker}`,
     thesis_note: null,
   });
@@ -148,49 +161,4 @@ async function recalculateAllocations(supabase: any, portfolioId: string) {
         .eq("id", p.id)
     )
   );
-}
-
-async function logUpdateAndNotify(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: any,
-  update: {
-    portfolio_id: string;
-    fund_manager_id: string;
-    update_type: "position_added" | "position_removed" | "rebalanced" | "note";
-    description: string;
-    thesis_note: string | null;
-  }
-) {
-  const { data: pu } = await supabase
-    .from("portfolio_updates")
-    .insert(update)
-    .select("id")
-    .single();
-
-  if (!pu) return;
-
-  // Fan out to active subscribers.
-  const { data: subs } = await supabase
-    .from("subscriptions")
-    .select("user_id")
-    .eq("portfolio_id", update.portfolio_id)
-    .eq("status", "active");
-
-  const { data: portfolio } = await supabase
-    .from("portfolios")
-    .select("name")
-    .eq("id", update.portfolio_id)
-    .single();
-
-  if (subs?.length) {
-    await supabase.from("notifications").insert(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      subs.map((s: any) => ({
-        user_id: s.user_id,
-        portfolio_update_id: pu.id,
-        title: portfolio?.name ?? "portfolio update",
-        body: update.description,
-      }))
-    );
-  }
 }

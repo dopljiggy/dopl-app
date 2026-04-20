@@ -5,7 +5,6 @@ import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { Bell } from "lucide-react";
 import { useNotifications } from "@/hooks/use-notifications";
-import { fireToast } from "@/components/ui/toast";
 import {
   NotificationPopup,
   type PopupNotification,
@@ -26,26 +25,6 @@ export default function NotificationBell({
   const [open, setOpen] = useState(false);
   const [popup, setPopup] = useState<PopupNotification | null>(null);
   const ref = useRef<HTMLDivElement>(null);
-  const lastIdRef = useRef<string | null>(null);
-
-  // Fire a toast on each newly received notification (not on initial load).
-  useEffect(() => {
-    if (!notifications.length) return;
-    const newest = notifications[0];
-    if (lastIdRef.current === null) {
-      lastIdRef.current = newest.id;
-      return;
-    }
-    if (newest.id !== lastIdRef.current) {
-      lastIdRef.current = newest.id;
-      if (!newest.read) {
-        fireToast({
-          title: newest.title,
-          body: newest.body ?? undefined,
-        });
-      }
-    }
-  }, [notifications]);
 
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
@@ -111,6 +90,7 @@ export default function NotificationBell({
                         title: n.title,
                         body: n.body,
                         created_at: n.created_at,
+                        actionable: n.actionable,
                       });
                       setOpen(false);
                     }}

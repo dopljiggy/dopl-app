@@ -4,6 +4,10 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Loader2, RefreshCw, Trash2, TrendingUp } from "lucide-react";
 import { useRouter } from "next/navigation";
+import {
+  NotifyDoplersModal,
+  type PortfolioChangeset,
+} from "@/components/ui/notify-doplers-modal";
 
 interface SyncedPosition {
   ticker: string;
@@ -47,6 +51,10 @@ export default function PositionsClient({
   const [synced, setSynced] = useState<SyncedPosition[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pendingTicker, setPendingTicker] = useState<string | null>(null);
+  const [pendingChangesets, setPendingChangesets] = useState<
+    { portfolio_id: string; portfolio_name: string; changes: unknown[] }[]
+  >([]);
+  const [showNotifyModal, setShowNotifyModal] = useState(false);
 
   // Tickers already assigned to ANY portfolio.
   const assignedTickers = new Set(assignedPositions.map((p) => p.ticker));
@@ -65,6 +73,13 @@ export default function PositionsClient({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "sync failed");
       setSynced(data.positions ?? []);
+      if (Array.isArray(data.perPortfolio)) {
+        setPendingChangesets(data.perPortfolio);
+        const hasAny = data.perPortfolio.some(
+          (p: { changes: unknown[] }) => p.changes.length > 0
+        );
+        setShowNotifyModal(hasAny);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "sync failed");
     } finally {
@@ -98,6 +113,19 @@ export default function PositionsClient({
       body: JSON.stringify({ id }),
     });
     router.refresh();
+  };
+
+  const handleNotify = async (portfolioId: string) => {
+    const cs = pendingChangesets.find((c) => c.portfolio_id === portfolioId);
+    if (!cs) return;
+    await fetch("/api/portfolios/notify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        portfolio_id: portfolioId,
+        changes: cs.changes,
+      }),
+    });
   };
 
   if (!brokerConnected) {
@@ -293,6 +321,16 @@ export default function PositionsClient({
           )}
         </section>
       </div>
+
+      <NotifyDoplersModal
+        open={showNotifyModal}
+        changesets={pendingChangesets as PortfolioChangeset[]}
+        onClose={() => {
+          setShowNotifyModal(false);
+          setPendingChangesets([]);
+        }}
+        onNotify={handleNotify}
+      />
     </div>
   );
 }

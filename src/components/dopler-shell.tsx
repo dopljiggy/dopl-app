@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { Home, Compass, Bell, User } from "lucide-react";
 import { useEffect, useState } from "react";
 import NotificationBell from "@/components/ui/notification-bell";
+import { NotificationToastListener } from "@/components/ui/notification-toast-listener";
 import PageTransition from "@/components/ui/page-transition";
 import { createClient } from "@/lib/supabase";
 import { useNotifications } from "@/hooks/use-notifications";
@@ -108,12 +109,15 @@ export default function DoplerShell({
           </div>
 
           <div className="ml-auto flex items-center gap-2">
-            <NotificationBell
-              userId={userId}
-              tradingConnected={trading.connected}
-              tradingName={trading.name}
-              tradingWebsite={trading.website}
-            />
+            <div className="hidden md:block">
+              <NotificationBell
+                userId={userId}
+                tradingConnected={trading.connected}
+                tradingName={trading.name}
+                tradingWebsite={trading.website}
+              />
+            </div>
+            <NotificationToastListener userId={userId} />
           </div>
         </div>
       </nav>

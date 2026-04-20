@@ -18,6 +18,13 @@ alter table public.fund_managers add column if not exists region text;
 alter table public.fund_managers add column if not exists broker_provider text default 'snaptrade';
 alter table public.fund_managers add column if not exists saltedge_customer_id text;
 alter table public.fund_managers add column if not exists saltedge_connection_id text;
+
+alter table public.notifications add column if not exists actionable boolean not null default true;
+alter table public.notifications add column if not exists change_type text check (change_type is null or change_type in ('buy', 'sell', 'rebalance', 'summary', 'note'));
+alter table public.notifications add column if not exists ticker text;
+alter table public.notifications add column if not exists meta jsonb default '{}'::jsonb;
+
+create index if not exists notifications_user_created_idx on public.notifications (user_id, created_at desc);
 `.trim();
 
 function authorize(request: Request): NextResponse | null {
