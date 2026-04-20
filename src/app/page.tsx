@@ -1,6 +1,46 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { createServerSupabase } from "@/lib/supabase-server";
 
-export default function LandingPage() {
+type PageUser = { id: string } | null;
+type PageProfile = {
+  role?: "fund_manager" | "subscriber" | null;
+  trading_connected?: boolean | null;
+} | null;
+
+export function determineAuthedHomeTarget(
+  user: PageUser,
+  profile: PageProfile
+): string | null {
+  if (!user || !profile?.role) return null;
+  if (profile.role === "fund_manager") return "/dashboard";
+  if (profile.role === "subscriber") {
+    return profile.trading_connected ? "/feed" : "/welcome";
+  }
+  return null;
+}
+
+export default async function LandingPage() {
+  const supabase = await createServerSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  let profile: PageProfile = null;
+  if (user) {
+    const { data } = await supabase
+      .from("profiles")
+      .select("role, trading_connected")
+      .eq("id", user.id)
+      .maybeSingle();
+    profile = (data as PageProfile) ?? null;
+  }
+  const target = determineAuthedHomeTarget(user, profile);
+  if (target) redirect(target);
+
+  return <MarketingLanding />;
+}
+
+function MarketingLanding() {
   return (
     <main className="min-h-screen">
       {/* Nav */}
