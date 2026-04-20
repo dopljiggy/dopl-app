@@ -34,12 +34,14 @@ export default function ProfileTiers({
   displayName,
   isAuthed,
   brokerProvider,
+  fmStripeOnboarded = false,
 }: {
   tiers: TierPortfolio[];
   handle: string;
   displayName: string;
   isAuthed: boolean;
   brokerProvider?: string | null;
+  fmStripeOnboarded?: boolean;
 }) {
   const router = useRouter();
 
@@ -285,6 +287,15 @@ export default function ProfileTiers({
                   >
                     {pending === p.id ? "dopling..." : "dopl this portfolio"}
                   </button>
+                ) : !fmStripeOnboarded ? (
+                  <div className="glass-card-light p-6 text-center rounded-xl">
+                    <p className="text-sm text-[color:var(--dopl-cream)]/60">
+                      this fund manager is finalizing setup.
+                    </p>
+                    <p className="text-xs text-[color:var(--dopl-cream)]/40 mt-1">
+                      check back soon.
+                    </p>
+                  </div>
                 ) : (
                   <SlideToDopl
                     label={`slide to dopl · $${(p.price_cents / 100).toFixed(0)}/mo`}

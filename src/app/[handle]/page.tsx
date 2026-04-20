@@ -169,6 +169,7 @@ export default async function FundManagerProfile({
               displayName={fm.display_name}
               isAuthed={!!user}
               brokerProvider={fm.broker_provider ?? null}
+              fmStripeOnboarded={!!fm.stripe_onboarded}
             />
           </>
         ) : (
