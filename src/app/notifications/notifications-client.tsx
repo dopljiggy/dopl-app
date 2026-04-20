@@ -90,6 +90,7 @@ export default function NotificationsClient({
                       title: n.title,
                       body: n.body,
                       created_at: n.created_at,
+                      actionable: n.actionable,
                     })
                   }
                 >
@@ -114,52 +115,58 @@ export default function NotificationsClient({
                     </span>
                   </div>
 
-                  <div
-                    className="mt-3 pl-5 flex flex-wrap gap-2"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {ticker && (
-                      <button
-                        onClick={() => copyTicker(ticker, n.id)}
-                        className="glass-card-light px-3 py-1.5 text-xs rounded-lg hover:bg-[color:var(--dopl-sage)]/40 transition-colors inline-flex items-center gap-1.5"
-                      >
-                        {isCopied ? (
-                          <>
-                            <Check
-                              size={12}
-                              className="text-[color:var(--dopl-lime)]"
-                            />
-                            copied
-                          </>
-                        ) : (
-                          <>
-                            <Copy size={12} />
-                            copy {ticker}
-                          </>
-                        )}
-                      </button>
-                    )}
+                  {n.actionable === false ? (
+                    <div className="mt-2 pl-5 text-[10px] uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/40 font-mono">
+                      informational
+                    </div>
+                  ) : (
+                    <div
+                      className="mt-3 pl-5 flex flex-wrap gap-2"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {ticker && (
+                        <button
+                          onClick={() => copyTicker(ticker, n.id)}
+                          className="glass-card-light px-3 py-1.5 text-xs rounded-lg hover:bg-[color:var(--dopl-sage)]/40 transition-colors inline-flex items-center gap-1.5"
+                        >
+                          {isCopied ? (
+                            <>
+                              <Check
+                                size={12}
+                                className="text-[color:var(--dopl-lime)]"
+                              />
+                              copied
+                            </>
+                          ) : (
+                            <>
+                              <Copy size={12} />
+                              copy {ticker}
+                            </>
+                          )}
+                        </button>
+                      )}
 
-                    {tradingConnected && tradingWebsite ? (
-                      <a
-                        href={tradingWebsite}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="glass-card-light px-3 py-1.5 text-xs rounded-lg hover:bg-[color:var(--dopl-lime)]/15 transition-colors inline-flex items-center gap-1.5 text-[color:var(--dopl-lime)]"
-                      >
-                        <ExternalLink size={12} />
-                        open {tradingName ?? "broker"}
-                      </a>
-                    ) : (
-                      <Link
-                        href="/settings"
-                        className="px-3 py-1.5 text-xs rounded-lg hover:bg-[color:var(--dopl-lime)]/10 transition-colors inline-flex items-center gap-1.5 text-[color:var(--dopl-cream)]/50 hover:text-[color:var(--dopl-lime)]"
-                      >
-                        <Link2 size={12} />
-                        connect where you trade
-                      </Link>
-                    )}
-                  </div>
+                      {tradingConnected && tradingWebsite ? (
+                        <a
+                          href={tradingWebsite}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="glass-card-light px-3 py-1.5 text-xs rounded-lg hover:bg-[color:var(--dopl-lime)]/15 transition-colors inline-flex items-center gap-1.5 text-[color:var(--dopl-lime)]"
+                        >
+                          <ExternalLink size={12} />
+                          open {tradingName ?? "broker"}
+                        </a>
+                      ) : (
+                        <Link
+                          href="/settings"
+                          className="px-3 py-1.5 text-xs rounded-lg hover:bg-[color:var(--dopl-lime)]/10 transition-colors inline-flex items-center gap-1.5 text-[color:var(--dopl-cream)]/50 hover:text-[color:var(--dopl-lime)]"
+                        >
+                          <Link2 size={12} />
+                          connect where you trade
+                        </Link>
+                      )}
+                    </div>
+                  )}
                 </motion.div>
               );
             })}

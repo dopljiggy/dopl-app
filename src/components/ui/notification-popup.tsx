@@ -17,6 +17,7 @@ export type PopupNotification = {
   title: string;
   body: string | null;
   created_at: string;
+  actionable?: boolean;
 };
 
 function extractTicker(body: string | null | undefined): string | null {
@@ -133,44 +134,52 @@ export function NotificationPopup({
             )}
 
             <div className="space-y-2">
-              {tradingConnected && tradingWebsite ? (
-                <a
-                  href={tradingWebsite}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="btn-lime w-full text-sm py-3 inline-flex items-center justify-center gap-2"
-                >
-                  <ExternalLink size={14} />
-                  trade this · open {tradingName ?? "broker"}
-                </a>
+              {notification.actionable === false ? (
+                <div className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/40 font-mono text-center py-2">
+                  informational
+                </div>
               ) : (
-                <Link
-                  href="/settings"
-                  onClick={onClose}
-                  className="btn-lime w-full text-sm py-3 inline-flex items-center justify-center gap-2"
-                >
-                  <Link2 size={14} />
-                  connect where you trade
-                </Link>
-              )}
-
-              {ticker && (
-                <button
-                  onClick={copyTicker}
-                  className="w-full glass-card-light py-2.5 text-sm rounded-xl hover:bg-[color:var(--dopl-sage)]/40 transition-colors inline-flex items-center justify-center gap-2"
-                >
-                  {copied ? (
-                    <>
-                      <Check size={14} className="text-[color:var(--dopl-lime)]" />
-                      copied!
-                    </>
+                <>
+                  {tradingConnected && tradingWebsite ? (
+                    <a
+                      href={tradingWebsite}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="btn-lime w-full text-sm py-3 inline-flex items-center justify-center gap-2"
+                    >
+                      <ExternalLink size={14} />
+                      trade this · open {tradingName ?? "broker"}
+                    </a>
                   ) : (
-                    <>
-                      <Copy size={14} />
-                      copy {ticker}
-                    </>
+                    <Link
+                      href="/settings"
+                      onClick={onClose}
+                      className="btn-lime w-full text-sm py-3 inline-flex items-center justify-center gap-2"
+                    >
+                      <Link2 size={14} />
+                      connect where you trade
+                    </Link>
                   )}
-                </button>
+
+                  {ticker && (
+                    <button
+                      onClick={copyTicker}
+                      className="w-full glass-card-light py-2.5 text-sm rounded-xl hover:bg-[color:var(--dopl-sage)]/40 transition-colors inline-flex items-center justify-center gap-2"
+                    >
+                      {copied ? (
+                        <>
+                          <Check size={14} className="text-[color:var(--dopl-lime)]" />
+                          copied!
+                        </>
+                      ) : (
+                        <>
+                          <Copy size={14} />
+                          copy {ticker}
+                        </>
+                      )}
+                    </button>
+                  )}
+                </>
               )}
 
               <button

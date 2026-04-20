@@ -13,11 +13,8 @@ import {
   Home,
   Settings,
 } from "lucide-react";
-import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import PageTransition from "@/components/ui/page-transition";
-import NotificationBell from "@/components/ui/notification-bell";
-import { createClient } from "@/lib/supabase";
 import SignOutLink from "@/components/sign-out-link";
 
 const sideNav = [
@@ -149,15 +146,6 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const [userId, setUserId] = useState<string | null>(null);
-
-  useEffect(() => {
-    const supabase = createClient();
-    void supabase.auth.getUser().then(({ data }) => {
-      setUserId(data.user?.id ?? null);
-    });
-  }, []);
-
   return (
     <div className="min-h-screen flex">
       <aside className="w-64 border-r border-[color:var(--glass-border)] p-6 hidden md:flex md:flex-col sticky top-0 h-screen overflow-y-auto">
@@ -174,9 +162,6 @@ export default function DashboardLayout({
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-3 md:hidden">
             <DoplLogo />
-          </div>
-          <div className="flex items-center gap-4 ml-auto">
-            <NotificationBell userId={userId} />
           </div>
         </div>
         <PageTransition>{children}</PageTransition>
