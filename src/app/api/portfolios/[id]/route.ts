@@ -38,23 +38,9 @@ export async function PATCH(
 
   const body = await request.json();
 
-  if (Number(body.price_cents ?? 0) > 0) {
-    const { data: fm } = await supabase
-      .from("fund_managers")
-      .select("stripe_onboarded")
-      .eq("id", user.id)
-      .maybeSingle();
-    if (!fm?.stripe_onboarded) {
-      return NextResponse.json(
-        {
-          error: "Complete Stripe onboarding before publishing paid portfolios.",
-          next: "/dashboard/billing",
-        },
-        { status: 400 }
-      );
-    }
-  }
-
+  // Paid tier changes are allowed pre-Stripe. Doplers see the "finalizing
+  // setup" lock until stripe_onboarded flips true; checkout is the final
+  // gate. Keeps onboarding unblocked when Stripe docs take hours to clear.
   const { error } = await supabase
     .from("portfolios")
     .update(body)

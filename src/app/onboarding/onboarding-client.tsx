@@ -510,7 +510,7 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
                 )}
                 {portfolioTier !== "free" && !initial.stripeOnboarded && (
                   <div className="mt-3 rounded-xl border border-amber-400/30 bg-amber-400/5 px-3 py-2.5 text-xs text-amber-200/80">
-                    paid tiers need stripe connected. you&apos;ll set that up in the next step.
+                    paid tier — will go live once you finish stripe in the next step. doplers see a &ldquo;finalizing setup&rdquo; lock until then.
                   </div>
                 )}
                 {createError && (
