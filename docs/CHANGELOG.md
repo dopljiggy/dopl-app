@@ -5,6 +5,21 @@ Format: date, description, files, why, impact, testing, risks.
 
 ---
 
+## [2026-04-20] — Dopler sign-out access on desktop
+
+**Files changed:**
+- `src/components/dopler-shell.tsx` — desktop top nav gains a User-icon link to `/settings`, placed next to the bell. Hidden on mobile (bottom nav's profile tab already covers it).
+
+**Why:** Post-Sprint-2 smoke exposed that doplers on desktop had no access to `/settings` from the top-level UI — the only sign-out path required typing the URL manually. FM side has sign-out one click away via the sidebar; dopler side had asymmetric UX.
+
+**Impact:** One-click path to `/settings` (and its existing `<SignOutButton>`) from any dopler page on desktop. Mobile path unchanged — still via the bottom-nav profile tab.
+
+**Testing:** Tests unchanged. Manual smoke: log in as dopler on desktop, confirm user icon appears right of the bell, clicking lands on `/settings`, sign-out button visible there.
+
+**Risks:** None. Pure additive change; no conditional render flaps.
+
+---
+
 ## [2026-04-20] — Sprint 2: Notification Loop v1
 
 **Files changed:**
