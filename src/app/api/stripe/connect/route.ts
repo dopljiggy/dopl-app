@@ -2,11 +2,21 @@ import { NextResponse } from "next/server";
 import { getStripe } from "@/lib/stripe";
 import { createServerSupabase } from "@/lib/supabase-server";
 
-export async function POST() {
+export async function POST(request: Request) {
   const supabase = await createServerSupabase();
   const { data: { user } } = await supabase.auth.getUser();
-  
+
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  let from: string | undefined;
+  try {
+    const body = (await request.json().catch(() => ({}))) as { from?: string };
+    from = body?.from;
+  } catch {
+    from = undefined;
+  }
+  const origin = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "";
+  const returnBase = from === "onboarding" ? "/onboarding" : "/dashboard/billing";
 
   try {
     const stripe = getStripe();
@@ -35,8 +45,8 @@ export async function POST() {
     // Create account link for onboarding
     const accountLink = await stripe.accountLinks.create({
       account: accountId,
-      refresh_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/billing`,
-      return_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/billing?success=true`,
+      refresh_url: `${origin}${returnBase}`,
+      return_url: `${origin}${returnBase}?stripe_done=true`,
       type: "account_onboarding",
     });
 
