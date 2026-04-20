@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Briefcase } from "lucide-react";
+import { Plus, Briefcase, Lock } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { Portfolio } from "@/types/database";
 import { GlassCard } from "@/components/ui/glass-card";
@@ -28,10 +28,12 @@ export default function PortfoliosClient({
   portfolios,
   positions,
   brokerProvider,
+  stripeOnboarded,
 }: {
   portfolios: Portfolio[];
   positions: PositionRow[];
   brokerProvider?: string | null;
+  stripeOnboarded: boolean;
 }) {
   const router = useRouter();
   const [showCreate, setShowCreate] = useState(false);
@@ -117,17 +119,24 @@ export default function PortfoliosClient({
       ) : (
         <div className="space-y-4">
           {portfolios.map((p) => (
-            <ExpandablePortfolioCard
-              key={p.id}
-              portfolio={p}
-              positions={positionsByPortfolio.get(p.id) ?? []}
-              isExpanded={expandedId === p.id}
-              onToggle={() =>
-                setExpandedId(expandedId === p.id ? null : p.id)
-              }
-              onDelete={() => handleDelete(p.id)}
-              brokerProvider={brokerProvider}
-            />
+            <div key={p.id}>
+              {p.tier !== "free" && !stripeOnboarded && (
+                <div className="text-[10px] uppercase tracking-[0.2em] text-amber-300/70 font-mono mb-1 flex items-center gap-1.5">
+                  <Lock size={10} />
+                  set up stripe to publish
+                </div>
+              )}
+              <ExpandablePortfolioCard
+                portfolio={p}
+                positions={positionsByPortfolio.get(p.id) ?? []}
+                isExpanded={expandedId === p.id}
+                onToggle={() =>
+                  setExpandedId(expandedId === p.id ? null : p.id)
+                }
+                onDelete={() => handleDelete(p.id)}
+                brokerProvider={brokerProvider}
+              />
+            </div>
           ))}
         </div>
       )}

@@ -20,6 +20,7 @@ export default function PortfolioDetailClient(props: {
   updates: PortfolioUpdate[];
   canView: boolean;
   portfolioId: string;
+  fmStripeOnboarded?: boolean;
 }) {
   return (
     <Suspense fallback={null}>
@@ -34,12 +35,14 @@ function Inner({
   updates,
   canView,
   portfolioId,
+  fmStripeOnboarded = false,
 }: {
   portfolio: PortfolioWithFm;
   positions: PositionLike[];
   updates: PortfolioUpdate[];
   canView: boolean;
   portfolioId: string;
+  fmStripeOnboarded?: boolean;
 }) {
   const router = useRouter();
   const params = useSearchParams();
@@ -205,13 +208,24 @@ function Inner({
           <p className="text-[color:var(--dopl-cream)]/55 text-sm mb-6 max-w-md mx-auto">
             real-time tickers, allocations, and instant alerts when they trade.
           </p>
-          <div className="max-w-sm mx-auto">
-            <SlideToDopl
-              label={`slide to dopl · $${(portfolio.price_cents / 100).toFixed(0)}/mo`}
-              completedLabel="redirecting..."
-              onComplete={handleSubscribe}
-            />
-          </div>
+          {portfolio.price_cents > 0 && !fmStripeOnboarded ? (
+            <div className="glass-card-light p-6 text-center rounded-xl max-w-sm mx-auto">
+              <p className="text-sm text-[color:var(--dopl-cream)]/60">
+                this fund manager is finalizing setup.
+              </p>
+              <p className="text-xs text-[color:var(--dopl-cream)]/40 mt-1">
+                check back soon.
+              </p>
+            </div>
+          ) : (
+            <div className="max-w-sm mx-auto">
+              <SlideToDopl
+                label={`slide to dopl · $${(portfolio.price_cents / 100).toFixed(0)}/mo`}
+                completedLabel="redirecting..."
+                onComplete={handleSubscribe}
+              />
+            </div>
+          )}
         </GlassCard>
       )}
 

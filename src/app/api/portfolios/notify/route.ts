@@ -11,6 +11,7 @@ type NotifyBody = {
   description?: string;
   thesis_note?: string | null;
   changes?: FanoutChange[];
+  meta?: Record<string, unknown>;
 };
 
 export async function POST(request: Request) {
@@ -46,6 +47,7 @@ export async function POST(request: Request) {
       changes: body.changes ?? [],
       description: body.description,
       thesis_note: body.thesis_note ?? null,
+      meta_extend: body.meta,
     });
     return NextResponse.json(result);
   } catch (err) {

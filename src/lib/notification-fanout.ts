@@ -19,6 +19,7 @@ export interface FanoutInput {
   changes: FanoutChange[];
   description?: string;
   thesis_note?: string | null;
+  meta_extend?: Record<string, unknown>;
 }
 
 export interface FanoutResult {
@@ -138,6 +139,7 @@ export async function fanOutPortfolioUpdate(
         meta: {
           shares: "shares" in change ? change.shares : undefined,
           prev_shares: "prevShares" in change ? change.prevShares : undefined,
+          ...(input.meta_extend ?? {}),
         },
       });
     }
@@ -150,7 +152,10 @@ export async function fanOutPortfolioUpdate(
         actionable: true,
         change_type: "summary",
         ticker: null,
-        meta: { rebalance_count: rebalances.length },
+        meta: {
+          rebalance_count: rebalances.length,
+          ...(input.meta_extend ?? {}),
+        },
       });
     }
     if (individuals.length === 0 && rebalances.length === 0) {
@@ -162,7 +167,7 @@ export async function fanOutPortfolioUpdate(
         actionable: true,
         change_type: "note",
         ticker: null,
-        meta: {},
+        meta: { ...(input.meta_extend ?? {}) },
       });
     }
   }

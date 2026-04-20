@@ -5,6 +5,48 @@ Format: date, description, files, why, impact, testing, risks.
 
 ---
 
+## [2026-04-20] — Sprint 3: Ship-to-Real-Users (Phase 1)
+
+**Files changed:**
+- `src/app/page.tsx` + `__tests__/home-redirect.test.ts` — authed users hitting `/` redirect to role-appropriate page (FM → /dashboard, connected dopler → /feed, unconnected dopler → /welcome). 5 unit tests pin the pure helper `determineAuthedHomeTarget`.
+- `src/lib/onboarding-gates.ts` + `__tests__/` — pure predicate `fmNeedsOnboarding`; 5 unit tests.
+- `src/app/api/auth/provision/route.ts` — returns `needs_onboarding: true` for fresh fund_managers.
+- `src/app/(auth)/signup/page.tsx` — FM first-signup now routes to `/onboarding` (not `/dashboard`). Duplicate email, handle collision, and password-too-short errors surfaced inline.
+- `src/app/(auth)/login/page.tsx` — "invalid login credentials" and "email not confirmed" surfaced with friendlier copy.
+- `src/app/(dashboard)/layout.tsx` + `dashboard-chrome.tsx` — layout converted to a server component that fetches FM + portfolio count and runs the `fmNeedsOnboarding` gate; existing client nav extracted to `dashboard-chrome.tsx`.
+- `src/app/onboarding/page.tsx` + `onboarding-client.tsx` — conditional Stripe Connect step inserted between portfolio and share when any portfolio is priced > 0. Step ordering is named (not numeric) so the conditional step doesn't break offsets. `Progress` bar now takes `steps` as a prop.
+- `src/app/api/portfolios/route.ts` + `[id]/route.ts` — paid-tier POST/PATCH refused unless `stripe_onboarded=true`. Returns 400 with `next: /dashboard/billing`.
+- `src/app/(dashboard)/dashboard/portfolios/page.tsx` + `portfolios-client.tsx` — lock badge on draft paid portfolios when FM not onboarded.
+- `src/app/[handle]/page.tsx` + `profile-tiers.tsx`, `src/app/feed/[portfolioId]/page.tsx` + `portfolio-detail-client.tsx` — slide-to-dopl on paid tiers replaced with "this fund manager is finalizing setup" when FM not onboarded.
+- `src/components/notifications-context.tsx` + `dopler-shell.tsx` — `useNotifications` lifted to shell-only via `NotificationsProvider`. Single hook instance owned by DoplerShell.
+- `src/app/notifications/notifications-client.tsx`, `src/components/ui/notification-bell.tsx`, `src/components/ui/notification-toast-listener.tsx` — all consume `useNotificationsContext()` instead of calling the hook directly.
+- `src/app/notifications/__tests__/notifications-client.test.tsx` — regression guard: `useNotifications` cannot be called from within the inbox.
+- `src/app/notifications/notifications-client.tsx`, `src/components/ui/notification-popup.tsx` — render a small "manual" chip when `notification.meta?.manual === true`.
+- `src/lib/notification-fanout.ts` + test — `FanoutInput` gains `meta_extend?: Record<string, unknown>`; every emitted notif row's `meta` merges it in. +1 unit test.
+- `src/app/api/portfolios/notify/route.ts` — accepts top-level `meta` field, passes through as `meta_extend`.
+- `src/components/ui/send-manual-update-modal.tsx` — new modal (ticker + direction + optional note). POSTs to `/api/portfolios/notify` with `meta: { manual: true }`.
+- `src/app/(dashboard)/dashboard/portfolios/expandable-portfolio-card.tsx` — new "send manual update" trigger per portfolio.
+- `src/app/(dashboard)/dashboard/portfolios/__tests__/send-manual-update.test.tsx` — 3 integration tests covering disabled/enabled state + POST payload including `meta.manual === true`.
+
+**Why:** Phase 1 of the ship-to-real-users roadmap. Closes five launch-blocking gaps (home redirect, FM signup → onboarding, paid-portfolio gate, inbox realtime race, auth error surfacing) and adds a small send-manual-update UI for FMs without a connected broker.
+
+**Impact:**
+- Brand-new FM signup now flows through the 5-step (or 6-step with Stripe) onboarding.
+- Paid portfolios can't be published without Stripe Connect complete; doplers see a finalizing-setup card instead of silent checkout failure.
+- Authed users hitting `/` reach their role-appropriate page instead of the marketing landing.
+- Dopler inbox updates live without refresh. Manually-sent notifications carry a visible "manual" tag.
+- Signup/login error messages are clear and inline; handle collision is pinned under the handle input.
+- FMs without a connected broker can announce thesis updates via the new modal.
+
+**Testing:** `npm test` = **71 passing across 14 files** (56 Sprint 2 baseline + 5 home redirect + 5 onboarding predicate + 1 notifications regression + 1 fanout meta_extend + 3 send-manual-update).
+
+**Risks:**
+- Stripe onboarding webhook latency — FM returning to the Stripe step before `stripe_onboarded=true` propagates sees the step still unchecked. Accept short-term UX lag; Sprint 4 can add a focus-listener re-check.
+- Existing prod FMs: the `fmNeedsOnboarding` predicate passes any FM with a bio, broker_connected, or at least one portfolio. Per pre-deploy spot check, the 4 live FMs all satisfy at least one of those. Pre-merge SQL check: `select id, handle, bio, broker_connected, (select count(*) from portfolios where fund_manager_id = fm.id) as portfolio_count from fund_managers fm;` — every row must have one of the three.
+- Send-manual-update bypasses broker-sync truth — mitigated by the `meta.manual=true` flag + visible inbox chip so doplers can tell which notifications are broker-verified.
+
+---
+
 ## [2026-04-20] — Dopler sign-out access on desktop
 
 **Files changed:**

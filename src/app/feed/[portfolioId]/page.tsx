@@ -19,7 +19,7 @@ export default async function PortfolioDetail({
   const { data: portfolio } = await supabase
     .from("portfolios")
     .select(
-      "*, fund_manager:fund_managers!inner(handle, display_name, avatar_url, bio, subscriber_count)"
+      "*, fund_manager:fund_managers!inner(handle, display_name, avatar_url, bio, subscriber_count, stripe_onboarded)"
     )
     .eq("id", portfolioId)
     .maybeSingle();
@@ -72,6 +72,7 @@ export default async function PortfolioDetail({
         updates={updates ?? []}
         canView={canView}
         portfolioId={portfolioId}
+        fmStripeOnboarded={!!portfolio.fund_manager?.stripe_onboarded}
       />
     </DoplerShell>
   );

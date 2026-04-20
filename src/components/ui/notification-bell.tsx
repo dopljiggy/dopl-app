@@ -4,14 +4,14 @@ import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { Bell } from "lucide-react";
-import { useNotifications } from "@/hooks/use-notifications";
+import { useNotificationsContext } from "@/components/notifications-context";
 import {
   NotificationPopup,
   type PopupNotification,
 } from "@/components/ui/notification-popup";
 
 export default function NotificationBell({
-  userId,
+  userId: _userId,
   tradingConnected = false,
   tradingName = null,
   tradingWebsite = null,
@@ -21,7 +21,7 @@ export default function NotificationBell({
   tradingName?: string | null;
   tradingWebsite?: string | null;
 }) {
-  const { notifications, unreadCount, markAllRead } = useNotifications(userId);
+  const { notifications, unreadCount, markAllRead } = useNotificationsContext();
   const [open, setOpen] = useState(false);
   const [popup, setPopup] = useState<PopupNotification | null>(null);
   const ref = useRef<HTMLDivElement>(null);

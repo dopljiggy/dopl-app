@@ -30,11 +30,13 @@ function SignupForm() {
   const [handle, setHandle] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [handleError, setHandleError] = useState<string | null>(null);
   const supabase = createClient();
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setHandleError(null);
 
     if (password.length < 8) {
       setError("password must be at least 8 characters");
@@ -58,9 +60,15 @@ function SignupForm() {
         },
       },
     });
-    if (signUpErr && !signUpErr.message.toLowerCase().includes("already")) {
+    if (signUpErr) {
       setLoading(false);
-      setError(signUpErr.message);
+      if (signUpErr.message.toLowerCase().includes("already")) {
+        setError(
+          "An account exists with this email. Try logging in instead."
+        );
+      } else {
+        setError(signUpErr.message);
+      }
       return;
     }
 
@@ -87,18 +95,28 @@ function SignupForm() {
         handle: role === "fund_manager" ? handle : undefined,
       }),
     });
+    const provisionJson = await provisionRes.json().catch(() => ({}));
     if (!provisionRes.ok) {
-      const j = await provisionRes.json().catch(() => ({}));
       setLoading(false);
-      setError(j.error ?? "could not finish setting up your account");
+      const msg = provisionJson.error ?? "could not finish setting up your account";
+      if (typeof msg === "string" && msg.toLowerCase().includes("handle")) {
+        setHandleError(msg);
+      } else {
+        setError(msg);
+      }
       return;
     }
 
     // Routing — prefer explicit `next` when provided, else role default.
     // Use window.location.href (not router.replace) so the server picks up
     // the new session cookies on a full page load.
+    const fmNeedsOnboardingFlag = provisionJson?.needs_onboarding === true;
     const fallback =
-      role === "fund_manager" ? "/dashboard" : "/welcome";
+      role === "fund_manager"
+        ? fmNeedsOnboardingFlag
+          ? "/onboarding"
+          : "/dashboard"
+        : "/welcome";
     const target = nextParam && nextParam.startsWith("/") ? nextParam : fallback;
     window.location.href = target;
   };
@@ -174,24 +192,39 @@ function SignupForm() {
             minLength={8}
             className="w-full bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/30 rounded-lg px-4 py-3 text-sm placeholder:text-[color:var(--dopl-cream)]/30 mb-3"
           />
+          {password.length > 0 && password.length < 8 && (
+            <p className="text-[10px] text-[color:var(--dopl-cream)]/40 -mt-2 mb-3">
+              at least 8 characters
+            </p>
+          )}
 
           {role === "fund_manager" && (
-            <div className="relative mb-3">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[color:var(--dopl-cream)]/30 text-sm">
-                dopl.com/
-              </span>
-              <input
-                type="text"
-                placeholder="handle"
-                value={handle}
-                onChange={(e) =>
-                  setHandle(
-                    e.target.value.toLowerCase().replace(/[^a-z0-9-_]/g, "")
-                  )
-                }
-                required
-                className="w-full bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/30 rounded-lg pl-[5.5rem] pr-4 py-3 text-sm placeholder:text-[color:var(--dopl-cream)]/30"
-              />
+            <div className="mb-3">
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[color:var(--dopl-cream)]/30 text-sm">
+                  dopl.com/
+                </span>
+                <input
+                  type="text"
+                  placeholder="handle"
+                  value={handle}
+                  onChange={(e) => {
+                    setHandle(
+                      e.target.value.toLowerCase().replace(/[^a-z0-9-_]/g, "")
+                    );
+                    if (handleError) setHandleError(null);
+                  }}
+                  required
+                  className={`w-full bg-[color:var(--dopl-deep)] border rounded-lg pl-[5.5rem] pr-4 py-3 text-sm placeholder:text-[color:var(--dopl-cream)]/30 ${
+                    handleError
+                      ? "border-red-400/40"
+                      : "border-[color:var(--dopl-sage)]/30"
+                  }`}
+                />
+              </div>
+              {handleError && (
+                <p className="text-[11px] text-red-300 mt-1.5">{handleError}</p>
+              )}
             </div>
           )}
 

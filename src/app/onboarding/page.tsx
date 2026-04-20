@@ -18,15 +18,18 @@ export default async function OnboardingPage() {
 
   const { data: fm } = await supabase
     .from("fund_managers")
-    .select("*")
+    .select("*, stripe_account_id, stripe_onboarded")
     .eq("id", user.id)
     .maybeSingle();
 
   const { data: portfolios } = await supabase
     .from("portfolios")
-    .select("id")
-    .eq("fund_manager_id", user.id)
-    .limit(1);
+    .select("id, price_cents")
+    .eq("fund_manager_id", user.id);
+
+  const hasPaidPortfolio = (portfolios ?? []).some(
+    (p) => (p.price_cents ?? 0) > 0
+  );
 
   const initial = {
     hasBio: !!fm?.bio,
@@ -36,6 +39,8 @@ export default async function OnboardingPage() {
     handle: fm?.handle ?? "",
     bio: fm?.bio ?? "",
     avatarUrl: fm?.avatar_url ?? null,
+    stripeOnboarded: !!fm?.stripe_onboarded,
+    hasPaidPortfolio,
   };
 
   return <OnboardingClient initial={initial} />;

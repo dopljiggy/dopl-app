@@ -27,15 +27,20 @@ export default async function PortfoliosPage() {
     : { data: [] };
 
   let brokerProvider: string | null = null;
+  let stripeOnboarded = false;
   const fm = await supabase
     .from("fund_managers")
-    .select("broker_provider")
+    .select("broker_provider, stripe_onboarded")
     .eq("id", user.id)
     .maybeSingle();
   if (!fm.error) {
-    brokerProvider =
-      (fm.data as { broker_provider?: string | null } | null)?.broker_provider ??
-      null;
+    const row =
+      (fm.data as {
+        broker_provider?: string | null;
+        stripe_onboarded?: boolean | null;
+      } | null) ?? null;
+    brokerProvider = row?.broker_provider ?? null;
+    stripeOnboarded = !!row?.stripe_onboarded;
   }
 
   return (
@@ -43,6 +48,7 @@ export default async function PortfoliosPage() {
       portfolios={portfolios ?? []}
       positions={positions ?? []}
       brokerProvider={brokerProvider}
+      stripeOnboarded={stripeOnboarded}
     />
   );
 }

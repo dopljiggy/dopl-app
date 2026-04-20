@@ -18,6 +18,7 @@ export type PopupNotification = {
   body: string | null;
   created_at: string;
   actionable?: boolean;
+  meta?: Record<string, unknown> | null;
 };
 
 function extractTicker(body: string | null | undefined): string | null {
@@ -109,6 +110,11 @@ export function NotificationPopup({
             <h3 className="font-display text-xl font-semibold mb-1 leading-snug pr-4">
               {notification.title}
             </h3>
+            {notification.meta?.manual === true && (
+              <div className="text-[10px] uppercase tracking-[0.2em] font-mono text-[color:var(--dopl-cream)]/40 mt-1 mb-2">
+                manually sent by the fund manager
+              </div>
+            )}
             {notification.body && (
               <p className="text-sm text-[color:var(--dopl-cream)]/65 leading-relaxed mb-5">
                 {notification.body}

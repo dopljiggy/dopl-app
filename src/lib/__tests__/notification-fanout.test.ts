@@ -255,6 +255,27 @@ describe('fanOutPortfolioUpdate', () => {
     expect(types).toEqual(['buy', 'summary']);
   });
 
+  it('meta_extend merges into every emitted notification row', async () => {
+    const { client, inserted } = makeFakeSupabase({
+      portfolio,
+      subscriptions: [
+        { user_id: 'u1', portfolio_id: 'p-techgrowth', status: 'active' },
+      ],
+      positions: [],
+    });
+    await fanOutPortfolioUpdate(client, {
+      portfolio_id: 'p-techgrowth',
+      fund_manager_id: 'fm-alice',
+      changes: [{ type: 'buy', ticker: 'AAPL', shares: 10 }],
+      meta_extend: { manual: true, source: 'test' },
+    });
+    const row = inserted.find((i) => i.table === 'notifications')!.rows[0] as {
+      meta: Record<string, unknown>;
+    };
+    expect(row.meta.manual).toBe(true);
+    expect(row.meta.source).toBe('test');
+  });
+
   it('fallback: empty changes array → one "note" notification per sub', async () => {
     const { client, inserted } = makeFakeSupabase({
       portfolio,
