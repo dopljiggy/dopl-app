@@ -5,6 +5,47 @@ Format: date, description, files, why, impact, testing, risks.
 
 ---
 
+## [2026-04-20] — Sprint 2: Notification Loop v1
+
+**Files changed:**
+- `supabase/migrations/003_notifications_enhancements.sql` — new columns: `actionable` (bool, default true), `change_type` (enum), `ticker`, `meta` (jsonb); new index on (user_id, created_at desc)
+- `src/app/api/migrate/route.ts` — hard-coded SQL extended with the 003 ALTERs so migration can run via admin-gated curl (no Supabase SQL editor required)
+- `src/types/database.ts` — `Notification` interface extended
+- `src/lib/position-diff.ts` + `__tests__/` — per-portfolio diff, 9 unit tests (scoped to already-assigned tickers; no buy events; preserves allocation_pct)
+- `src/lib/notification-fanout.ts` + `__tests__/` — shared fan-out helper, 6 unit tests (buy-fanout, sell-not-held=informational, sell-held-elsewhere=actionable, rebalance-only summary, mixed, empty fallback)
+- `src/lib/dopl-toast.ts` — extracted shared `fireToast`
+- `src/lib/proxy-gates.ts` + `__tests__/` — `doplerNeedsOnboarding` helper, 5 unit tests
+- `src/app/api/snaptrade/sync/route.ts` — per-portfolio targeted UPDATE (shares, last_synced) and DELETE; never touches allocation_pct; returns `positions` (raw pool) + `perPortfolio` (structured changes)
+- `src/app/api/portfolios/notify/route.ts` — thin wrapper over `notification-fanout.ts`
+- `src/app/api/positions/assign/route.ts` — inline `logUpdateAndNotify` removed; now calls the shared helper
+- `src/proxy.ts` — uses the proxy-gate helper to redirect subscribers without `trading_connected` to `/welcome` when they hit `/feed`
+- `src/app/welcome/page.tsx` + `welcome-client.tsx` — rebuilt as 3-step (intro → region → connect); step 3 embeds `<TradingConnect />` inline; server-side redirect if already connected
+- `src/app/api/trading/snaptrade/callback/route.ts`, `src/app/api/trading/saltedge/callback/route.ts` — success redirect changed from `/settings?connected=true` to `/feed?connected=true`
+- `src/app/(dashboard)/layout.tsx` — removed `<NotificationBell />` mount
+- `src/components/dopler-shell.tsx` — gates bell behind `md:` viewport, mounts `<NotificationToastListener />`
+- `src/components/ui/notification-bell.tsx` — inline toast effect removed; uses shared fireToast if still needed
+- `src/components/ui/notification-toast-listener.tsx` — standalone toast effect with initial-mount + clock-skew guards
+- `src/components/ui/notification-popup.tsx`, `src/app/notifications/notifications-client.tsx` — hide primary CTA when `actionable=false`, show "informational" tag
+- `src/app/(dashboard)/dashboard/positions/positions-client.tsx` — opens the new modal after sync
+- `src/components/ui/notify-doplers-modal.tsx` — modal with per-portfolio Notify + Save-silent + "notified" check + explicit done button
+
+**Why:** Ships the core product loop promised at pivot-decision time: FM changes portfolio → dopler gets notified → dopler taps to open their own broker for manual execution.
+
+**Impact:**
+- Doplers cannot reach `/feed` without connecting a broker — removes the "subscribed but can't execute" footgun.
+- FM syncs now scope to already-assigned tickers per portfolio, preserving both tier-based curation and FM-authored `allocation_pct`.
+- Fan-out logic lives in one place. Both manual-notify and auto-on-assign paths use the same code; holder-aware + rebalance-summary apply to both.
+- Mobile doplers: no more bell overlap with the viewport; bottom-nav alerts + full inbox is canonical. FM dashboard: no more dopler-style bell.
+
+**Testing:** `npm test` = **56 passing across 10 files** (+5 proxy-gate, +9 position-diff, +6 notification-fanout, +36 Sprint 1 baseline). All expected-feature-invariant tests are real, not stubs.
+
+**Risks:**
+- Migration 003 must be applied before Task 4 code runs in prod. With the admin-curl path (Task 1 Step 1.2), this is a one-command deploy-complete action — no SQL editor coordination.
+- `/api/snaptrade/sync`'s per-row UPDATE/DELETE is not transactional; a crash mid-sync could leave a portfolio partially updated. Acceptable at Sprint 2 scale (4 live FMs); Sprint 3 can wrap in a Postgres function if volume justifies.
+- Toast listener is client-side; if the dopler's tab is backgrounded, no toast. That's expected — Web Push (Sprint 3) fills the gap for closed-app notification.
+
+---
+
 ## [2026-04-17] — Sprint 1 Task 7: Onboarding handle + display_name enforcement
 
 **Files changed:**
