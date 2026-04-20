@@ -35,7 +35,14 @@ function LoginForm() {
     });
     if (signInErr) {
       setLoading(false);
-      setError(signInErr.message);
+      const msg = signInErr.message.toLowerCase();
+      if (msg.includes("invalid login credentials")) {
+        setError("Email or password is incorrect.");
+      } else if (msg.includes("email not confirmed")) {
+        setError("Check your inbox for the confirmation link.");
+      } else {
+        setError(`Login failed: ${signInErr.message}`);
+      }
       return;
     }
 
