@@ -10,6 +10,7 @@ import { NotificationToastListener } from "@/components/ui/notification-toast-li
 import PageTransition from "@/components/ui/page-transition";
 import { createClient } from "@/lib/supabase";
 import { useNotifications } from "@/hooks/use-notifications";
+import { NotificationsProvider } from "@/components/notifications-context";
 
 const nav = [
   { href: "/feed", icon: Home, label: "feed" },
@@ -57,10 +58,12 @@ export default function DoplerShell({
     });
   }, []);
 
-  const { unreadCount } = useNotifications(userId);
+  const notificationsState = useNotifications(userId);
+  const { unreadCount } = notificationsState;
 
   return (
-    <div className="min-h-screen pb-24 md:pb-0">
+    <NotificationsProvider value={notificationsState}>
+      <div className="min-h-screen pb-24 md:pb-0">
       {/* Top nav — all sizes */}
       <nav className="sticky top-0 z-30 backdrop-blur-xl bg-[color:var(--dopl-deep)]/65 border-b border-[color:var(--glass-border)]">
         <div className="max-w-5xl mx-auto px-6 py-3 flex items-center gap-6">
@@ -191,6 +194,7 @@ export default function DoplerShell({
           </div>
         </div>
       </nav>
-    </div>
+      </div>
+    </NotificationsProvider>
   );
 }

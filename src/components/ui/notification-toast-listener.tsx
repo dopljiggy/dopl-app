@@ -1,20 +1,20 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useNotifications } from "@/hooks/use-notifications";
+import { useNotificationsContext } from "@/components/notifications-context";
 import { fireToast } from "@/lib/dopl-toast";
 
 /**
  * Mount once per authed dopler shell. Listens to notification realtime
- * inserts via useNotifications and fires a toast for each NEW row. Does
- * not render any visible UI.
+ * inserts via the shell-owned NotificationsProvider and fires a toast for
+ * each NEW row. Does not render any visible UI.
  */
 export function NotificationToastListener({
-  userId,
+  userId: _userId,
 }: {
   userId: string | null;
 }) {
-  const { notifications } = useNotifications(userId);
+  const { notifications } = useNotificationsContext();
   const lastSeenIdRef = useRef<string | null>(null);
 
   useEffect(() => {

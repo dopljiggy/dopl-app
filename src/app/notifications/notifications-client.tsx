@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useNotifications } from "@/hooks/use-notifications";
+import { useNotificationsContext } from "@/components/notifications-context";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Copy, ExternalLink, Link2, Check } from "lucide-react";
 import Link from "next/link";
@@ -21,17 +21,15 @@ function extractTicker(body: string | null | undefined): string | null {
 }
 
 export default function NotificationsClient({
-  userId,
   tradingConnected,
   tradingName,
   tradingWebsite,
 }: {
-  userId: string;
   tradingConnected: boolean;
   tradingName: string | null;
   tradingWebsite: string | null;
 }) {
-  const { notifications, unreadCount, markAllRead } = useNotifications(userId);
+  const { notifications, unreadCount, markAllRead } = useNotificationsContext();
   const [copied, setCopied] = useState<string | null>(null);
   const [popup, setPopup] = useState<PopupNotification | null>(null);
 
@@ -91,6 +89,7 @@ export default function NotificationsClient({
                       body: n.body,
                       created_at: n.created_at,
                       actionable: n.actionable,
+                      meta: n.meta,
                     })
                   }
                 >
@@ -103,7 +102,17 @@ export default function NotificationsClient({
                       }`}
                     />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold">{n.title}</p>
+                      <p className="text-sm font-semibold">
+                        {n.title}
+                        {n.meta?.manual === true && (
+                          <span
+                            title="manually sent by the fund manager"
+                            className="text-[9px] uppercase tracking-[0.2em] font-mono text-[color:var(--dopl-cream)]/40 border border-[color:var(--dopl-cream)]/20 px-1.5 py-0.5 rounded-md ml-2"
+                          >
+                            manual
+                          </span>
+                        )}
+                      </p>
                       {n.body && (
                         <p className="text-xs text-[color:var(--dopl-cream)]/50 mt-0.5">
                           {n.body}

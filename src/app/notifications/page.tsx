@@ -36,7 +36,6 @@ export default async function NotificationsPage() {
   return (
     <DoplerShell>
       <NotificationsClient
-        userId={user.id}
         tradingConnected={!!profile?.trading_connected}
         tradingName={tradingName}
         tradingWebsite={profile?.trading_connection_data?.website_url ?? null}
