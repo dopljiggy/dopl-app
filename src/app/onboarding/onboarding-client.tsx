@@ -3,7 +3,17 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
-import { Check, ArrowRight, Copy, Link2, Briefcase, User, Globe } from "lucide-react";
+import {
+  Check,
+  ArrowRight,
+  Copy,
+  Link2,
+  Briefcase,
+  User,
+  Globe,
+  DollarSign,
+  CheckCircle,
+} from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { REGIONS } from "@/components/connect/region-selector";
 
@@ -15,12 +25,25 @@ type Initial = {
   handle: string;
   bio: string;
   avatarUrl: string | null;
+  stripeOnboarded: boolean;
+  hasPaidPortfolio: boolean;
 };
 
-const STEPS = ["profile", "region", "broker", "portfolio", "share"] as const;
+const ALL_STEPS = [
+  "profile",
+  "region",
+  "broker",
+  "portfolio",
+  "stripe",
+  "share",
+] as const;
 
 export default function OnboardingClient({ initial }: { initial: Initial }) {
   const router = useRouter();
+  const steps = initial.hasPaidPortfolio
+    ? ALL_STEPS
+    : ALL_STEPS.filter((s) => s !== "stripe");
+
   const [step, setStep] = useState(0);
   const [bio, setBio] = useState(initial.bio);
   const [displayName, setDisplayName] = useState(initial.displayName);
@@ -89,7 +112,7 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
     next();
   };
 
-  const next = () => setStep((s) => Math.min(s + 1, STEPS.length - 1));
+  const next = () => setStep((s) => Math.min(s + 1, steps.length - 1));
   const prev = () => setStep((s) => Math.max(s - 1, 0));
 
   const finish = () => {
@@ -116,7 +139,7 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
       />
 
       <div className="relative max-w-2xl mx-auto px-6 py-10 md:py-14">
-        <Progress step={step} />
+        <Progress step={step} steps={steps} />
 
         <AnimatePresence mode="wait">
           <motion.div
@@ -127,7 +150,7 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
             transition={{ duration: 0.35, ease: [0.2, 0.7, 0.2, 1] }}
             className="mt-10"
           >
-            {step === 0 && (
+            {steps[step] === "profile" && (
               <StepCard
                 icon={<User size={22} />}
                 title="tell your audience who you are"
@@ -183,7 +206,7 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
               </StepCard>
             )}
 
-            {step === 1 && (
+            {steps[step] === "region" && (
               <StepCard
                 icon={<Globe size={22} />}
                 title="where do you trade?"
@@ -223,7 +246,7 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
               </StepCard>
             )}
 
-            {step === 2 && (
+            {steps[step] === "broker" && (
               <StepCard
                 icon={<Link2 size={22} />}
                 title="connect your broker"
@@ -254,7 +277,7 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
               </StepCard>
             )}
 
-            {step === 3 && (
+            {steps[step] === "portfolio" && (
               <StepCard
                 icon={<Briefcase size={22} />}
                 title="create your first portfolio"
@@ -314,7 +337,48 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
               </StepCard>
             )}
 
-            {step === 4 && (
+            {steps[step] === "stripe" && (
+              <StepCard
+                icon={<DollarSign size={22} />}
+                title="set up payments"
+                subtitle="stripe connect handles payouts. dopl takes a 10% platform fee; the rest goes straight to your bank."
+              >
+                {initial.stripeOnboarded ? (
+                  <div className="text-sm text-[color:var(--dopl-lime)] flex items-center gap-2">
+                    <CheckCircle size={16} /> stripe connected
+                  </div>
+                ) : (
+                  <button
+                    onClick={async () => {
+                      const res = await fetch("/api/stripe/connect", {
+                        method: "POST",
+                      });
+                      const { url } = await res.json();
+                      if (url) window.location.href = url;
+                    }}
+                    className="btn-lime text-sm px-6 py-3 inline-flex items-center gap-2"
+                  >
+                    set up stripe
+                    <ArrowRight size={14} />
+                  </button>
+                )}
+                <ActionRow
+                  onBack={prev}
+                  primary={
+                    <button
+                      onClick={next}
+                      disabled={!initial.stripeOnboarded}
+                      className="btn-lime text-sm px-6 py-2.5 flex items-center gap-2 disabled:opacity-40"
+                    >
+                      continue
+                      <ArrowRight size={14} />
+                    </button>
+                  }
+                />
+              </StepCard>
+            )}
+
+            {steps[step] === "share" && (
               <StepCard
                 icon={<Check size={22} />}
                 title="you're live."
@@ -411,10 +475,16 @@ function ActionRow({
   );
 }
 
-function Progress({ step }: { step: number }) {
+function Progress({
+  step,
+  steps,
+}: {
+  step: number;
+  steps: readonly string[];
+}) {
   return (
     <div className="flex items-center gap-2">
-      {STEPS.map((name, i) => {
+      {steps.map((name, i) => {
         const done = i < step;
         const active = i === step;
         return (
@@ -446,7 +516,7 @@ function Progress({ step }: { step: number }) {
                 {name}
               </span>
             </div>
-            {i < STEPS.length - 1 && (
+            {i < steps.length - 1 && (
               <div className="flex-1 h-px bg-[color:var(--dopl-sage)]/30 relative overflow-hidden">
                 <motion.div
                   className="absolute inset-y-0 left-0 bg-[color:var(--dopl-lime)]"
