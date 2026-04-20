@@ -47,6 +47,10 @@ export default function PositionsClient({
   const [synced, setSynced] = useState<SyncedPosition[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pendingTicker, setPendingTicker] = useState<string | null>(null);
+  const [pendingChangesets, setPendingChangesets] = useState<
+    { portfolio_id: string; portfolio_name: string; changes: unknown[] }[]
+  >([]);
+  const [showNotifyModal, setShowNotifyModal] = useState(false);
 
   // Tickers already assigned to ANY portfolio.
   const assignedTickers = new Set(assignedPositions.map((p) => p.ticker));
@@ -65,6 +69,13 @@ export default function PositionsClient({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "sync failed");
       setSynced(data.positions ?? []);
+      if (Array.isArray(data.perPortfolio)) {
+        setPendingChangesets(data.perPortfolio);
+        const hasAny = data.perPortfolio.some(
+          (p: { changes: unknown[] }) => p.changes.length > 0
+        );
+        setShowNotifyModal(hasAny);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "sync failed");
     } finally {
