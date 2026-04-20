@@ -87,18 +87,23 @@ function SignupForm() {
         handle: role === "fund_manager" ? handle : undefined,
       }),
     });
+    const provisionJson = await provisionRes.json().catch(() => ({}));
     if (!provisionRes.ok) {
-      const j = await provisionRes.json().catch(() => ({}));
       setLoading(false);
-      setError(j.error ?? "could not finish setting up your account");
+      setError(provisionJson.error ?? "could not finish setting up your account");
       return;
     }
 
     // Routing — prefer explicit `next` when provided, else role default.
     // Use window.location.href (not router.replace) so the server picks up
     // the new session cookies on a full page load.
+    const fmNeedsOnboardingFlag = provisionJson?.needs_onboarding === true;
     const fallback =
-      role === "fund_manager" ? "/dashboard" : "/welcome";
+      role === "fund_manager"
+        ? fmNeedsOnboardingFlag
+          ? "/onboarding"
+          : "/dashboard"
+        : "/welcome";
     const target = nextParam && nextParam.startsWith("/") ? nextParam : fallback;
     window.location.href = target;
   };

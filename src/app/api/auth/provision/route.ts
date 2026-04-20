@@ -94,5 +94,9 @@ export async function POST(request: Request) {
     }
   }
 
-  return NextResponse.json({ ok: true, role });
+  return NextResponse.json({
+    ok: true,
+    role,
+    needs_onboarding: role === "fund_manager",
+  });
 }
