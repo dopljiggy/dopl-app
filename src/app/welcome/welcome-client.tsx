@@ -25,24 +25,13 @@ export default function WelcomeClient({
 }) {
   const [step, setStep] = useState(0);
   const [region, setRegion] = useState<string | null>(null);
-  const [regionSaving, setRegionSaving] = useState<string | null>(null);
 
   const next = () => setStep((s) => Math.min(s + 1, STEPS.length - 1));
   const prev = () => setStep((s) => Math.max(s - 1, 0));
 
-  const chooseRegion = async (key: string) => {
-    setRegionSaving(key);
-    try {
-      await fetch("/api/profile", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ trading_region: key }),
-      });
-      setRegion(key);
-      next();
-    } finally {
-      setRegionSaving(null);
-    }
+  const chooseRegion = (key: string) => {
+    setRegion(key);
+    next();
   };
 
   return (
@@ -103,25 +92,23 @@ export default function WelcomeClient({
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   {REGIONS.map((r) => {
-                    const busy = regionSaving === r.key;
                     const selected = region === r.key;
                     return (
                       <button
                         key={r.key}
                         onClick={() => chooseRegion(r.key)}
-                        disabled={regionSaving !== null}
                         className={`text-left p-3 rounded-xl border transition-all ${
                           selected
                             ? "border-[color:var(--dopl-lime)]/60 bg-[color:var(--dopl-lime)]/10"
                             : "border-[color:var(--dopl-sage)]/30 bg-[color:var(--dopl-deep)] hover:border-[color:var(--dopl-lime)]/40"
-                        } disabled:opacity-50`}
+                        }`}
                       >
                         <div className="flex items-start gap-3">
                           <div className="text-2xl leading-none">{r.flag}</div>
                           <div className="flex-1 min-w-0">
                             <div className="font-display text-sm font-semibold">{r.label}</div>
                             <div className="text-[11px] text-[color:var(--dopl-cream)]/45 truncate">
-                              {busy ? "saving…" : r.subtitle}
+                              {r.subtitle}
                             </div>
                           </div>
                         </div>
