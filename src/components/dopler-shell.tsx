@@ -117,6 +117,17 @@ export default function DoplerShell({
                 tradingWebsite={trading.website}
               />
             </div>
+            <Link
+              href="/settings"
+              aria-label="profile + sign out"
+              className={`hidden md:inline-flex items-center justify-center w-9 h-9 rounded-full transition-colors ${
+                pathname === "/settings"
+                  ? "bg-[color:var(--dopl-lime)]/12 text-[color:var(--dopl-lime)]"
+                  : "text-[color:var(--dopl-cream)]/60 hover:text-[color:var(--dopl-cream)] hover:bg-[color:var(--dopl-sage)]/25"
+              }`}
+            >
+              <User size={18} strokeWidth={1.8} />
+            </Link>
             <NotificationToastListener userId={userId} />
           </div>
         </div>
