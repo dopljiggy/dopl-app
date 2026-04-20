@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Check,
   ArrowRight,
@@ -40,15 +40,31 @@ const ALL_STEPS = [
 
 export default function OnboardingClient({ initial }: { initial: Initial }) {
   const router = useRouter();
-  const steps = initial.hasPaidPortfolio
-    ? ALL_STEPS
-    : ALL_STEPS.filter((s) => s !== "stripe");
+  const searchParams = useSearchParams();
+  // Stripe step is unconditional — every FM sees it during onboarding.
+  // Previously gated on `hasPaidPortfolio`, but that created a circular
+  // dependency: paid portfolio creation is blocked until stripe_onboarded,
+  // so a new FM could never reach the state where the step would appear.
+  const steps = ALL_STEPS;
 
-  const [step, setStep] = useState(0);
+  const initialStep = (() => {
+    if (searchParams?.get("connected") === "true" && initial.hasBroker) {
+      return steps.indexOf("portfolio");
+    }
+    if (initial.hasBio && !initial.hasBroker) return steps.indexOf("region");
+    if (initial.hasBroker && !initial.hasPortfolio) return steps.indexOf("portfolio");
+    return 0;
+  })();
+
+  const [step, setStep] = useState(initialStep);
   const [bio, setBio] = useState(initial.bio);
   const [displayName, setDisplayName] = useState(initial.displayName);
   const [handle, setHandle] = useState(initial.handle);
   const [saving, setSaving] = useState(false);
+  const [createError, setCreateError] = useState<{
+    message: string;
+    next?: string;
+  } | null>(null);
 
   const [region, setRegion] = useState<string | null>(null);
   const [regionSaving, setRegionSaving] = useState<string | null>(null);
@@ -56,6 +72,14 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
   const [portfolioName, setPortfolioName] = useState("Main Portfolio");
   const [portfolioTier, setPortfolioTier] = useState<"free" | "basic" | "premium" | "vip">("basic");
   const [portfolioPrice, setPortfolioPrice] = useState("29");
+
+  useEffect(() => {
+    if (searchParams?.get("connected") === "true") {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("connected");
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, [searchParams]);
 
   const saveProfile = async () => {
     setSaving(true);
@@ -95,7 +119,8 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
 
   const createPortfolio = async () => {
     setSaving(true);
-    await fetch("/api/portfolios", {
+    setCreateError(null);
+    const res = await fetch("/api/portfolios", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -109,7 +134,23 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
       }),
     });
     setSaving(false);
+    if (!res.ok) {
+      const j = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        next?: string;
+      };
+      setCreateError({
+        message: j.error ?? "could not create portfolio",
+        next: j.next,
+      });
+      return;
+    }
     next();
+  };
+
+  const launchBrokerConnect = () => {
+    document.cookie = "dopl_onboarding_flow=1; path=/; max-age=1800; SameSite=Lax";
+    window.location.href = "/dashboard/connect?from=onboarding";
   };
 
   const next = () => setStep((s) => Math.min(s + 1, steps.length - 1));
@@ -252,16 +293,24 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
                 title="connect your broker"
                 subtitle="dopl reads your positions in real time — read-only, never executes."
               >
-                <a
-                  href="/dashboard/connect"
-                  className="btn-lime text-sm px-6 py-3 inline-flex items-center gap-2"
-                >
-                  open broker connect
-                  <ArrowRight size={14} />
-                </a>
-                <p className="text-xs text-[color:var(--dopl-cream)]/40 mt-3">
-                  you can do this later — skip if you want to explore first.
-                </p>
+                {initial.hasBroker ? (
+                  <div className="text-sm text-[color:var(--dopl-lime)] flex items-center gap-2">
+                    <CheckCircle size={16} /> broker connected
+                  </div>
+                ) : (
+                  <>
+                    <button
+                      onClick={launchBrokerConnect}
+                      className="btn-lime text-sm px-6 py-3 inline-flex items-center gap-2"
+                    >
+                      open broker connect
+                      <ArrowRight size={14} />
+                    </button>
+                    <p className="text-xs text-[color:var(--dopl-cream)]/40 mt-3">
+                      you&apos;ll come back here automatically once connected. skip if you want to explore first.
+                    </p>
+                  </>
+                )}
                 <ActionRow
                   onSkip={next}
                   onBack={prev}
@@ -318,6 +367,24 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
                     <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[color:var(--dopl-cream)]/40 text-sm">
                       /mo
                     </span>
+                  </div>
+                )}
+                {portfolioTier !== "free" && !initial.stripeOnboarded && (
+                  <div className="mt-3 rounded-xl border border-amber-400/30 bg-amber-400/5 px-3 py-2.5 text-xs text-amber-200/80">
+                    paid tiers need stripe connected. you&apos;ll set that up in the next step.
+                  </div>
+                )}
+                {createError && (
+                  <div className="mt-3 rounded-xl border border-red-400/30 bg-red-500/5 px-3 py-2.5 text-xs text-red-200/80">
+                    {createError.message}
+                    {createError.next && (
+                      <a
+                        href={createError.next}
+                        className="ml-2 underline text-[color:var(--dopl-lime)]"
+                      >
+                        go set it up →
+                      </a>
+                    )}
                   </div>
                 )}
                 <ActionRow

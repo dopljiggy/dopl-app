@@ -45,6 +45,10 @@ export default function PortfoliosClient({
     tier: "basic",
     price: "29",
   });
+  const [createError, setCreateError] = useState<{
+    message: string;
+    next?: string;
+  } | null>(null);
 
   const positionsByPortfolio = new Map<string, PositionRow[]>();
   for (const p of positions) {
@@ -55,6 +59,7 @@ export default function PortfoliosClient({
 
   const handleCreate = async () => {
     setSubmitting(true);
+    setCreateError(null);
     const res = await fetch("/api/portfolios", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -73,7 +78,16 @@ export default function PortfoliosClient({
       setShowCreate(false);
       setNewPortfolio({ name: "", description: "", tier: "basic", price: "29" });
       router.refresh();
+      return;
     }
+    const j = (await res.json().catch(() => ({}))) as {
+      error?: string;
+      next?: string;
+    };
+    setCreateError({
+      message: j.error ?? "could not create portfolio",
+      next: j.next,
+    });
   };
 
   const handleDelete = async (id: string) => {
@@ -148,7 +162,10 @@ export default function PortfoliosClient({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-6"
-            onClick={() => setShowCreate(false)}
+            onClick={() => {
+              setShowCreate(false);
+              setCreateError(null);
+            }}
           >
             <motion.div
               initial={{ scale: 0.95, y: 10 }}
@@ -230,9 +247,25 @@ export default function PortfoliosClient({
                 </div>
               )}
 
+              {createError && (
+                <div className="mb-4 rounded-xl border border-red-400/30 bg-red-500/5 px-3 py-2.5 text-xs text-red-200/80">
+                  {createError.message}
+                  {createError.next && (
+                    <a
+                      href={createError.next}
+                      className="ml-2 underline text-[color:var(--dopl-lime)]"
+                    >
+                      go set it up →
+                    </a>
+                  )}
+                </div>
+              )}
               <div className="flex gap-3">
                 <button
-                  onClick={() => setShowCreate(false)}
+                  onClick={() => {
+                    setShowCreate(false);
+                    setCreateError(null);
+                  }}
                   className="flex-1 glass-card-light py-3 text-sm hover:bg-[color:var(--dopl-sage)]/40 rounded-xl transition-colors"
                 >
                   cancel
