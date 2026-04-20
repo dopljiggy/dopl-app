@@ -60,7 +60,7 @@ export default function NotificationBell({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -6, scale: 0.98 }}
             transition={{ duration: 0.18, ease: [0.2, 0.7, 0.2, 1] }}
-            className="absolute right-0 mt-2 w-[min(360px,calc(100vw-2rem))] glass-card glass-card-strong p-3 z-50"
+            className="absolute top-full right-0 mt-2 w-[min(360px,calc(100vw-2rem))] glass-card glass-card-strong p-3 z-50"
           >
             <div className="flex items-center justify-between px-2 py-1 mb-2">
               <p className="text-xs font-mono text-[color:var(--dopl-cream)]/60 uppercase tracking-wider">
