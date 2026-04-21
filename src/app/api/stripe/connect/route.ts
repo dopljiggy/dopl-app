@@ -2,11 +2,21 @@ import { NextResponse } from "next/server";
 import { getStripe } from "@/lib/stripe";
 import { createServerSupabase } from "@/lib/supabase-server";
 
-export async function POST() {
+export async function POST(request: Request) {
   const supabase = await createServerSupabase();
   const { data: { user } } = await supabase.auth.getUser();
-  
+
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  let from: string | undefined;
+  try {
+    const body = (await request.json().catch(() => ({}))) as { from?: string };
+    from = body?.from;
+  } catch {
+    from = undefined;
+  }
+  const origin = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "";
+  const returnBase = from === "onboarding" ? "/onboarding" : "/dashboard/billing";
 
   try {
     const stripe = getStripe();
@@ -20,8 +30,14 @@ export async function POST() {
     let accountId = fm?.stripe_account_id;
 
     if (!accountId) {
+      // business_type: "individual" skips the UAE-heavy business-docs flow
+      // (trade license, memorandum of association, etc.) and sends the FM
+      // through personal ID verification instead. Dopl's model is
+      // individual fund managers — LLC/company FMs can still switch
+      // business_type inside Stripe's hosted flow if needed.
       const account = await stripe.accounts.create({
         type: "express",
+        business_type: "individual",
         metadata: { dopl_user_id: user.id },
       });
       accountId = account.id;
@@ -35,8 +51,8 @@ export async function POST() {
     // Create account link for onboarding
     const accountLink = await stripe.accountLinks.create({
       account: accountId,
-      refresh_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/billing`,
-      return_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/billing?success=true`,
+      refresh_url: `${origin}${returnBase}`,
+      return_url: `${origin}${returnBase}?stripe_done=true`,
       type: "account_onboarding",
     });
 

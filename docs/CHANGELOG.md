@@ -5,6 +5,23 @@ Format: date, description, files, why, impact, testing, risks.
 
 ---
 
+## [2026-04-21] — Sprint 3 hotfix round 2 (Tasks 13-16)
+
+**Files changed:**
+- `src/app/onboarding/onboarding-client.tsx` + `page.tsx` — Broker step embedded inline in the wizard. No more navigation to `/dashboard/connect` (which dropped FMs into the full dashboard layout with sidebar). Step now branches on `broker_provider` derived from region: SnapTrade or Salt Edge renders a provider-specific "connect" button that fires register+connect APIs then redirects to external OAuth; manual explains positions will be added later. Initial state extended with `region`, `brokerProvider`, `hasSnaptradeUser`, `hasSaltedgeCustomer`. Stripe step now opens Stripe Connect in a new tab (`window.open` instead of `window.location.href`) and surfaces an "i'm done — check status" button that calls `router.refresh()` to re-read `stripe_onboarded` after the async account.updated webhook fires. Portfolio step amber copy updated to reflect pre-Stripe creation.
+- `src/app/api/stripe/connect/route.ts` — Accepts `{from: "onboarding"}` body; when set, return_url and refresh_url point to `/onboarding?stripe_done=true` instead of `/dashboard/billing`. Also defaults Stripe Express accounts to `business_type: "individual"` to skip the UAE-heavy business-docs verification flow (Trade License, Memorandum of Association). Individual FMs go through shorter personal ID verification instead; company FMs can switch back inside Stripe's hosted flow.
+- `src/app/api/portfolios/route.ts` + `[id]/route.ts` — Paid portfolio POST/PATCH no longer blocked when `stripe_onboarded=false`. Dopler-side "finalizing setup" UI lock + `/api/stripe/checkout` (which needs a charge-enabled account) remain as defense in depth. Lets FMs create paid tiers during onboarding in one shot, unblocks Smokes 4+5.
+
+**Why:** Surfer's smoke revealed two blockers: (a) broker step navigated users out of the wizard context, leaving them on the full dashboard with a dead onboarding progress bar at top, (b) Stripe setup hijacked the current tab, creating a confusing multi-hop loop (onboarding → Stripe → billing page → "continue onboarding" button → re-launch Stripe).
+
+**Impact:** Onboarding wizard now stays self-contained end-to-end except for the unavoidable external OAuth redirect (SnapTrade/Salt Edge/Stripe) — and even those loop back cleanly via the cookie-based callback path added in hotfix round 1.
+
+**Testing:** `npm test` 71/71, `npm run build` clean. Surfer to re-run Smoke 2 end-to-end.
+
+**Risks:** Provider-specific inline flow depends on `broker_provider` being set by the region step. If a user lands on the wizard with a stale `broker_provider=null` in DB (unlikely), the broker step defaults to SnapTrade. Acceptable per region→provider mapping.
+
+---
+
 ## [2026-04-21] — Sprint 3 hotfix round (Tasks 9-12)
 
 **Files changed:**

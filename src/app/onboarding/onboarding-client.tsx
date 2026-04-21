@@ -17,6 +17,8 @@ import {
 import { GlassCard } from "@/components/ui/glass-card";
 import { REGIONS } from "@/components/connect/region-selector";
 
+type BrokerProvider = "snaptrade" | "saltedge" | "manual";
+
 type Initial = {
   hasBio: boolean;
   hasBroker: boolean;
@@ -27,6 +29,10 @@ type Initial = {
   avatarUrl: string | null;
   stripeOnboarded: boolean;
   hasPaidPortfolio: boolean;
+  region: string | null;
+  brokerProvider: BrokerProvider | null;
+  hasSnaptradeUser: boolean;
+  hasSaltedgeCustomer: boolean;
 };
 
 const ALL_STEPS = [
@@ -66,8 +72,17 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
     next?: string;
   } | null>(null);
 
-  const [region, setRegion] = useState<string | null>(null);
+  const [region, setRegion] = useState<string | null>(initial.region);
   const [regionSaving, setRegionSaving] = useState<string | null>(null);
+  const [brokerProvider, setBrokerProvider] = useState<BrokerProvider | null>(
+    initial.brokerProvider
+  );
+  const [brokerStarting, setBrokerStarting] = useState<BrokerProvider | null>(
+    null
+  );
+  const [brokerError, setBrokerError] = useState<string | null>(null);
+  const [stripeChecking, setStripeChecking] = useState(false);
+  const [stripeLaunched, setStripeLaunched] = useState(false);
 
   const [portfolioName, setPortfolioName] = useState("Main Portfolio");
   const [portfolioTier, setPortfolioTier] = useState<"free" | "basic" | "premium" | "vip">("basic");
@@ -105,16 +120,113 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
   const chooseRegion = async (key: string) => {
     setRegionSaving(key);
     try {
-      await fetch("/api/fund-manager/region", {
+      const res = await fetch("/api/fund-manager/region", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ region: key }),
       });
+      const j = (await res.json().catch(() => ({}))) as {
+        provider?: BrokerProvider;
+      };
       setRegion(key);
+      if (j.provider) setBrokerProvider(j.provider);
       next();
     } finally {
       setRegionSaving(null);
     }
+  };
+
+  const startSnaptrade = async () => {
+    setBrokerStarting("snaptrade");
+    setBrokerError(null);
+    document.cookie =
+      "dopl_onboarding_flow=1; path=/; max-age=1800; SameSite=Lax";
+    try {
+      if (!initial.hasSnaptradeUser) {
+        const regRes = await fetch("/api/snaptrade/register", {
+          method: "POST",
+        });
+        if (!regRes.ok) {
+          const j = (await regRes.json().catch(() => ({}))) as {
+            error?: string;
+          };
+          setBrokerError(j.error ?? "failed to register with snaptrade");
+          setBrokerStarting(null);
+          return;
+        }
+      }
+      const connRes = await fetch("/api/snaptrade/connect", { method: "POST" });
+      const { redirectUrl, error } = (await connRes.json()) as {
+        redirectUrl?: string;
+        error?: string;
+      };
+      if (!redirectUrl) {
+        setBrokerError(error ?? "could not start broker connection");
+        setBrokerStarting(null);
+        return;
+      }
+      window.location.href = redirectUrl;
+    } catch (err) {
+      setBrokerError(err instanceof Error ? err.message : "unexpected error");
+      setBrokerStarting(null);
+    }
+  };
+
+  const startSaltedge = async () => {
+    setBrokerStarting("saltedge");
+    setBrokerError(null);
+    document.cookie =
+      "dopl_onboarding_flow=1; path=/; max-age=1800; SameSite=Lax";
+    try {
+      const regRes = await fetch("/api/saltedge/register", { method: "POST" });
+      const regJson = (await regRes.json().catch(() => ({}))) as {
+        customer_id?: string;
+        error?: string;
+      };
+      if (!regRes.ok || !regJson.customer_id) {
+        setBrokerError(regJson.error ?? "failed to register with salt edge");
+        setBrokerStarting(null);
+        return;
+      }
+      const connRes = await fetch("/api/saltedge/connect", { method: "POST" });
+      const connJson = (await connRes.json().catch(() => ({}))) as {
+        redirectUrl?: string;
+        error?: string;
+      };
+      if (!connRes.ok || !connJson.redirectUrl) {
+        setBrokerError(connJson.error ?? "could not start salt edge connection");
+        setBrokerStarting(null);
+        return;
+      }
+      window.location.href = connJson.redirectUrl;
+    } catch (err) {
+      setBrokerError(err instanceof Error ? err.message : "unexpected error");
+      setBrokerStarting(null);
+    }
+  };
+
+  const launchStripe = async () => {
+    setStripeChecking(true);
+    try {
+      const res = await fetch("/api/stripe/connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ from: "onboarding" }),
+      });
+      const { url } = (await res.json()) as { url?: string };
+      if (url) {
+        setStripeLaunched(true);
+        window.open(url, "_blank", "noopener,noreferrer");
+      }
+    } finally {
+      setStripeChecking(false);
+    }
+  };
+
+  const recheckStripe = () => {
+    setStripeChecking(true);
+    router.refresh();
+    setTimeout(() => setStripeChecking(false), 800);
   };
 
   const createPortfolio = async () => {
@@ -148,10 +260,6 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
     next();
   };
 
-  const launchBrokerConnect = () => {
-    document.cookie = "dopl_onboarding_flow=1; path=/; max-age=1800; SameSite=Lax";
-    window.location.href = "/dashboard/connect?from=onboarding";
-  };
 
   const next = () => setStep((s) => Math.min(s + 1, steps.length - 1));
   const prev = () => setStep((s) => Math.max(s - 1, 0));
@@ -291,25 +399,56 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
               <StepCard
                 icon={<Link2 size={22} />}
                 title="connect your broker"
-                subtitle="dopl reads your positions in real time — read-only, never executes."
+                subtitle={
+                  brokerProvider === "saltedge"
+                    ? "secure read-only link to your bank/broker via salt edge."
+                    : brokerProvider === "manual"
+                    ? "you'll enter positions by hand from the positions page after onboarding."
+                    : "dopl reads your positions in real time — read-only, never executes."
+                }
               >
                 {initial.hasBroker ? (
                   <div className="text-sm text-[color:var(--dopl-lime)] flex items-center gap-2">
                     <CheckCircle size={16} /> broker connected
                   </div>
+                ) : brokerProvider === "manual" ? (
+                  <div className="rounded-xl border border-[color:var(--dopl-sage)]/30 bg-[color:var(--dopl-deep)] p-4 text-sm text-[color:var(--dopl-cream)]/65">
+                    you can add positions manually any time from the
+                    positions page. continue to set up your portfolio.
+                  </div>
+                ) : brokerProvider === "saltedge" ? (
+                  <button
+                    onClick={startSaltedge}
+                    disabled={brokerStarting !== null}
+                    className="btn-lime text-sm px-6 py-3 inline-flex items-center gap-2 disabled:opacity-60"
+                  >
+                    {brokerStarting === "saltedge"
+                      ? "redirecting to salt edge..."
+                      : "connect via salt edge"}
+                    <ArrowRight size={14} />
+                  </button>
                 ) : (
-                  <>
-                    <button
-                      onClick={launchBrokerConnect}
-                      className="btn-lime text-sm px-6 py-3 inline-flex items-center gap-2"
-                    >
-                      open broker connect
-                      <ArrowRight size={14} />
-                    </button>
-                    <p className="text-xs text-[color:var(--dopl-cream)]/40 mt-3">
-                      you&apos;ll come back here automatically once connected. skip if you want to explore first.
-                    </p>
-                  </>
+                  <button
+                    onClick={startSnaptrade}
+                    disabled={brokerStarting !== null}
+                    className="btn-lime text-sm px-6 py-3 inline-flex items-center gap-2 disabled:opacity-60"
+                  >
+                    {brokerStarting === "snaptrade"
+                      ? "redirecting to snaptrade..."
+                      : "connect via snaptrade"}
+                    <ArrowRight size={14} />
+                  </button>
+                )}
+                {brokerError && (
+                  <div className="mt-3 rounded-xl border border-red-400/30 bg-red-500/5 px-3 py-2.5 text-xs text-red-200/80">
+                    {brokerError}
+                  </div>
+                )}
+                {!initial.hasBroker && brokerProvider !== "manual" && (
+                  <p className="text-xs text-[color:var(--dopl-cream)]/40 mt-3">
+                    read-only. we never execute trades. you&apos;ll return here
+                    automatically after connecting.
+                  </p>
                 )}
                 <ActionRow
                   onSkip={next}
@@ -371,7 +510,7 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
                 )}
                 {portfolioTier !== "free" && !initial.stripeOnboarded && (
                   <div className="mt-3 rounded-xl border border-amber-400/30 bg-amber-400/5 px-3 py-2.5 text-xs text-amber-200/80">
-                    paid tiers need stripe connected. you&apos;ll set that up in the next step.
+                    paid tier — will go live once you finish stripe in the next step. doplers see a &ldquo;finalizing setup&rdquo; lock until then.
                   </div>
                 )}
                 {createError && (
@@ -415,27 +554,50 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
                     <CheckCircle size={16} /> stripe connected
                   </div>
                 ) : (
-                  <button
-                    onClick={async () => {
-                      const res = await fetch("/api/stripe/connect", {
-                        method: "POST",
-                      });
-                      const { url } = await res.json();
-                      if (url) window.location.href = url;
-                    }}
-                    className="btn-lime text-sm px-6 py-3 inline-flex items-center gap-2"
-                  >
-                    set up stripe
-                    <ArrowRight size={14} />
-                  </button>
+                  <>
+                    <button
+                      onClick={launchStripe}
+                      disabled={stripeChecking}
+                      className="btn-lime text-sm px-6 py-3 inline-flex items-center gap-2 disabled:opacity-60"
+                    >
+                      {stripeChecking
+                        ? "opening stripe..."
+                        : stripeLaunched
+                        ? "re-open stripe"
+                        : "set up stripe"}
+                      <ArrowRight size={14} />
+                    </button>
+                    {stripeLaunched && (
+                      <div className="mt-4 rounded-xl border border-[color:var(--dopl-sage)]/30 bg-[color:var(--dopl-deep)] p-4 text-xs text-[color:var(--dopl-cream)]/65 leading-relaxed">
+                        finish stripe in the new tab, then come back here and
+                        click <span className="text-[color:var(--dopl-lime)]">i&apos;m done</span>.
+                        stripe sometimes takes a few seconds to confirm — if
+                        it&apos;s not green yet, try again shortly.
+                      </div>
+                    )}
+                    <div className="mt-3">
+                      <button
+                        onClick={recheckStripe}
+                        disabled={stripeChecking}
+                        className="glass-card-light px-5 py-2.5 text-sm rounded-xl hover:bg-[color:var(--dopl-sage)]/40 inline-flex items-center gap-2 disabled:opacity-60"
+                      >
+                        {stripeChecking ? "checking..." : "i'm done — check status"}
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-[color:var(--dopl-cream)]/35 mt-3">
+                      you can also skip this and come back later — paid-tier
+                      portfolios stay unpublished until stripe is done.
+                    </p>
+                  </>
                 )}
                 <ActionRow
+                  onSkip={initial.stripeOnboarded ? undefined : next}
                   onBack={prev}
                   primary={
                     <button
                       onClick={next}
-                      disabled={!initial.stripeOnboarded}
-                      className="btn-lime text-sm px-6 py-2.5 flex items-center gap-2 disabled:opacity-40"
+                      disabled={false}
+                      className="btn-lime text-sm px-6 py-2.5 flex items-center gap-2"
                     >
                       continue
                       <ArrowRight size={14} />

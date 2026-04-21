@@ -18,7 +18,9 @@ export default async function OnboardingPage() {
 
   const { data: fm } = await supabase
     .from("fund_managers")
-    .select("*, stripe_account_id, stripe_onboarded")
+    .select(
+      "*, stripe_account_id, stripe_onboarded, region, broker_provider, snaptrade_user_id, saltedge_customer_id"
+    )
     .eq("id", user.id)
     .maybeSingle();
 
@@ -41,6 +43,12 @@ export default async function OnboardingPage() {
     avatarUrl: fm?.avatar_url ?? null,
     stripeOnboarded: !!fm?.stripe_onboarded,
     hasPaidPortfolio,
+    region: (fm?.region as string | null) ?? null,
+    brokerProvider:
+      (fm?.broker_provider as "snaptrade" | "saltedge" | "manual" | null) ??
+      null,
+    hasSnaptradeUser: !!fm?.snaptrade_user_id,
+    hasSaltedgeCustomer: !!fm?.saltedge_customer_id,
   };
 
   return <OnboardingClient initial={initial} />;

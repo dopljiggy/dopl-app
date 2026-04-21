@@ -9,23 +9,10 @@ export async function POST(request: Request) {
 
   const body = await request.json();
 
-  if (Number(body.price_cents ?? 0) > 0) {
-    const { data: fm } = await supabase
-      .from("fund_managers")
-      .select("stripe_onboarded")
-      .eq("id", user.id)
-      .maybeSingle();
-    if (!fm?.stripe_onboarded) {
-      return NextResponse.json(
-        {
-          error: "Complete Stripe onboarding before publishing paid portfolios.",
-          next: "/dashboard/billing",
-        },
-        { status: 400 }
-      );
-    }
-  }
-
+  // Paid portfolios are allowed pre-Stripe. Doplers see the "finalizing
+  // setup" lock on paid tiers until the FM's stripe_onboarded flips true;
+  // the /api/stripe/checkout handler is the final gate (it fails when
+  // stripe_account_id is missing or the account is not charge-enabled).
   const { data, error } = await supabase
     .from("portfolios")
     .insert({
