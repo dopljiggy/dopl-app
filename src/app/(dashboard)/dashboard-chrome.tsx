@@ -36,7 +36,7 @@ const bottomNav = [
 
 function DoplLogo() {
   return (
-    <Link href="/dashboard" className="flex items-center gap-2 group" aria-label="dashboard home">
+    <Link href="/" className="flex items-center gap-2 group" aria-label="dopl home">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src="/dopl-logo.svg"

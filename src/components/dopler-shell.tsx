@@ -68,7 +68,7 @@ export default function DoplerShell({
       <nav className="sticky top-0 z-30 backdrop-blur-xl bg-[color:var(--dopl-deep)]/65 border-b border-[color:var(--glass-border)]">
         <div className="max-w-5xl mx-auto px-6 py-3 flex items-center gap-6">
           <Link
-            href="/feed"
+            href="/"
             className="flex items-center gap-2"
             aria-label="dopl home"
           >
