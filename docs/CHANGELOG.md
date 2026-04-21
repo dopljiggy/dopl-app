@@ -5,6 +5,17 @@ Format: date, description, files, why, impact, testing, risks.
 
 ---
 
+## [2026-04-21] — Sprint 3 hotfix round 5 (Task 21)
+
+**Files changed:**
+- `src/components/ui/toast.tsx` — toast container moved from `top-4 right-4` to `top-20 right-4` so toasts render below the sticky top nav instead of overlapping the bell + settings icons.
+
+**Why:** Surfer image #47 — "you've undopled Manual Holdings" toast rendered directly on top of the bell and profile icons, obscuring the bell's unread pulse and blocking click targets.
+
+**Testing:** `npm test` 71/71, `npm run build` clean.
+
+---
+
 ## [2026-04-21] — Sprint 3 hotfix round 4 (Task 20)
 
 **Files changed:**
