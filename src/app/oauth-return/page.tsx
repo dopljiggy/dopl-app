@@ -1,10 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { CheckCircle } from "lucide-react";
 
 export default function OAuthReturnPage() {
+  return (
+    <Suspense fallback={null}>
+      <OAuthReturnInner />
+    </Suspense>
+  );
+}
+
+function OAuthReturnInner() {
   const params = useSearchParams();
   const provider = params?.get("provider") ?? null;
   const [showFallback, setShowFallback] = useState(false);

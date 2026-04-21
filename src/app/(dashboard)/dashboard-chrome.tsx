@@ -16,6 +16,7 @@ import {
 import { motion } from "framer-motion";
 import PageTransition from "@/components/ui/page-transition";
 import SignOutLink from "@/components/sign-out-link";
+import { NavLink } from "@/components/ui/nav-link";
 
 const sideNav = [
   { href: "/dashboard", icon: LayoutDashboard, label: "overview" },
@@ -59,7 +60,7 @@ function SideNav() {
       {sideNav.map((item) => {
         const active = pathname === item.href;
         return (
-          <Link
+          <NavLink
             key={item.href}
             href={item.href}
             className={`relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors ${
@@ -79,7 +80,7 @@ function SideNav() {
               <item.icon size={18} />
               {item.label}
             </span>
-          </Link>
+          </NavLink>
         );
       })}
     </nav>
@@ -101,7 +102,7 @@ function BottomNav() {
               (item.href === "/dashboard/profile" &&
                 pathname.startsWith("/dashboard/profile"));
             return (
-              <Link
+              <NavLink
                 key={item.href}
                 href={item.href}
                 className="relative flex flex-col items-center justify-center flex-1 py-2 min-h-[44px]"
@@ -132,7 +133,7 @@ function BottomNav() {
                 >
                   {item.label}
                 </span>
-              </Link>
+              </NavLink>
             );
           })}
         </div>

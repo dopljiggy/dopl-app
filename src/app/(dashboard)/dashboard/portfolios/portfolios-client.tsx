@@ -9,6 +9,8 @@ import { GlassCard } from "@/components/ui/glass-card";
 import ExpandablePortfolioCard, {
   type PositionRow,
 } from "./expandable-portfolio-card";
+import { SubmitButton } from "@/components/ui/submit-button";
+import { InlineError } from "@/components/ui/inline-error";
 
 interface NewPortfolio {
   name: string;
@@ -248,16 +250,11 @@ export default function PortfoliosClient({
               )}
 
               {createError && (
-                <div className="mb-4 rounded-xl border border-red-400/30 bg-red-500/5 px-3 py-2.5 text-xs text-red-200/80">
-                  {createError.message}
-                  {createError.next && (
-                    <a
-                      href={createError.next}
-                      className="ml-2 underline text-[color:var(--dopl-lime)]"
-                    >
-                      go set it up →
-                    </a>
-                  )}
+                <div className="mb-4">
+                  <InlineError
+                    message={createError.message}
+                    nextHref={createError.next}
+                  />
                 </div>
               )}
               <div className="flex gap-3">
@@ -270,13 +267,15 @@ export default function PortfoliosClient({
                 >
                   cancel
                 </button>
-                <button
+                <SubmitButton
                   onClick={handleCreate}
-                  disabled={submitting || !newPortfolio.name}
-                  className="flex-1 btn-lime text-sm py-3 disabled:opacity-50"
+                  isPending={submitting}
+                  pendingLabel="creating..."
+                  disabled={!newPortfolio.name}
+                  className="flex-1 text-sm py-3"
                 >
-                  {submitting ? "creating..." : "create"}
-                </button>
+                  create
+                </SubmitButton>
               </div>
             </motion.div>
           </motion.div>

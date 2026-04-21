@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import { createClient } from "@/lib/supabase";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { SubmitButton } from "@/components/ui/submit-button";
 
 export default function SignupPage() {
   return (
@@ -228,13 +229,14 @@ function SignupForm() {
             </div>
           )}
 
-          <button
+          <SubmitButton
             type="submit"
-            disabled={loading}
-            className="btn-lime w-full text-sm py-3 mt-2"
+            isPending={loading}
+            pendingLabel="creating account..."
+            className="w-full text-sm py-3 mt-2"
           >
-            {loading ? "creating account..." : "create account"}
-          </button>
+            create account
+          </SubmitButton>
 
           <p className="text-center text-xs text-[color:var(--dopl-cream)]/30 mt-4">
             already have an account?{" "}

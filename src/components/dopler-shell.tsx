@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import NotificationBell from "@/components/ui/notification-bell";
 import { NotificationToastListener } from "@/components/ui/notification-toast-listener";
 import PageTransition from "@/components/ui/page-transition";
+import { NavLink } from "@/components/ui/nav-link";
 import { createClient } from "@/lib/supabase";
 import { useNotifications } from "@/hooks/use-notifications";
 import { NotificationsProvider } from "@/components/notifications-context";
@@ -89,7 +90,7 @@ export default function DoplerShell({
             {nav.slice(0, 3).map((item) => {
               const active = pathname === item.href;
               return (
-                <Link
+                <NavLink
                   key={item.href}
                   href={item.href}
                   className={`relative px-3 py-1.5 text-sm rounded-lg transition-colors ${
@@ -106,7 +107,7 @@ export default function DoplerShell({
                     />
                   )}
                   <span className="relative">{item.label}</span>
-                </Link>
+                </NavLink>
               );
             })}
           </div>
@@ -150,7 +151,7 @@ export default function DoplerShell({
               const showBadge =
                 item.href === "/notifications" && unreadCount > 0;
               return (
-                <Link
+                <NavLink
                   key={item.href}
                   href={item.href}
                   className="relative flex flex-col items-center justify-center flex-1 py-2 min-h-[44px]"
@@ -188,7 +189,7 @@ export default function DoplerShell({
                   >
                     {item.label}
                   </span>
-                </Link>
+                </NavLink>
               );
             })}
           </div>

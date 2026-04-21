@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { REGIONS } from "@/components/connect/region-selector";
+import { SubmitButton } from "@/components/ui/submit-button";
+import { InlineError } from "@/components/ui/inline-error";
 
 type BrokerProvider = "snaptrade" | "saltedge" | "manual";
 
@@ -67,6 +69,7 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
   const [displayName, setDisplayName] = useState(initial.displayName);
   const [handle, setHandle] = useState(initial.handle);
   const [saving, setSaving] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
   const [createError, setCreateError] = useState<{
     message: string;
     next?: string;
@@ -116,6 +119,7 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
 
   const saveProfile = async () => {
     setSaving(true);
+    setProfileError(null);
     const res = await fetch("/api/profile", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -129,7 +133,7 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
     setSaving(false);
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      alert(j.error ?? "could not save profile");
+      setProfileError(j.error ?? "could not save profile");
       return;
     }
     next();
@@ -410,18 +414,30 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
                 <p className="text-[10px] text-[color:var(--dopl-cream)]/30 text-right mt-1 font-mono">
                   {bio.length}/280
                 </p>
+                {profileError && (
+                  <div className="mt-3">
+                    <InlineError
+                      message={profileError}
+                      onDismiss={() => setProfileError(null)}
+                    />
+                  </div>
+                )}
 
                 <ActionRow
                   onBack={undefined}
                   primary={
-                    <button
+                    <SubmitButton
                       onClick={saveProfile}
-                      disabled={saving || !displayName.trim() || handle.length < 2}
-                      className="btn-lime text-sm px-6 py-2.5 flex items-center gap-2"
+                      isPending={saving}
+                      pendingLabel="saving..."
+                      disabled={!displayName.trim() || handle.length < 2}
+                      className="text-sm px-6 py-2.5 inline-flex items-center gap-2"
                     >
-                      {saving ? "saving..." : "continue"}
-                      <ArrowRight size={14} />
-                    </button>
+                      <span className="inline-flex items-center gap-2">
+                        continue
+                        <ArrowRight size={14} />
+                      </span>
+                    </SubmitButton>
                   }
                 />
               </StepCard>
@@ -602,14 +618,18 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
                   onSkip={next}
                   onBack={prev}
                   primary={
-                    <button
+                    <SubmitButton
                       onClick={createPortfolio}
-                      disabled={saving || !portfolioName}
-                      className="btn-lime text-sm px-6 py-2.5 flex items-center gap-2"
+                      isPending={saving}
+                      pendingLabel="creating..."
+                      disabled={!portfolioName}
+                      className="text-sm px-6 py-2.5 inline-flex items-center gap-2"
                     >
-                      {saving ? "creating..." : "create"}
-                      <ArrowRight size={14} />
-                    </button>
+                      <span className="inline-flex items-center gap-2">
+                        create
+                        <ArrowRight size={14} />
+                      </span>
+                    </SubmitButton>
                   }
                 />
               </StepCard>
@@ -627,18 +647,17 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
                   </div>
                 ) : (
                   <>
-                    <button
+                    <SubmitButton
                       onClick={launchStripe}
-                      disabled={stripeChecking}
-                      className="btn-lime text-sm px-6 py-3 inline-flex items-center gap-2 disabled:opacity-60"
+                      isPending={stripeChecking}
+                      pendingLabel="opening stripe..."
+                      className="text-sm px-6 py-3 inline-flex items-center gap-2"
                     >
-                      {stripeChecking
-                        ? "opening stripe..."
-                        : stripeLaunched
-                        ? "re-open stripe"
-                        : "set up stripe"}
-                      <ArrowRight size={14} />
-                    </button>
+                      <span className="inline-flex items-center gap-2">
+                        {stripeLaunched ? "re-open stripe" : "set up stripe"}
+                        <ArrowRight size={14} />
+                      </span>
+                    </SubmitButton>
                     {stripeLaunched && (
                       <div className="mt-4 rounded-xl border border-[color:var(--dopl-sage)]/30 bg-[color:var(--dopl-deep)] p-4 text-xs text-[color:var(--dopl-cream)]/65 leading-relaxed">
                         finish stripe in the new tab, then come back here and
@@ -648,13 +667,15 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
                       </div>
                     )}
                     <div className="mt-3">
-                      <button
+                      <SubmitButton
                         onClick={recheckStripe}
-                        disabled={stripeChecking}
-                        className="glass-card-light px-5 py-2.5 text-sm rounded-xl hover:bg-[color:var(--dopl-sage)]/40 inline-flex items-center gap-2 disabled:opacity-60"
+                        isPending={stripeChecking}
+                        pendingLabel="checking..."
+                        variant="secondary"
+                        className="px-5 py-2.5 text-sm rounded-xl inline-flex items-center gap-2 hover:bg-[color:var(--dopl-sage)]/40"
                       >
-                        {stripeChecking ? "checking..." : "i'm done — check status"}
-                      </button>
+                        i&apos;m done — check status
+                      </SubmitButton>
                     </div>
                     <p className="text-[11px] text-[color:var(--dopl-cream)]/35 mt-3">
                       you can also skip this and come back later — paid-tier

@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
+import { SubmitButton } from "@/components/ui/submit-button";
+import { InlineError } from "@/components/ui/inline-error";
 
 type Direction = "buy" | "sell" | "rebalance";
 
@@ -144,7 +146,9 @@ export function SendManualUpdateModal({
             />
 
             {error && (
-              <p className="text-xs text-red-400 mt-2">{error}</p>
+              <div className="mt-2">
+                <InlineError message={error} />
+              </div>
             )}
 
             <div className="flex gap-2 mt-5 items-center justify-end">
@@ -154,13 +158,21 @@ export function SendManualUpdateModal({
               >
                 cancel
               </button>
-              <button
-                onClick={submit}
-                disabled={pending || sent || (needsTicker && !ticker.trim())}
-                className="btn-lime text-xs px-5 py-2 disabled:opacity-40"
-              >
-                {sent ? "sent ✓" : pending ? "sending…" : "send to doplers"}
-              </button>
+              {sent ? (
+                <span className="btn-lime text-xs px-5 py-2 opacity-80">
+                  sent ✓
+                </span>
+              ) : (
+                <SubmitButton
+                  onClick={submit}
+                  isPending={pending}
+                  pendingLabel="sending…"
+                  disabled={needsTicker && !ticker.trim()}
+                  className="text-xs px-5 py-2"
+                >
+                  send to doplers
+                </SubmitButton>
+              )}
             </div>
           </motion.div>
         </motion.div>

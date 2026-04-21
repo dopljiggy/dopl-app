@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import { createClient } from "@/lib/supabase";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { SubmitButton } from "@/components/ui/submit-button";
 
 export default function LoginPage() {
   return (
@@ -100,13 +101,14 @@ function LoginForm() {
             className="w-full bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/30 rounded-lg px-4 py-3 text-sm placeholder:text-[color:var(--dopl-cream)]/30 mb-4"
           />
 
-          <button
+          <SubmitButton
             type="submit"
-            disabled={loading}
-            className="btn-lime w-full text-sm py-3"
+            isPending={loading}
+            pendingLabel="signing in..."
+            className="w-full text-sm py-3"
           >
-            {loading ? "signing in..." : "log in"}
-          </button>
+            log in
+          </SubmitButton>
 
           <p className="text-center text-xs text-[color:var(--dopl-cream)]/30 mt-4">
             no account?{" "}
