@@ -13,6 +13,36 @@ import { createServerSupabase } from "@/lib/supabase-server";
  * doesn't already exist.
  */
 
+async function revalidatePositionSurfaces(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  portfolioId: string,
+  userId: string
+): Promise<void> {
+  // Fetch the FM's public handle so we can revalidate /[handle] too.
+  // Safe to skip if the handle isn't resolvable (shouldn't happen
+  // post-onboarding, but defensive so a single stale row can't break
+  // the other four revalidations).
+  const { data: fm } = await supabase
+    .from("fund_managers")
+    .select("handle")
+    .eq("id", userId)
+    .maybeSingle();
+  const handle = (fm?.handle as string | null | undefined) ?? null;
+
+  // /dashboard is kept so Sprint 4 R1's FinishSetupChecklist
+  // "positions assigned" flip still works on the next page load.
+  // The other three cover the actual position-render surfaces that
+  // were stale after a write: portfolio detail cards, dopler feed,
+  // and the public FM profile.
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/portfolios");
+  revalidatePath(`/feed/${portfolioId}`);
+  if (handle) {
+    revalidatePath(`/${handle}`);
+  }
+}
+
 async function getOrCreateManualPortfolio(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any,
@@ -128,6 +158,7 @@ export async function POST(request: Request) {
       .eq("portfolio_id", portfolioId);
     if (error)
       return NextResponse.json({ error: error.message }, { status: 500 });
+    await revalidatePositionSurfaces(supabase, portfolioId, user.id);
     return NextResponse.json({ ok: true, id: body.id });
   }
 
@@ -146,6 +177,7 @@ export async function POST(request: Request) {
       .eq("id", existing.id);
     if (error)
       return NextResponse.json({ error: error.message }, { status: 500 });
+    await revalidatePositionSurfaces(supabase, portfolioId, user.id);
     return NextResponse.json({ ok: true, id: existing.id });
   }
 
@@ -167,10 +199,7 @@ export async function POST(request: Request) {
     })
     .eq("id", user.id);
 
-  // Invalidate dashboard route cache so the FinishSetupChecklist
-  // "positions assigned" item flips from ○ to ✓ on next dashboard visit
-  // without requiring a hard refresh.
-  revalidatePath("/dashboard");
+  await revalidatePositionSurfaces(supabase, portfolioId, user.id);
 
   return NextResponse.json({ ok: true, id: inserted.id });
 }
@@ -198,5 +227,6 @@ export async function DELETE(request: Request) {
     .eq("portfolio_id", portfolioId);
   if (error)
     return NextResponse.json({ error: error.message }, { status: 500 });
+  await revalidatePositionSurfaces(supabase, portfolioId, user.id);
   return NextResponse.json({ ok: true });
 }
