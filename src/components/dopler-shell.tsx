@@ -17,7 +17,7 @@ const nav = [
   { href: "/feed", icon: Home, label: "feed" },
   { href: "/leaderboard", icon: Compass, label: "discover" },
   { href: "/notifications", icon: Bell, label: "alerts" },
-  { href: "/settings", icon: User, label: "profile" },
+  { href: "/me", icon: User, label: "profile" },
 ];
 
 export default function DoplerShell({
@@ -149,10 +149,10 @@ export default function DoplerShell({
               />
             </div>
             <Link
-              href="/settings"
-              aria-label="profile + sign out"
+              href="/me"
+              aria-label="your subscriptions + profile"
               className={`hidden md:inline-flex items-center justify-center w-9 h-9 rounded-full transition-colors ${
-                pathname === "/settings"
+                pathname === "/me"
                   ? "bg-[color:var(--dopl-lime)]/12 text-[color:var(--dopl-lime)]"
                   : "text-[color:var(--dopl-cream)]/60 hover:text-[color:var(--dopl-cream)] hover:bg-[color:var(--dopl-sage)]/25"
               }`}

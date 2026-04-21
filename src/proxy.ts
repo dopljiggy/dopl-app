@@ -6,7 +6,7 @@ import { doplerNeedsOnboarding } from "@/lib/proxy-gates";
  * Gated routes:
  *   /dashboard/*   — fund_manager only (others → /feed)
  *   /feed, /feed/* — subscriber only  (others → /dashboard)
- *   /welcome, /notifications, /settings — any authed user
+ *   /welcome, /notifications, /settings, /me — any authed user
  *
  * Public (not matched):
  *   /, /login, /signup, /leaderboard, /[handle], /api/*, /_next/*, /auth/*
@@ -100,5 +100,6 @@ export const config = {
     "/welcome",
     "/notifications",
     "/settings",
+    "/me",
   ],
 };
