@@ -75,7 +75,27 @@ Branch naming:
 - `fix/xxx` — bug fixes
 - `chore/xxx` — non-code changes (docs, deps, config)
 
-Implementer (Instance 3) commits to a feature branch locally and does NOT push. Surfer verifies locally (`npm test`, `npm run build`, manual browser check) and pushes/merges manually.
+Implementer (Instance 3) commits to a feature branch and runs `npm test` + `npm run build` green before handing off. Surfer does NOT run a local browser test — he smokes on the deployed Vercel site (`dopl-app.vercel.app`) after the branch merges to main.
+
+**Merge + push policy:**
+- **First-merge of a new sprint:** Surfer merges + pushes manually, then runs the manual browser smoke on the live prod URL.
+- **Hotfix iteration rounds** (Sprint 3 R1–R5, Sprint 4 hotfix rounds, etc.): Claude auto-merges + pushes once tests + build are green on the feature branch. Surfer smokes on prod. If bugs, another hotfix branch → auto-merge → re-smoke.
+
+**Pre-merge local verification** (Instance 3's job, NOT Surfer's):
+- `npm test` green
+- `npm run build` clean with critical env vars unset
+- No new TypeScript errors
+
+**Post-merge verification** (Surfer's job on prod):
+- Vercel auto-deploys on push to main
+- Surfer runs the sprint's manual smoke checklist against `dopl-app.vercel.app`
+- Any failure → new hotfix branch → Claude merges + pushes → Surfer re-smokes
+
+See `feedback_no_auto_push.md` memory for the full policy including when Claude must wait vs. when Claude auto-merges.
+
+## Next 16 gotchas
+
+- **`useSearchParams` inside a statically-generated page requires a `<Suspense>` wrap** — Next 16's static-generation check fails the build otherwise. Pattern: wrap the consumer component in `<Suspense fallback={null}>`. Discovered during Sprint 4 implementation of `/oauth-return`.
 
 ## Changelog Protocol
 
