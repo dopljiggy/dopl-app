@@ -112,7 +112,7 @@ export default function DoplerShell({
           </div>
 
           <div className="ml-auto flex items-center gap-2">
-            <div className="hidden md:block relative z-40">
+            <div className="hidden md:block">
               <NotificationBell
                 userId={userId}
                 tradingConnected={trading.connected}
