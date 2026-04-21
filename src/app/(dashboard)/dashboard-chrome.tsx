@@ -17,6 +17,9 @@ import { motion } from "framer-motion";
 import PageTransition from "@/components/ui/page-transition";
 import SignOutLink from "@/components/sign-out-link";
 import { NavLink } from "@/components/ui/nav-link";
+import { FmNotificationsProvider } from "@/components/fm-notifications-context";
+import { useFmNotifications } from "@/hooks/use-fm-notifications";
+import FmNotificationBell from "@/components/ui/fm-notification-bell";
 
 const sideNav = [
   { href: "/dashboard", icon: LayoutDashboard, label: "overview" },
@@ -136,6 +139,17 @@ function BottomNav() {
               </NavLink>
             );
           })}
+          {/* 5th slot — FM bell (Sprint 5). Opens its portal dropdown in place;
+              not a route link. Dropdown anchor="bottom" flips the direction
+              so it opens UPWARD from the bottom-nav. Labeled "activity" to
+              stay consistent with the other 4 slots + the /fund-manager/activity
+              destination the "see all" link points to. */}
+          <div className="relative flex flex-col items-center justify-center flex-1 py-2 min-h-[44px] text-[color:var(--dopl-cream)]/60">
+            <FmNotificationBell anchor="bottom" />
+            <span className="relative text-[10px] mt-0.5 text-[color:var(--dopl-cream)]/50">
+              activity
+            </span>
+          </div>
         </div>
       </div>
     </nav>
@@ -143,32 +157,40 @@ function BottomNav() {
 }
 
 export default function DashboardChrome({
+  userId,
   children,
 }: {
+  userId: string;
   children: React.ReactNode;
 }) {
+  const fmNotificationsValue = useFmNotifications(userId);
   return (
-    <div className="min-h-screen flex">
-      <aside className="w-64 border-r border-[color:var(--glass-border)] p-6 hidden md:flex md:flex-col sticky top-0 h-screen overflow-y-auto">
-        <div className="mb-10">
-          <DoplLogo />
-        </div>
-        <SideNav />
-        <div className="mt-auto pt-6 border-t border-[color:var(--glass-border)]">
-          <SignOutLink />
-        </div>
-      </aside>
-
-      <main className="flex-1 p-5 md:p-10 pb-28 md:pb-10 min-w-0 max-w-[1200px] mx-auto w-full">
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-3 md:hidden">
+    <FmNotificationsProvider value={fmNotificationsValue}>
+      <div className="min-h-screen flex">
+        <aside className="w-64 border-r border-[color:var(--glass-border)] p-6 hidden md:flex md:flex-col sticky top-0 h-screen overflow-y-auto">
+          <div className="mb-10">
             <DoplLogo />
           </div>
-        </div>
-        <PageTransition>{children}</PageTransition>
-      </main>
+          <SideNav />
+          <div className="mt-auto pt-6 border-t border-[color:var(--glass-border)]">
+            <SignOutLink />
+          </div>
+        </aside>
 
-      <BottomNav />
-    </div>
+        <main className="flex-1 p-5 md:p-10 pb-28 md:pb-10 min-w-0 max-w-[1200px] mx-auto w-full">
+          <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center gap-3 md:hidden">
+              <DoplLogo />
+            </div>
+            <div className="hidden md:block ml-auto">
+              <FmNotificationBell anchor="top" />
+            </div>
+          </div>
+          <PageTransition>{children}</PageTransition>
+        </main>
+
+        <BottomNav />
+      </div>
+    </FmNotificationsProvider>
   );
 }

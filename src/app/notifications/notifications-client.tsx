@@ -29,7 +29,12 @@ export default function NotificationsClient({
   tradingName: string | null;
   tradingWebsite: string | null;
 }) {
-  const { notifications, unreadCount, markAllRead } = useNotificationsContext();
+  const {
+    notifications,
+    unreadCount,
+    markAllRead,
+    activeSubscribedPortfolioIds,
+  } = useNotificationsContext();
   const [copied, setCopied] = useState<string | null>(null);
   const [popup, setPopup] = useState<PopupNotification | null>(null);
 
@@ -188,6 +193,7 @@ export default function NotificationsClient({
         tradingConnected={tradingConnected}
         tradingName={tradingName}
         tradingWebsite={tradingWebsite}
+        activeSubscribedPortfolioIds={activeSubscribedPortfolioIds}
         onClose={() => setPopup(null)}
       />
     </div>

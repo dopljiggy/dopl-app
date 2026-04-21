@@ -139,6 +139,7 @@ export async function fanOutPortfolioUpdate(
         meta: {
           shares: "shares" in change ? change.shares : undefined,
           prev_shares: "prevShares" in change ? change.prevShares : undefined,
+          portfolio_id: input.portfolio_id,
           ...(input.meta_extend ?? {}),
         },
       });
@@ -154,6 +155,7 @@ export async function fanOutPortfolioUpdate(
         ticker: null,
         meta: {
           rebalance_count: rebalances.length,
+          portfolio_id: input.portfolio_id,
           ...(input.meta_extend ?? {}),
         },
       });
@@ -167,7 +169,10 @@ export async function fanOutPortfolioUpdate(
         actionable: true,
         change_type: "note",
         ticker: null,
-        meta: { ...(input.meta_extend ?? {}) },
+        meta: {
+          portfolio_id: input.portfolio_id,
+          ...(input.meta_extend ?? {}),
+        },
       });
     }
   }

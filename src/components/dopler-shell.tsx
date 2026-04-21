@@ -34,6 +34,13 @@ export default function DoplerShell({
     website: string | null;
   }>({ connected: false, name: null, website: null });
 
+  // Portfolio ids the viewer is currently subscribed to (`status='active'`).
+  // Used by the popup's stale-actionable guard — position-change
+  // notifications for a portfolio the dopler has since cancelled render
+  // a "view portfolio" CTA instead of a broker-action CTA.
+  const [activeSubscribedPortfolioIds, setActiveSubscribedPortfolioIds] =
+    useState<Set<string>>(new Set());
+
   useEffect(() => {
     const supabase = createClient();
     void supabase.auth.getUser().then(async ({ data }) => {
@@ -56,10 +63,30 @@ export default function DoplerShell({
       } catch {
         /* ignore — cols may not exist yet */
       }
+      try {
+        const { data: subs } = await supabase
+          .from("subscriptions")
+          .select("portfolio_id")
+          .eq("user_id", uid)
+          .eq("status", "active");
+        setActiveSubscribedPortfolioIds(
+          new Set(
+            (subs ?? []).map(
+              (s) => (s as { portfolio_id: string }).portfolio_id
+            )
+          )
+        );
+      } catch {
+        /* ignore */
+      }
     });
   }, []);
 
-  const notificationsState = useNotifications(userId);
+  const baseState = useNotifications(userId);
+  const notificationsState = {
+    ...baseState,
+    activeSubscribedPortfolioIds,
+  };
   const { unreadCount } = notificationsState;
 
   return (

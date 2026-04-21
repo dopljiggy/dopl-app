@@ -22,7 +22,12 @@ export default function NotificationBell({
   tradingName?: string | null;
   tradingWebsite?: string | null;
 }) {
-  const { notifications, unreadCount, markAllRead } = useNotificationsContext();
+  const {
+    notifications,
+    unreadCount,
+    markAllRead,
+    activeSubscribedPortfolioIds,
+  } = useNotificationsContext();
   const [open, setOpen] = useState(false);
   const [popup, setPopup] = useState<PopupNotification | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -118,7 +123,7 @@ export default function NotificationBell({
                     nothing yet
                   </div>
                 ) : (
-                  <div className="max-h-80 overflow-y-auto space-y-1">
+                  <div className="max-h-[70vh] overflow-y-auto space-y-1">
                     {notifications.slice(0, 8).map((n) => (
                       <button
                         key={n.id}
@@ -160,6 +165,7 @@ export default function NotificationBell({
         tradingConnected={tradingConnected}
         tradingName={tradingName}
         tradingWebsite={tradingWebsite}
+        activeSubscribedPortfolioIds={activeSubscribedPortfolioIds}
         onClose={() => setPopup(null)}
       />
     </>

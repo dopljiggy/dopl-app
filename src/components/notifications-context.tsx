@@ -7,6 +7,13 @@ type NotificationsContextValue = {
   notifications: Notification[];
   unreadCount: number;
   markAllRead: () => Promise<void>;
+  /**
+   * Portfolio ids the viewing dopler is currently `status='active'` on.
+   * Used by `NotificationPopup` to gate stale `actionable` flags: a
+   * notification for a portfolio the dopler no longer subscribes to
+   * renders a "view portfolio" CTA instead of a broker-action CTA.
+   */
+  activeSubscribedPortfolioIds: Set<string>;
 };
 
 const NotificationsContext = createContext<NotificationsContextValue | null>(null);

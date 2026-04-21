@@ -16,6 +16,7 @@ describe('NotificationsClient', () => {
       notifications: [],
       unreadCount: 0,
       markAllRead: vi.fn(async () => {}),
+      activeSubscribedPortfolioIds: new Set<string>(),
     }
     // Should not throw — it reads from the provider, not the hook.
     expect(() =>

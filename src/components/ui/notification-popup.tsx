@@ -21,6 +21,13 @@ export type PopupNotification = {
   meta?: Record<string, unknown> | null;
 };
 
+function extractPortfolioId(
+  meta: Record<string, unknown> | null | undefined
+): string | null {
+  const pid = meta?.portfolio_id;
+  return typeof pid === "string" ? pid : null;
+}
+
 function extractTicker(body: string | null | undefined): string | null {
   if (!body) return null;
   const m = body.match(
@@ -41,12 +48,14 @@ export function NotificationPopup({
   tradingConnected,
   tradingName,
   tradingWebsite,
+  activeSubscribedPortfolioIds,
   onClose,
 }: {
   notification: PopupNotification | null;
   tradingConnected: boolean;
   tradingName: string | null;
   tradingWebsite: string | null;
+  activeSubscribedPortfolioIds?: Set<string>;
   onClose: () => void;
 }) {
   const [copied, setCopied] = useState(false);
@@ -56,6 +65,17 @@ export function NotificationPopup({
   }, [notification?.id]);
 
   const ticker = extractTicker(notification?.body);
+  const notifPortfolioId = extractPortfolioId(notification?.meta);
+  // Stale-actionable guard: if the notification's portfolio is NOT in the
+  // dopler's currently-active subscriptions (e.g. they cancelled, or the
+  // notification is from before they ever subscribed), downgrade the CTA
+  // from broker-action to a read-only "view portfolio" link. Fallback is
+  // permissive — rows without portfolio_id (legacy pre-Sprint-5) keep the
+  // existing broker-action behavior.
+  const isStaleActionable =
+    !!notifPortfolioId &&
+    !!activeSubscribedPortfolioIds &&
+    !activeSubscribedPortfolioIds.has(notifPortfolioId);
 
   const copyTicker = async () => {
     if (!ticker) return;
@@ -75,7 +95,7 @@ export function NotificationPopup({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[60] flex items-end md:items-center justify-center"
+          className="fixed inset-0 z-[80] flex items-end md:items-center justify-center"
           onClick={onClose}
         >
           <div
@@ -144,6 +164,15 @@ export function NotificationPopup({
                 <div className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/40 font-mono text-center py-2">
                   informational
                 </div>
+              ) : isStaleActionable && notifPortfolioId ? (
+                <Link
+                  href={`/feed/${notifPortfolioId}`}
+                  onClick={onClose}
+                  className="btn-lime w-full text-sm py-3 inline-flex items-center justify-center gap-2"
+                >
+                  <ExternalLink size={14} />
+                  view portfolio
+                </Link>
               ) : (
                 <>
                   {tradingConnected && tradingWebsite ? (
