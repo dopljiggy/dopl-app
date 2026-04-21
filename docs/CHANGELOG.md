@@ -5,6 +5,26 @@ Format: date, description, files, why, impact, testing, risks.
 
 ---
 
+## [2026-04-21] — Sprint 4 Hotfix R2 (4 smoke bugs)
+
+**Files changed:**
+- `src/app/api/stripe/connect/route.ts` — pass explicit `country` to `stripe.accounts.create` derived from FM's `region` (us_canada→US, uk→GB, europe→NL, uae→AE, australia→AU, india→IN, other→US). Stripe's default-to-platform-country meant every FM got an AE account regardless of selected region. Also: if an existing unverified account has a mismatched country (stale pre-fix testing or mid-onboarding region change), delete it in Stripe and clear the DB row so the next create produces a correct account. Never touches `stripe_onboarded=true` accounts.
+- `src/app/onboarding/onboarding-client.tsx` — (a) visibilitychange handler now clears `brokerStarting` + `stripeChecking` on tab return so the launcher button un-dims instead of staying stuck on "redirecting to snaptrade..."; added `brokerLaunched` state + "i'm done — check status" secondary button matching the Stripe pattern. (b) `createPortfolio` is idempotent within the wizard — `portfolioCreated` state (seeded from `initial.hasPortfolio` + `sessionStorage` so it survives router.refresh on OAuth return) short-circuits the POST on back→next re-entries; form inputs disable and the step shows a "`<name>` created" confirmation card.
+- `src/app/(dashboard)/dashboard/share/share-client.tsx` — X URL reverted from `x.com/intent/post` (doesn't exist; returns X's error page) to `x.com/intent/tweet` (canonical Web Intent URL verified 2026-04). Also dropped `noopener,noreferrer` from the features string — per WHATWG spec `window.open` returns null with noopener set, which forced the same-tab fallback every time; defense-in-depth sever `popup.opener` after navigation instead.
+
+**Why:** Surfer's 2026-04-21 smoke of Sprint 4 Hotfix R1 caught four remaining issues. Stripe AE default was a platform-config trap (no country arg → Stripe reads platform country = UAE). SnapTrade stuck state + duplicate portfolios were both onboarding-wizard state-management bugs. X share was an R1 regression — I migrated to `/intent/post` on a hunch; that URL doesn't exist.
+
+**Impact:** Onboarding wizard now respects FM region for Stripe, un-sticks itself after OAuth return, and can't spawn duplicate portfolios on back/next navigation. Share-on-X opens the real X composer instead of an error page.
+
+**Testing:** 99/21 tests passing. `npm run build` clean. No new tests added — all four bugs are integration-layer fixes (popup gesture preservation, server-side Stripe config, visibilitychange state reset, form-submit guard) covered by manual smoke.
+
+**Risks:**
+- Recreating stale unverified Stripe accounts deletes the old Stripe account (via `stripe.accounts.del`) before creating the new one. Safe because: only runs when `stripe_onboarded=false` (no payouts attached); wrapped in `.catch(() => {})` so a Stripe 4xx doesn't break the onboarding flow. Any already-onboarded account is never touched.
+- `europe` → NL default is arbitrary; a Spanish FM hitting Stripe onboarding lands on an NL Connect account. Stripe Express supports switching country via contact-support, but mid-term fix is a country picker on the Stripe step when region === europe. Logged for Phase 2.
+- Portfolio `portfolioCreated` short-circuit doesn't PATCH on edits. If an FM changes name/tier/price then clicks back→next, the original portfolio persists unchanged. Acceptable — they can edit from `/dashboard/portfolios`; surfacing that in the wizard is scope creep.
+
+---
+
 ## [2026-04-21] — Sprint 4 Hotfix R1 (7 smoke bugs)
 
 **Files changed:**
