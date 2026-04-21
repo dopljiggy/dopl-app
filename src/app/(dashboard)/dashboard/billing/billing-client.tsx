@@ -70,7 +70,7 @@ export default function BillingClient({
             <button
               onClick={handleSetupStripe}
               disabled={loading}
-              className="btn-lime w-full text-sm py-3"
+              className="btn-lime w-full text-sm py-3 disabled:opacity-50"
             >
               {loading
                 ? "redirecting to Stripe..."

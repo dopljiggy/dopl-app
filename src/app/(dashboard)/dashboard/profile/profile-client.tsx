@@ -69,7 +69,7 @@ export default function ProfileClient({ initial }: { initial: ProfileForm }) {
         <button
           onClick={handleSave}
           disabled={saving}
-          className="btn-lime text-sm px-5 py-2.5 flex items-center gap-2"
+          className="btn-lime text-sm px-5 py-2.5 flex items-center gap-2 disabled:opacity-50"
         >
           {saved ? <Check size={16} /> : <Save size={16} />}
           {saving ? "saving..." : saved ? "saved" : "save changes"}

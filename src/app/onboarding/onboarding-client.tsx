@@ -805,8 +805,12 @@ function Progress({
   steps: readonly string[];
 }) {
   return (
-    <div className="flex items-center gap-2">
-      {steps.map((name, i) => {
+    <>
+      <div className="sm:hidden text-[11px] uppercase tracking-[0.2em] font-mono text-[color:var(--dopl-cream)]/60">
+        step {step + 1} of {steps.length} — {steps[step]}
+      </div>
+      <div className="hidden sm:flex items-center gap-2">
+        {steps.map((name, i) => {
         const done = i < step;
         const active = i === step;
         return (
@@ -851,6 +855,7 @@ function Progress({
           </div>
         );
       })}
-    </div>
+      </div>
+    </>
   );
 }

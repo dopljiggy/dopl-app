@@ -1,9 +1,12 @@
-import Link from "next/link";
 import { createServerSupabase } from "@/lib/supabase-server";
 import { redirect } from "next/navigation";
 import CountUp from "@/components/ui/count-up";
 import Sparkline from "@/components/ui/sparkline";
 import { GlassCard } from "@/components/ui/glass-card";
+import {
+  FinishSetupChecklist,
+  type FinishSetupItem,
+} from "@/components/ui/finish-setup-checklist";
 
 export default async function DashboardPage() {
   const supabase = await createServerSupabase();
@@ -22,6 +25,14 @@ export default async function DashboardPage() {
     .from("portfolios")
     .select("id, price_cents, subscriber_count, is_active")
     .eq("fund_manager_id", user.id);
+
+  const portfolioIds = (portfolios ?? []).map((p) => p.id);
+  const { count: positionCount } = portfolioIds.length
+    ? await supabase
+        .from("positions")
+        .select("id", { count: "exact", head: true })
+        .in("portfolio_id", portfolioIds)
+    : { count: 0 };
 
   const activePortfolios = (portfolios ?? []).filter((p) => p.is_active);
   const mrrCents = (portfolios ?? []).reduce(
@@ -65,9 +76,28 @@ export default async function DashboardPage() {
     },
   ];
 
-  const needsBroker = !fm?.broker_connected;
-  const needsStripe = !fm?.stripe_onboarded;
-  const needsPortfolio = activePortfolios.length === 0;
+  const checklistItems: FinishSetupItem[] = [
+    {
+      label: "broker connected",
+      done: !!fm?.broker_connected,
+      href: "/dashboard/connect",
+    },
+    {
+      label: "first portfolio created",
+      done: (portfolios ?? []).length > 0,
+      href: "/dashboard/portfolios",
+    },
+    {
+      label: "positions assigned",
+      done: (positionCount ?? 0) > 0,
+      href: "/dashboard/positions",
+    },
+    {
+      label: "share your dopl link",
+      done: (fm?.subscriber_count ?? 0) > 0,
+      href: "/dashboard/share",
+    },
+  ];
 
   return (
     <div>
@@ -82,6 +112,8 @@ export default async function DashboardPage() {
           </p>
         )}
       </div>
+
+      <FinishSetupChecklist items={checklistItems} />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         {stats.map((stat) => (
@@ -115,72 +147,6 @@ export default async function DashboardPage() {
           </GlassCard>
         ))}
       </div>
-
-      {(needsBroker || needsStripe || needsPortfolio) && (
-        <GlassCard className="p-6 md:p-8">
-          <h2 className="font-display text-xl font-semibold mb-4">
-            finish setting up
-          </h2>
-          <div className="space-y-2">
-            <SetupRow
-              done={!needsBroker}
-              label="connect your brokerage"
-              href="/dashboard/connect"
-            />
-            <SetupRow
-              done={!needsStripe}
-              label="set up payments"
-              href="/dashboard/billing"
-            />
-            <SetupRow
-              done={!needsPortfolio}
-              label="create your first portfolio"
-              href="/dashboard/portfolios"
-            />
-          </div>
-        </GlassCard>
-      )}
     </div>
-  );
-}
-
-function SetupRow({
-  done,
-  label,
-  href,
-}: {
-  done: boolean;
-  label: string;
-  href: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className="group flex items-center gap-4 p-4 rounded-xl glass-card-light hover:bg-[color:var(--dopl-sage)]/30 transition-colors"
-    >
-      <span
-        className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold transition-all ${
-          done
-            ? "bg-[color:var(--dopl-lime)] text-[color:var(--dopl-deep)]"
-            : "bg-[color:var(--dopl-sage)]/50 text-[color:var(--dopl-cream)]/40 group-hover:bg-[color:var(--dopl-sage)]/80"
-        }`}
-      >
-        {done ? "✓" : ""}
-      </span>
-      <span
-        className={`text-sm flex-1 ${
-          done
-            ? "text-[color:var(--dopl-cream)]/40 line-through"
-            : "text-[color:var(--dopl-cream)]"
-        }`}
-      >
-        {label}
-      </span>
-      {!done && (
-        <span className="text-[color:var(--dopl-lime)] text-sm translate-x-0 group-hover:translate-x-1 transition-transform">
-          →
-        </span>
-      )}
-    </Link>
   );
 }
