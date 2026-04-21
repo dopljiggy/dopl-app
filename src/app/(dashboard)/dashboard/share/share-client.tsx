@@ -72,14 +72,20 @@ export default function ShareClient({
   const shareOnX = () => {
     const text = encodeURIComponent(`follow my portfolio on dopl`);
     const url = encodeURIComponent(shareUrl);
-    // Use x.com/intent/post (current URL; twitter.com/intent/tweet still
-    // redirects but some browsers / extensions block the redirect chain
-    // as popup abuse). Modern X endpoint avoids that.
-    const intent = `https://x.com/intent/post?text=${text}&url=${url}`;
-    const popup = window.open(intent, "_blank", "noopener,noreferrer");
-    if (!popup) {
-      // Popup blocked — fall back to same-tab navigation so the user
-      // still reaches X instead of seeing nothing happen.
+    // Canonical X web intent is /intent/tweet (verified 2026-04). The
+    // /intent/post variant used in Sprint 4 R1 returns X's error page.
+    // NOTE: do NOT pass "noopener,noreferrer" in the features string —
+    // per WHATWG spec window.open returns null when noopener is set,
+    // which would force the fallback same-tab nav and close the dashboard.
+    const intent = `https://x.com/intent/tweet?text=${text}&url=${url}`;
+    const popup = window.open(intent, "_blank");
+    if (popup) {
+      try {
+        popup.opener = null;
+      } catch {
+        /* cross-origin — ignore */
+      }
+    } else {
       window.location.href = intent;
     }
     markShared();
