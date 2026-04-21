@@ -101,6 +101,12 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
   const [brokerStarting, setBrokerStarting] = useState<BrokerProvider | null>(
     null
   );
+  // Tracks whether the FM launched the broker popup at least once, so
+  // we can render a "check status" re-check button after they return
+  // from the OAuth tab. Parallels stripeLaunched.
+  const [brokerLaunched, setBrokerLaunched] = useState<BrokerProvider | null>(
+    null
+  );
   const [brokerError, setBrokerError] = useState<string | null>(null);
   const [stripeChecking, setStripeChecking] = useState(false);
   const [stripeLaunched, setStripeLaunched] = useState(false);
@@ -109,6 +115,23 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
   const [portfolioName, setPortfolioName] = useState("Main Portfolio");
   const [portfolioTier, setPortfolioTier] = useState<"free" | "basic" | "premium" | "vip">("basic");
   const [portfolioPrice, setPortfolioPrice] = useState("29");
+  // Prevent duplicate portfolio rows when the FM clicks back → next again.
+  // Seeded from sessionStorage (survives router.refresh on OAuth return)
+  // or from initial.hasPortfolio (server render is authoritative on mount).
+  const PORTFOLIO_FLAG = "dopl_onboarding_portfolio_created";
+  const [portfolioCreated, setPortfolioCreated] = useState(() => {
+    if (typeof window === "undefined") return initial.hasPortfolio;
+    return (
+      initial.hasPortfolio ||
+      window.sessionStorage.getItem(PORTFOLIO_FLAG) === "1"
+    );
+  });
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (portfolioCreated) {
+      window.sessionStorage.setItem(PORTFOLIO_FLAG, "1");
+    }
+  }, [portfolioCreated]);
 
   useEffect(() => {
     if (searchParams?.get("connected") === "true") {
@@ -120,7 +143,8 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
 
   // Refresh server state when the user returns from an external OAuth tab.
   // Only fires if the user was actually away > 500ms so rapid alt-tabs
-  // don't trigger refresh spam.
+  // don't trigger refresh spam. Also clears any transient "redirecting to…"
+  // state so the launcher button un-dims and the FM can retry or move on.
   useEffect(() => {
     let lastHiddenAt = 0;
     const onVis = () => {
@@ -129,6 +153,8 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
         return;
       }
       if (Date.now() - lastHiddenAt > 500) {
+        setBrokerStarting(null);
+        setStripeChecking(false);
         router.refresh();
       }
     };
@@ -218,6 +244,7 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
         setBrokerStarting(null);
         return;
       }
+      setBrokerLaunched("snaptrade");
       if (newTab) {
         newTab.location.href = redirectUrl;
         // Defense-in-depth: sever opener link now that we've navigated.
@@ -268,6 +295,7 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
         setBrokerStarting(null);
         return;
       }
+      setBrokerLaunched("saltedge");
       if (newTab) {
         newTab.location.href = connJson.redirectUrl;
         try {
@@ -283,6 +311,11 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
       setBrokerError(err instanceof Error ? err.message : "unexpected error");
       setBrokerStarting(null);
     }
+  };
+
+  const recheckBroker = () => {
+    setBrokerStarting(null);
+    router.refresh();
   };
 
   const launchStripe = async () => {
@@ -340,6 +373,13 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
   };
 
   const createPortfolio = async () => {
+    // Idempotent within the onboarding wizard: if a portfolio was already
+    // created in this session (back→next→create would otherwise insert a
+    // duplicate "Main Portfolio" row), skip the POST and just advance.
+    if (portfolioCreated) {
+      next();
+      return;
+    }
     setSaving(true);
     setCreateError(null);
     const res = await fetch("/api/portfolios", {
@@ -367,6 +407,7 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
       });
       return;
     }
+    setPortfolioCreated(true);
     next();
   };
 
@@ -375,9 +416,11 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
   const prev = () => setStep((s) => Math.max(s - 1, 0));
 
   const finish = () => {
-    // Clear persisted step so the next FM's session starts fresh.
+    // Clear persisted onboarding session state so the next FM's session
+    // starts fresh.
     if (typeof window !== "undefined") {
       window.sessionStorage.removeItem(SESSION_KEY);
+      window.sessionStorage.removeItem(PORTFOLIO_FLAG);
     }
     router.replace("/dashboard");
     router.refresh();
@@ -574,6 +617,20 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
                     {brokerError}
                   </div>
                 )}
+                {!initial.hasBroker &&
+                  brokerProvider !== "manual" &&
+                  brokerLaunched && (
+                    <div className="mt-3">
+                      <SubmitButton
+                        onClick={recheckBroker}
+                        isPending={false}
+                        variant="secondary"
+                        className="px-5 py-2.5 text-sm rounded-xl inline-flex items-center gap-2 hover:bg-[color:var(--dopl-sage)]/40"
+                      >
+                        i&apos;m done — check status
+                      </SubmitButton>
+                    </div>
+                  )}
                 {!initial.hasBroker && brokerProvider !== "manual" && (
                   <p className="text-xs text-[color:var(--dopl-cream)]/40 mt-3">
                     read-only. we never execute trades. you&apos;ll return here
@@ -598,21 +655,39 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
             {steps[step] === "portfolio" && (
               <StepCard
                 icon={<Briefcase size={22} />}
-                title="create your first portfolio"
-                subtitle="a portfolio is a subset of your positions at a tier + price. you can add more later."
+                title={
+                  portfolioCreated
+                    ? "your first portfolio is live"
+                    : "create your first portfolio"
+                }
+                subtitle={
+                  portfolioCreated
+                    ? "you can tweak the name, tier, and price anytime from the portfolios page."
+                    : "a portfolio is a subset of your positions at a tier + price. you can add more later."
+                }
               >
+                {portfolioCreated && (
+                  <div className="mb-4 rounded-xl border border-[color:var(--dopl-lime)]/30 bg-[color:var(--dopl-lime)]/5 px-4 py-3 text-sm text-[color:var(--dopl-lime)] flex items-center gap-2">
+                    <CheckCircle size={16} />
+                    <span>
+                      {portfolioName} created — continue to set up payments.
+                    </span>
+                  </div>
+                )}
                 <input
                   type="text"
                   value={portfolioName}
                   onChange={(e) => setPortfolioName(e.target.value)}
-                  className="w-full bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/30 rounded-xl px-4 py-3 text-sm mb-3"
+                  disabled={portfolioCreated}
+                  className="w-full bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/30 rounded-xl px-4 py-3 text-sm mb-3 disabled:opacity-50"
                 />
                 <div className="grid grid-cols-4 gap-2 mb-3">
                   {(["free", "basic", "premium", "vip"] as const).map((t) => (
                     <button
                       key={t}
                       onClick={() => setPortfolioTier(t)}
-                      className={`py-2 text-xs rounded-lg transition-all ${
+                      disabled={portfolioCreated}
+                      className={`py-2 text-xs rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
                         portfolioTier === t
                           ? "bg-[color:var(--dopl-lime)]/15 border border-[color:var(--dopl-lime)]/40 text-[color:var(--dopl-lime)]"
                           : "glass-card-light"
@@ -631,7 +706,8 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
                       type="number"
                       value={portfolioPrice}
                       onChange={(e) => setPortfolioPrice(e.target.value)}
-                      className="w-full bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/30 rounded-xl pl-8 pr-16 py-3 text-sm"
+                      disabled={portfolioCreated}
+                      className="w-full bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/30 rounded-xl pl-8 pr-16 py-3 text-sm disabled:opacity-50"
                     />
                     <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[color:var(--dopl-cream)]/40 text-sm">
                       /mo
@@ -657,7 +733,7 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
                   </div>
                 )}
                 <ActionRow
-                  onSkip={next}
+                  onSkip={portfolioCreated ? next : next}
                   onBack={prev}
                   primary={
                     <SubmitButton
@@ -668,7 +744,7 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
                       className="text-sm px-6 py-2.5 inline-flex items-center gap-2"
                     >
                       <span className="inline-flex items-center gap-2">
-                        create
+                        {portfolioCreated ? "continue" : "create"}
                         <ArrowRight size={14} />
                       </span>
                     </SubmitButton>

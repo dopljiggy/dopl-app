@@ -2,6 +2,22 @@ import { NextResponse } from "next/server";
 import { getStripe } from "@/lib/stripe";
 import { createServerSupabase } from "@/lib/supabase-server";
 
+// Map FM `region` → Stripe Connect country (ISO 3166-1 alpha-2).
+// Required because Stripe defaults Express account country to the
+// platform's country of registration (UAE for dopl), which means
+// every FM ended up in AE regardless of their actual region.
+// `europe` is a multi-country bucket; Netherlands is the chosen default
+// (Stripe Express supported, central in EU, common FM base).
+const COUNTRY_BY_REGION: Record<string, string> = {
+  us_canada: "US",
+  uk: "GB",
+  europe: "NL",
+  uae: "AE",
+  australia: "AU",
+  india: "IN",
+  other: "US",
+};
+
 export async function POST(request: Request) {
   const supabase = await createServerSupabase();
   const { data: { user } } = await supabase.auth.getUser();
@@ -27,14 +43,41 @@ export async function POST(request: Request) {
 
   try {
     const stripe = getStripe();
-    // Create or retrieve Stripe Connect account
     const { data: fm } = await supabase
       .from("fund_managers")
-      .select("stripe_account_id")
+      .select("stripe_account_id, stripe_onboarded, region")
       .eq("id", user.id)
       .single();
 
+    const desiredCountry =
+      COUNTRY_BY_REGION[fm?.region ?? "other"] ?? "US";
+
     let accountId = fm?.stripe_account_id;
+
+    // If an unverified account exists with a mismatched country (e.g. the
+    // old AE default, or FM changed region mid-onboarding), delete it and
+    // recreate with the correct country. Never touch already-onboarded
+    // accounts — those have live payouts attached.
+    if (accountId && !fm?.stripe_onboarded) {
+      try {
+        const existing = await stripe.accounts.retrieve(accountId);
+        if (existing.country !== desiredCountry) {
+          await stripe.accounts.del(accountId).catch(() => {});
+          accountId = null;
+          await supabase
+            .from("fund_managers")
+            .update({ stripe_account_id: null })
+            .eq("id", user.id);
+        }
+      } catch {
+        // Account no longer exists in Stripe; clear and recreate.
+        accountId = null;
+        await supabase
+          .from("fund_managers")
+          .update({ stripe_account_id: null })
+          .eq("id", user.id);
+      }
+    }
 
     if (!accountId) {
       // business_type: "individual" skips the UAE-heavy business-docs flow
@@ -44,6 +87,7 @@ export async function POST(request: Request) {
       // business_type inside Stripe's hosted flow if needed.
       const account = await stripe.accounts.create({
         type: "express",
+        country: desiredCountry,
         business_type: "individual",
         metadata: { dopl_user_id: user.id },
       });
