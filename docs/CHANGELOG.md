@@ -5,6 +5,21 @@ Format: date, description, files, why, impact, testing, risks.
 
 ---
 
+## [2026-04-21] — Sprint 3 hotfix round 4 (Task 20)
+
+**Files changed:**
+- `src/app/[handle]/profile-tiers.tsx` — `doplFree` now pushes to `/feed` instead of `/feed/<portfolioId>?subscribed=true`.
+- `src/app/api/stripe/checkout/route.ts` — Stripe checkout success_url is now `/feed?subscribed=true` instead of a portfolio-specific URL.
+- `src/app/feed/[portfolioId]/page.tsx` — Replaces `notFound()` with `redirect("/feed")` when the portfolio isn't found. Stops doplers hitting dead-end 404 pages on stale or deleted portfolio ids.
+
+**Why:** Surfer hit a 404 after doplFree pushed to `/feed/<portfolioId>?subscribed=true` (image #45). Regardless of root cause (stale id, RLS, race), the simpler UX is to land on `/feed` which already lists all subscribed portfolios — no portfolio-id wrangling, no 404 surface. One consistent post-subscribe destination for both free and paid flows.
+
+**Testing:** `npm test` 71/71, `npm run build` clean.
+
+**Risks:** Loses the per-portfolio deeplink after subscribe. If that deeplink matters later (e.g., sharing a specific doplin portfolio), reintroduce via a separate "view portfolio" action from the feed list.
+
+---
+
 ## [2026-04-21] — Sprint 3 hotfix round 3 (Tasks 17-19)
 
 **Files changed:**
