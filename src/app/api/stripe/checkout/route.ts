@@ -47,7 +47,7 @@ export async function POST(request: Request) {
           fund_manager_id: portfolio.fund_manager_id,
         },
       },
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/feed/${portfolioId}?subscribed=true`,
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/feed?subscribed=true`,
       cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/${portfolio.fund_managers.handle}`,
     }, {
       stripeAccount: portfolio.fund_managers.stripe_account_id,

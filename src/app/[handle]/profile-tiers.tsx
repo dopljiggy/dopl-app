@@ -78,7 +78,7 @@ export default function ProfileTiers({
       fireToast({
         title: `you're now dopling ${displayName}'s ${portfolioName}`,
       });
-      router.push(`/feed/${portfolioId}?subscribed=true`);
+      router.push("/feed");
     } finally {
       setPending(null);
     }
