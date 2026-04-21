@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import ProfileHero from "./profile-hero";
 import ProfileTiers from "./profile-tiers";
+import DoplerShell from "@/components/dopler-shell";
 
 // Reserve any paths that sit at the root alongside /[handle].
 const RESERVED = new Set([
@@ -79,6 +80,19 @@ export default async function FundManagerProfile({
   } = await supabase.auth.getUser();
   const isOwner = user?.id === fm.id;
 
+  // Doplers browsing a public profile get the dopler shell wrapper so their
+  // bell + settings are available — without it, realtime toasts flash once
+  // and vanish with no way to retrieve the notification.
+  let viewerIsDopler = false;
+  if (user && !isOwner) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+    viewerIsDopler = profile?.role === "subscriber";
+  }
+
   const { data: portfolios } = await supabase
     .from("portfolios")
     .select("*")
@@ -142,7 +156,7 @@ export default async function FundManagerProfile({
     };
   });
 
-  return (
+  const body = (
     <main className="min-h-screen">
       <ProfileHero
         bannerUrl={fm.banner_url}
@@ -194,4 +208,6 @@ export default async function FundManagerProfile({
       </footer>
     </main>
   );
+
+  return viewerIsDopler ? <DoplerShell>{body}</DoplerShell> : body;
 }
