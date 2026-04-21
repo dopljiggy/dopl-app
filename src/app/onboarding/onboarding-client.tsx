@@ -96,6 +96,24 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
     }
   }, [searchParams]);
 
+  // Refresh server state when the user returns from an external OAuth tab.
+  // Only fires if the user was actually away > 500ms so rapid alt-tabs
+  // don't trigger refresh spam.
+  useEffect(() => {
+    let lastHiddenAt = 0;
+    const onVis = () => {
+      if (document.visibilityState === "hidden") {
+        lastHiddenAt = Date.now();
+        return;
+      }
+      if (Date.now() - lastHiddenAt > 500) {
+        router.refresh();
+      }
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [router]);
+
   const saveProfile = async () => {
     setSaving(true);
     const res = await fetch("/api/profile", {
@@ -137,16 +155,27 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
   };
 
   const startSnaptrade = async () => {
+    // Gesture-preserving pattern: pre-open an about:blank tab synchronously
+    // so Safari iOS doesn't lose the user-gesture context during the
+    // `await fetch(...)` below. DO NOT pass "noopener,noreferrer" in the
+    // features string — per WHATWG spec, window.open returns null with
+    // noopener set, which would silently break the whole pattern and leave
+    // an orphan about:blank tab on every click.
+    const newTab = window.open("about:blank", "_blank");
+    // Cookie must be set synchronously BEFORE any async work so the callback
+    // route sees it. Secure is required for production HTTPS hygiene; dev
+    // (http://localhost) browsers still accept Secure per spec.
+    document.cookie =
+      "dopl_onboarding_flow=1; path=/; max-age=1800; SameSite=Lax; Secure";
     setBrokerStarting("snaptrade");
     setBrokerError(null);
-    document.cookie =
-      "dopl_onboarding_flow=1; path=/; max-age=1800; SameSite=Lax";
     try {
       if (!initial.hasSnaptradeUser) {
         const regRes = await fetch("/api/snaptrade/register", {
           method: "POST",
         });
         if (!regRes.ok) {
+          if (newTab) newTab.close();
           const j = (await regRes.json().catch(() => ({}))) as {
             error?: string;
           };
@@ -161,22 +190,38 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
         error?: string;
       };
       if (!redirectUrl) {
+        if (newTab) newTab.close();
         setBrokerError(error ?? "could not start broker connection");
         setBrokerStarting(null);
         return;
       }
-      window.location.href = redirectUrl;
+      if (newTab) {
+        newTab.location.href = redirectUrl;
+        // Defense-in-depth: sever opener link now that we've navigated.
+        try {
+          newTab.opener = null;
+        } catch {
+          /* cross-origin — ignore */
+        }
+      } else {
+        // Popup blocked before pre-open; fall back to same-tab redirect.
+        window.location.href = redirectUrl;
+      }
     } catch (err) {
+      if (newTab) newTab.close();
       setBrokerError(err instanceof Error ? err.message : "unexpected error");
       setBrokerStarting(null);
     }
   };
 
   const startSaltedge = async () => {
+    // Same gesture-preserving pattern as startSnaptrade — see notes there
+    // about why we can't pass "noopener,noreferrer" to window.open.
+    const newTab = window.open("about:blank", "_blank");
+    document.cookie =
+      "dopl_onboarding_flow=1; path=/; max-age=1800; SameSite=Lax; Secure";
     setBrokerStarting("saltedge");
     setBrokerError(null);
-    document.cookie =
-      "dopl_onboarding_flow=1; path=/; max-age=1800; SameSite=Lax";
     try {
       const regRes = await fetch("/api/saltedge/register", { method: "POST" });
       const regJson = (await regRes.json().catch(() => ({}))) as {
@@ -184,6 +229,7 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
         error?: string;
       };
       if (!regRes.ok || !regJson.customer_id) {
+        if (newTab) newTab.close();
         setBrokerError(regJson.error ?? "failed to register with salt edge");
         setBrokerStarting(null);
         return;
@@ -194,18 +240,33 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
         error?: string;
       };
       if (!connRes.ok || !connJson.redirectUrl) {
+        if (newTab) newTab.close();
         setBrokerError(connJson.error ?? "could not start salt edge connection");
         setBrokerStarting(null);
         return;
       }
-      window.location.href = connJson.redirectUrl;
+      if (newTab) {
+        newTab.location.href = connJson.redirectUrl;
+        try {
+          newTab.opener = null;
+        } catch {
+          /* cross-origin — ignore */
+        }
+      } else {
+        window.location.href = connJson.redirectUrl;
+      }
     } catch (err) {
+      if (newTab) newTab.close();
       setBrokerError(err instanceof Error ? err.message : "unexpected error");
       setBrokerStarting(null);
     }
   };
 
   const launchStripe = async () => {
+    // Same gesture-preserving pattern as the broker launchers.
+    const newTab = window.open("about:blank", "_blank");
+    document.cookie =
+      "dopl_onboarding_flow=1; path=/; max-age=1800; SameSite=Lax; Secure";
     setStripeChecking(true);
     try {
       const res = await fetch("/api/stripe/connect", {
@@ -216,7 +277,18 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
       const { url } = (await res.json()) as { url?: string };
       if (url) {
         setStripeLaunched(true);
-        window.open(url, "_blank", "noopener,noreferrer");
+        if (newTab) {
+          newTab.location.href = url;
+          try {
+            newTab.opener = null;
+          } catch {
+            /* cross-origin — ignore */
+          }
+        } else {
+          window.location.href = url;
+        }
+      } else if (newTab) {
+        newTab.close();
       }
     } finally {
       setStripeChecking(false);

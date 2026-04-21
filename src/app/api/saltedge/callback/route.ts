@@ -89,8 +89,10 @@ export async function GET(request: NextRequest) {
 
     const positionCount = await syncSaltedgePositions(user.id, connId);
 
+    // Sprint 4: onboarding-flow success lands on the new-tab handoff page;
+    // settings/connect flow keeps its original destination.
     const successUrl = fromOnboarding
-      ? `${origin}/onboarding?connected=true`
+      ? `${origin}/oauth-return?provider=saltedge`
       : `${origin}/dashboard/connect?connected=true&positions=${positionCount}`;
     return clearOnboardingCookie(NextResponse.redirect(successUrl));
   } catch (err) {

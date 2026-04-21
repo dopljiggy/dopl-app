@@ -17,6 +17,13 @@ export async function POST(request: Request) {
   }
   const origin = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "";
   const returnBase = from === "onboarding" ? "/onboarding" : "/dashboard/billing";
+  // Sprint 4: onboarding-flow hands off through /oauth-return so the pre-
+  // opened tab can close itself. Settings/billing flow keeps its original
+  // self-tab destination.
+  const successUrl =
+    from === "onboarding"
+      ? `${origin}/oauth-return?provider=stripe`
+      : `${origin}${returnBase}?stripe_done=true`;
 
   try {
     const stripe = getStripe();
@@ -52,7 +59,7 @@ export async function POST(request: Request) {
     const accountLink = await stripe.accountLinks.create({
       account: accountId,
       refresh_url: `${origin}${returnBase}`,
-      return_url: `${origin}${returnBase}?stripe_done=true`,
+      return_url: successUrl,
       type: "account_onboarding",
     });
 
