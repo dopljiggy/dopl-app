@@ -76,24 +76,51 @@ export default async function DashboardPage() {
     },
   ];
 
+  // broker_connected is also flipped true by manual position entry (see
+  // /api/positions/manual) — that's fine for app-wide "positions are
+  // live" semantics but would falsely mark this checklist item done for
+  // an FM who only added positions manually. Gate this specifically on
+  // an actual OAuth broker flow (snaptrade/saltedge), not manual.
+  const brokerOAuthCompleted =
+    !!fm?.broker_connected &&
+    (fm?.broker_provider === "snaptrade" || fm?.broker_provider === "saltedge");
+
   const checklistItems: FinishSetupItem[] = [
     {
-      label: "broker connected",
-      done: !!fm?.broker_connected,
+      key: "broker",
+      label: "connect broker",
+      sublabel: "link snaptrade or salt edge to auto-sync positions",
+      done: brokerOAuthCompleted,
       href: "/dashboard/connect",
     },
     {
+      key: "portfolio",
       label: "first portfolio created",
+      sublabel: "a portfolio is a tier + price + positions",
       done: (portfolios ?? []).length > 0,
       href: "/dashboard/portfolios",
     },
     {
+      key: "positions",
       label: "positions assigned",
+      sublabel: "assign from your broker or add by hand",
       done: (positionCount ?? 0) > 0,
       href: "/dashboard/positions",
     },
     {
+      key: "stripe",
+      label: "set up stripe payments",
+      sublabel: "required to publish paid tiers — dopl takes 10%",
+      done: !!fm?.stripe_onboarded,
+      href: "/dashboard/billing",
+    },
+    {
+      key: "share",
       label: "share your dopl link",
+      sublabel: "post on x, bio, or discord to get your first dopler",
+      // Seeded by subscriber_count > 0 OR the client-side localStorage
+      // flag the FinishSetupChecklist reads (set when the FM copies or
+      // downloads from /dashboard/share).
       done: (fm?.subscriber_count ?? 0) > 0,
       href: "/dashboard/share",
     },

@@ -28,7 +28,15 @@ export function UserChip({ handle, displayName, role, onSignOut }: Props) {
     return () => document.removeEventListener("mousedown", onClick);
   }, [open]);
 
-  const label = handle ? `@${handle}` : "@you";
+  // FMs have handles (they publish at dopl.com/handle) — show @handle.
+  // Doplers don't set a handle — show displayName (or a short fallback).
+  // "@you" was too generic and unfriendly; removed.
+  const label = (() => {
+    if (role === "fund_manager" && handle) return `@${handle}`;
+    if (displayName) return displayName;
+    if (handle) return `@${handle}`;
+    return "me";
+  })();
   const avatarLetter =
     (displayName ?? handle ?? "?").charAt(0).toUpperCase();
 

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { createServerSupabase } from "@/lib/supabase-server";
 
 /**
@@ -165,6 +166,11 @@ export async function POST(request: Request) {
       broker_provider: "manual",
     })
     .eq("id", user.id);
+
+  // Invalidate dashboard route cache so the FinishSetupChecklist
+  // "positions assigned" item flips from ○ to ✓ on next dashboard visit
+  // without requiring a hard refresh.
+  revalidatePath("/dashboard");
 
   return NextResponse.json({ ok: true, id: inserted.id });
 }

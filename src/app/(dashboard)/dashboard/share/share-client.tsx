@@ -25,8 +25,18 @@ export default function ShareClient({
   const shareUrl = `${origin}/${handle}`;
   const shareLabel = shareUrl.replace(/^https?:\/\//, "");
 
+  // Any share action (copy, download, X) flips the dashboard's
+  // "share your dopl link" checklist item to done. localStorage-based
+  // so it survives across dashboard visits without a DB write.
+  const markShared = () => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("dopl_shared", "1");
+    }
+  };
+
   const copyLink = () => {
     navigator.clipboard.writeText(shareUrl);
+    markShared();
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -50,8 +60,10 @@ export default function ShareClient({
       a.download = `dopl-${handle}.png`;
       a.click();
       URL.revokeObjectURL(url);
+      markShared();
     } catch {
       window.open(`${origin}/api/share-card/${handle}`, "_blank");
+      markShared();
     } finally {
       setDownloading(false);
     }
@@ -60,10 +72,17 @@ export default function ShareClient({
   const shareOnX = () => {
     const text = encodeURIComponent(`follow my portfolio on dopl`);
     const url = encodeURIComponent(shareUrl);
-    window.open(
-      `https://twitter.com/intent/tweet?text=${text}&url=${url}`,
-      "_blank"
-    );
+    // Use x.com/intent/post (current URL; twitter.com/intent/tweet still
+    // redirects but some browsers / extensions block the redirect chain
+    // as popup abuse). Modern X endpoint avoids that.
+    const intent = `https://x.com/intent/post?text=${text}&url=${url}`;
+    const popup = window.open(intent, "_blank", "noopener,noreferrer");
+    if (!popup) {
+      // Popup blocked — fall back to same-tab navigation so the user
+      // still reaches X instead of seeing nothing happen.
+      window.location.href = intent;
+    }
+    markShared();
   };
 
   // Card dimensions — preview fixed at 540×283 so export hits 1200×630 cleanly.

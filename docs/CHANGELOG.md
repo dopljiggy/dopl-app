@@ -5,6 +5,31 @@ Format: date, description, files, why, impact, testing, risks.
 
 ---
 
+## [2026-04-21] — Sprint 4 Hotfix R1 (7 smoke bugs)
+
+**Files changed:**
+- `src/app/onboarding/onboarding-client.tsx` — (a) share step + copyLink now read the live `handle` state instead of `initial.handle` (stale server-render snapshot caused the share page to show the signup handle instead of the edited onboarding handle); (b) `step` persists in sessionStorage and hydrates with `max(saved, initialStep)` so a visibilitychange refresh (user returns from OAuth tab) can't yank the wizard backwards; (c) `launchStripe` captures the `{error}` response body and surfaces it via `<InlineError>` instead of silently closing the new tab — fixes "about:blank opens then auto-closes with no feedback."
+- `src/components/ui/user-chip.tsx` + `__tests__/` — dropped "@you" fallback. FMs with handle → "@handle"; doplers with displayName → "Alice" (plain, no @); fallback to "me". Rewrote 7 tests for the new label-resolution branches.
+- `src/components/ui/finish-setup-checklist.tsx` + `__tests__/` — Option-B redesign: bigger padding (p-8/p-10), display-xl heading, progress summary ("N of M complete" + lime progress bar), per-item icon tile + sublabel, btn-lime CTA per row. Items now keyed (`FinishSetupItemKey`). Reads `dopl_shared` localStorage flag to force the share item done when the FM has copied/downloaded/X-shared. +2 tests (localStorage flag, progress summary).
+- `src/app/(dashboard)/dashboard/page.tsx` — 5 checklist items (broker / portfolio / positions / **stripe** / share). Broker item gated on `broker_provider` being snaptrade or saltedge specifically — manual-entry no longer flips it done.
+- `src/app/(dashboard)/dashboard/share/share-client.tsx` — all three share actions (copy, download, X) set `localStorage.dopl_shared="1"` so the dashboard checklist item flips immediately. X URL moved from `twitter.com/intent/tweet` to `x.com/intent/post`; same-tab fallback if popup blocked.
+- `src/app/api/positions/manual/route.ts` — calls `revalidatePath('/dashboard')` after insert so the checklist's "positions assigned" item flips on next dashboard visit without a hard refresh.
+- `src/app/(dashboard)/dashboard/portfolios/portfolios-client.tsx` — "set up stripe to publish" lock is now a button; launches the same gesture-preserving Stripe flow as onboarding. `<InlineError>` surface for errors. Visibilitychange listener refreshes the page when FM returns from Stripe tab, so the lock flips off as soon as webhook confirms.
+- `CLAUDE.md` — line 78 merge/push policy rewritten to reflect actual practice (Surfer does not verify locally; hotfix iteration auto-merges). Added "Next 16 gotchas" section documenting useSearchParams+Suspense pattern discovered during Sprint 4 implementation.
+
+**Why:** Surfer's 2026-04-21 smoke of the deployed Sprint 4 caught these. Most impactful: handle-mismatch (share page showed old signup handle), wizard step regression on OAuth return, and Stripe setup silent failure. The checklist design complaint + missing Stripe item rolled in since the data plumbing touched the same file.
+
+**Impact:** Sprint 4's user-visible flows (onboarding wizard, share page, FM dashboard nudge, portfolios Stripe gate) now behave as intended. Checklist has visual weight matching its role as the primary post-onboarding prompt. Stripe launch failures are no longer silent — if the next smoke surfaces a Vercel env-var issue, the error message will tell us.
+
+**Testing:** 99/21 tests passing (Sprint 4 baseline was 95/21; +2 checklist localStorage/progress, +1 user-chip case, −1 deleted stale "@you" test, +2 checklist item-key adjustments). `npm run build` clean.
+
+**Risks:**
+- `revalidatePath('/dashboard')` on every manual position insert will re-SSR the dashboard more aggressively. Acceptable — it's a rare write path.
+- Checklist item shape breaking-changed (`key` field required). Only consumer is `/dashboard/page.tsx`; no downstream breakage.
+- `x.com/intent/post` is the current canonical X intent URL; `twitter.com/intent/tweet` still works as a redirect so we're not blocking anyone.
+
+---
+
 ## [2026-04-21] — Sprint 4: UX Polish
 
 **Files changed:**
