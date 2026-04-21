@@ -85,7 +85,15 @@ export interface Notification {
   body: string | null;
   read: boolean;
   actionable: boolean;
-  change_type: "buy" | "sell" | "rebalance" | "summary" | "note" | null;
+  change_type:
+    | "buy"
+    | "sell"
+    | "rebalance"
+    | "summary"
+    | "note"
+    | "subscription_added"
+    | "subscription_cancelled"
+    | null;
   ticker: string | null;
   meta: Record<string, unknown>;
   created_at: string;
