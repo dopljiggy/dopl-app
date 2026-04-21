@@ -65,7 +65,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <Ctx.Provider value={value}>
       {children}
-      <div className="fixed top-4 right-4 z-[80] flex flex-col gap-2 pointer-events-none w-[min(360px,calc(100vw-2rem))]">
+      <div className="fixed top-20 right-4 z-[80] flex flex-col gap-2 pointer-events-none w-[min(360px,calc(100vw-2rem))]">
         <AnimatePresence initial={false}>
           {toasts.map((t, i) => (
             <motion.div
