@@ -64,7 +64,25 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
     return 0;
   })();
 
-  const [step, setStep] = useState(initialStep);
+  // Persist current step in sessionStorage so a visibilitychange refresh
+  // (user returns from external OAuth tab) doesn't yank the wizard back
+  // to a lower step. initialStep is used on first load; sessionStorage
+  // wins on subsequent renders. Max() guard ensures OAuth-success param
+  // can still advance the user forward past a lower saved step.
+  const SESSION_KEY = "dopl_onboarding_step";
+  const [step, setStep] = useState(() => {
+    if (typeof window === "undefined") return initialStep;
+    const saved = window.sessionStorage.getItem(SESSION_KEY);
+    if (!saved) return initialStep;
+    const parsed = parseInt(saved, 10);
+    if (Number.isNaN(parsed)) return initialStep;
+    return Math.min(Math.max(parsed, initialStep), steps.length - 1);
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.sessionStorage.setItem(SESSION_KEY, String(step));
+  }, [step]);
   const [bio, setBio] = useState(initial.bio);
   const [displayName, setDisplayName] = useState(initial.displayName);
   const [handle, setHandle] = useState(initial.handle);
@@ -86,6 +104,7 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
   const [brokerError, setBrokerError] = useState<string | null>(null);
   const [stripeChecking, setStripeChecking] = useState(false);
   const [stripeLaunched, setStripeLaunched] = useState(false);
+  const [stripeError, setStripeError] = useState<string | null>(null);
 
   const [portfolioName, setPortfolioName] = useState("Main Portfolio");
   const [portfolioTier, setPortfolioTier] = useState<"free" | "basic" | "premium" | "vip">("basic");
@@ -272,28 +291,43 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
     document.cookie =
       "dopl_onboarding_flow=1; path=/; max-age=1800; SameSite=Lax; Secure";
     setStripeChecking(true);
+    setStripeError(null);
     try {
       const res = await fetch("/api/stripe/connect", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ from: "onboarding" }),
       });
-      const { url } = (await res.json()) as { url?: string };
-      if (url) {
-        setStripeLaunched(true);
-        if (newTab) {
-          newTab.location.href = url;
-          try {
-            newTab.opener = null;
-          } catch {
-            /* cross-origin — ignore */
-          }
-        } else {
-          window.location.href = url;
-        }
-      } else if (newTab) {
-        newTab.close();
+      const json = (await res.json().catch(() => ({}))) as {
+        url?: string;
+        error?: string;
+      };
+      if (!res.ok || !json.url) {
+        if (newTab) newTab.close();
+        // Surface the actual reason so users (and we) can diagnose.
+        // Previously this silently closed the tab with no explanation,
+        // leaving the user back on /onboarding with no feedback.
+        setStripeError(
+          json.error ?? `stripe setup failed (${res.status})`
+        );
+        return;
       }
+      setStripeLaunched(true);
+      if (newTab) {
+        newTab.location.href = json.url;
+        try {
+          newTab.opener = null;
+        } catch {
+          /* cross-origin — ignore */
+        }
+      } else {
+        window.location.href = json.url;
+      }
+    } catch (err) {
+      if (newTab) newTab.close();
+      setStripeError(
+        err instanceof Error ? err.message : "unexpected error"
+      );
     } finally {
       setStripeChecking(false);
     }
@@ -341,13 +375,21 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
   const prev = () => setStep((s) => Math.max(s - 1, 0));
 
   const finish = () => {
+    // Clear persisted step so the next FM's session starts fresh.
+    if (typeof window !== "undefined") {
+      window.sessionStorage.removeItem(SESSION_KEY);
+    }
     router.replace("/dashboard");
     router.refresh();
   };
 
   const copyLink = async () => {
+    // Use the live `handle` state, not `initial.handle` — initial is from
+    // page-load server render, which has the OLD handle if the user
+    // changed it during the profile step (Sprint 4 hotfix R1 bug: share
+    // page showed the signup handle instead of the onboarding handle).
     await navigator.clipboard.writeText(
-      `${window.location.origin}/${initial.handle}`
+      `${window.location.origin}/${handle}`
     );
   };
 
@@ -658,7 +700,15 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
                         <ArrowRight size={14} />
                       </span>
                     </SubmitButton>
-                    {stripeLaunched && (
+                    {stripeError && (
+                      <div className="mt-3">
+                        <InlineError
+                          message={stripeError}
+                          onDismiss={() => setStripeError(null)}
+                        />
+                      </div>
+                    )}
+                    {stripeLaunched && !stripeError && (
                       <div className="mt-4 rounded-xl border border-[color:var(--dopl-sage)]/30 bg-[color:var(--dopl-deep)] p-4 text-xs text-[color:var(--dopl-cream)]/65 leading-relaxed">
                         finish stripe in the new tab, then come back here and
                         click <span className="text-[color:var(--dopl-lime)]">i&apos;m done</span>.
@@ -709,8 +759,8 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
                 <div className="glass-card-light p-4 flex items-center gap-3 mb-6">
                   <p className="font-mono text-sm flex-1 truncate">
                     {typeof window !== "undefined"
-                      ? `${window.location.origin}/${initial.handle}`
-                      : `dopl.com/${initial.handle}`}
+                      ? `${window.location.origin}/${handle}`
+                      : `dopl.com/${handle}`}
                   </p>
                   <button
                     onClick={copyLink}
