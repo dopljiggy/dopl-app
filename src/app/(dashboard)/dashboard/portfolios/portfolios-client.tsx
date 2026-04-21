@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Briefcase, Lock } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -51,6 +51,42 @@ export default function PortfoliosClient({
     message: string;
     next?: string;
   } | null>(null);
+  const [stripeLaunching, setStripeLaunching] = useState(false);
+  const [stripeError, setStripeError] = useState<string | null>(null);
+
+  // Same gesture-preserving pattern as the onboarding Stripe launcher.
+  // Called from the "set up stripe to publish" amber button on each
+  // paid portfolio when the FM isn't stripe_onboarded yet.
+  const launchStripe = async () => {
+    const newTab = window.open("about:blank", "_blank");
+    setStripeLaunching(true);
+    setStripeError(null);
+    try {
+      const res = await fetch("/api/stripe/connect", { method: "POST" });
+      const json = (await res.json().catch(() => ({}))) as {
+        url?: string;
+        error?: string;
+      };
+      if (!res.ok || !json.url) {
+        if (newTab) newTab.close();
+        setStripeError(
+          json.error ?? `stripe setup failed (${res.status})`
+        );
+        return;
+      }
+      if (newTab) {
+        newTab.location.href = json.url;
+        try { newTab.opener = null; } catch { /* cross-origin — ignore */ }
+      } else {
+        window.location.href = json.url;
+      }
+    } catch (err) {
+      if (newTab) newTab.close();
+      setStripeError(err instanceof Error ? err.message : "unexpected error");
+    } finally {
+      setStripeLaunching(false);
+    }
+  };
 
   const positionsByPortfolio = new Map<string, PositionRow[]>();
   for (const p of positions) {
@@ -58,6 +94,25 @@ export default function PortfoliosClient({
     list.push(p);
     positionsByPortfolio.set(p.portfolio_id, list);
   }
+
+  // Auto-refresh when the user returns from the Stripe tab so the lock
+  // icon flips to unlocked once stripe_onboarded=true is persisted via
+  // webhook. Same 500ms guard as onboarding-client to avoid alt-tab
+  // thrash.
+  useEffect(() => {
+    let lastHiddenAt = 0;
+    const onVis = () => {
+      if (document.visibilityState === "hidden") {
+        lastHiddenAt = Date.now();
+        return;
+      }
+      if (Date.now() - lastHiddenAt > 500) {
+        router.refresh();
+      }
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [router]);
 
   const handleCreate = async () => {
     setSubmitting(true);
@@ -100,6 +155,14 @@ export default function PortfoliosClient({
 
   return (
     <div>
+      {stripeError && (
+        <div className="mb-6">
+          <InlineError
+            message={stripeError}
+            onDismiss={() => setStripeError(null)}
+          />
+        </div>
+      )}
       <div className="flex items-center justify-between mb-8">
         <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight">
           portfolios
@@ -137,10 +200,15 @@ export default function PortfoliosClient({
           {portfolios.map((p) => (
             <div key={p.id}>
               {p.tier !== "free" && !stripeOnboarded && (
-                <div className="text-[10px] uppercase tracking-[0.2em] text-amber-300/70 font-mono mb-1 flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={launchStripe}
+                  disabled={stripeLaunching}
+                  className="text-[10px] uppercase tracking-[0.2em] text-amber-300/70 hover:text-amber-200 font-mono mb-1 flex items-center gap-1.5 transition-colors disabled:opacity-60"
+                >
                   <Lock size={10} />
-                  set up stripe to publish
-                </div>
+                  {stripeLaunching ? "opening stripe..." : "set up stripe to publish →"}
+                </button>
               )}
               <ExpandablePortfolioCard
                 portfolio={p}
