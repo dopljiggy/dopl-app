@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase-server";
 import { createAdminClient } from "@/lib/supabase-admin";
+import { fanOutFmEvent } from "@/lib/notification-fanout";
 
 /**
  * Create a no-cost subscription for a free-tier portfolio.
@@ -64,6 +65,8 @@ export async function POST(request: Request) {
   // Use admin client to side-step RLS on INSERT + RPC counter bump.
   const admin = createAdminClient();
 
+  let subscriptionRowId: string;
+
   if (existing) {
     // Reactivate a cancelled subscription rather than creating a duplicate.
     const { error } = await admin
@@ -73,41 +76,57 @@ export async function POST(request: Request) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+    subscriptionRowId = existing.id as string;
   } else {
-    const { error } = await admin.from("subscriptions").insert({
-      user_id: user.id,
-      portfolio_id,
-      fund_manager_id: portfolio.fund_manager_id,
-      stripe_subscription_id: null,
-      status: "active",
-      price_cents: 0,
-    });
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    const { data: inserted, error } = await admin
+      .from("subscriptions")
+      .insert({
+        user_id: user.id,
+        portfolio_id,
+        fund_manager_id: portfolio.fund_manager_id,
+        stripe_subscription_id: null,
+        status: "active",
+        price_cents: 0,
+      })
+      .select("id")
+      .single();
+    if (error || !inserted) {
+      return NextResponse.json(
+        { error: error?.message ?? "could not create subscription" },
+        { status: 500 }
+      );
     }
+    subscriptionRowId = inserted.id as string;
     // Only bump counts on a fresh subscription.
     await admin.rpc("increment_subscriber_count", {
       p_portfolio_id: portfolio_id,
       p_fund_manager_id: portfolio.fund_manager_id,
     });
-
-    // Inbound notification for the fund manager: "new dopler subscribed".
-    const { data: doplerProfile } = await admin
-      .from("profiles")
-      .select("full_name, email")
-      .eq("id", user.id)
-      .maybeSingle();
-    const doplerName =
-      (doplerProfile?.full_name as string | null) ||
-      (doplerProfile?.email as string | null)?.split("@")[0] ||
-      "a new dopler";
-    await admin.from("notifications").insert({
-      user_id: portfolio.fund_manager_id,
-      portfolio_update_id: null,
-      title: `new dopler on ${portfolio.name}`,
-      body: `${doplerName} just dopled your portfolio`,
-    });
   }
+
+  // FM-side event notification. Dedup by `subscription_added:<row_id>` in
+  // the helper — reactivate path is a no-op on an already-notified sub.
+  const { data: doplerProfile } = await admin
+    .from("profiles")
+    .select("full_name, email")
+    .eq("id", user.id)
+    .maybeSingle();
+  const doplerHandle =
+    (doplerProfile?.full_name as string | null)?.trim() ||
+    (doplerProfile?.email as string | null)?.split("@")[0] ||
+    "a new dopler";
+
+  await fanOutFmEvent(admin, {
+    fund_manager_id: portfolio.fund_manager_id,
+    portfolio_id: portfolio.id,
+    portfolio_name: portfolio.name,
+    dopler_user_id: user.id,
+    dopler_handle: doplerHandle,
+    tier: portfolio.tier,
+    price_cents: null,
+    subscription_id: subscriptionRowId,
+    event: "subscription_added",
+  });
 
   return NextResponse.json({ ok: true, portfolio_name: portfolio.name });
 }
