@@ -1,5 +1,5 @@
 import { createServerSupabase } from "@/lib/supabase-server";
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import PortfolioDetailClient from "./portfolio-detail-client";
 import DoplerShell from "@/components/dopler-shell";
@@ -24,7 +24,10 @@ export default async function PortfolioDetail({
     .eq("id", portfolioId)
     .maybeSingle();
 
-  if (!portfolio) return notFound();
+  // Portfolio may have been deleted, or the id in the URL is stale. Bounce
+  // back to /feed instead of a dead-end 404 — the dopler sees their full
+  // subscribed list there.
+  if (!portfolio) redirect("/feed");
 
   const isOwner = portfolio.fund_manager_id === user.id;
   const isFree = portfolio.tier === "free";
