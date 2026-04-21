@@ -5,6 +5,24 @@ Format: date, description, files, why, impact, testing, risks.
 
 ---
 
+## [2026-04-21] — Sprint 3 hotfix round 3 (Tasks 17-19)
+
+**Files changed:**
+- `src/app/[handle]/profile-tiers.tsx` — `doplFree()` now `router.push('/feed/<id>?subscribed=true')` after success (matching the paid-checkout flow). Previously only refreshed in place, leaving doplers stranded on the FM's profile with a "dopling ✓" chip but no sense of completion.
+- `src/components/ui/notification-bell.tsx` — Dropdown renders via `createPortal` to `document.body` with `position: fixed` anchored via `getBoundingClientRect`. Click-outside handler updated to treat the portaled dropdown as in-scope. Round 1's `top-full` tweak and R1/R2 defensive z-stacking are superseded by this approach.
+- `src/components/dopler-shell.tsx` — Drops the now-unneeded `relative z-40` wrapper around the bell.
+- `src/app/[handle]/page.tsx` — Wraps the page in `DoplerShell` when the viewer is an authed subscriber, so realtime toasts have a bell to retrieve them from. Unauthed visitors and FM viewers keep the existing lean public layout.
+
+**Why:** Surfer's round-3 smoke found (a) free dopl left the user on `/<handle>` with no redirect, (b) `/[handle]` had no top nav at all so realtime toasts vanished with no recovery path, (c) the bell UI distortion from images #28/#43 persisted after the round-1 defensive fix.
+
+**Impact:** Closes out Phase 1 UI friction. Dopler flow now has a coherent "slide → arrive on feed" loop matching the paid flow.
+
+**Testing:** `npm test` 71/71, `npm run build` clean. Manual verification pending on Surfer side.
+
+**Risks:** Portal-based dropdown repositions on scroll/resize; computed via `getBoundingClientRect` which reads layout (OK at click-time, listeners added/removed on open toggle so no perf impact when closed).
+
+---
+
 ## [2026-04-21] — Sprint 3 hotfix round 2 (Tasks 13-16)
 
 **Files changed:**
