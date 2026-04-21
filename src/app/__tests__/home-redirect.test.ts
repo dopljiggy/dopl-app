@@ -1,29 +1,16 @@
+/**
+ * Home page no longer redirects authed users. Sprint 4 replaced the
+ * `determineAuthedHomeTarget` redirect with a UserChip rendered by
+ * MarketingLanding. Both authed and unauthed users see `/`.
+ *
+ * The helper was removed; this test file is kept as a minimal guard
+ * against accidental re-introduction of the redirect path.
+ */
 import { describe, it, expect } from 'vitest'
-import { determineAuthedHomeTarget } from '@/app/page'
 
-type Profile = { role?: 'fund_manager' | 'subscriber' | null; trading_connected?: boolean | null }
-
-describe('determineAuthedHomeTarget', () => {
-  it('returns null for unauthed users (show marketing)', () => {
-    expect(determineAuthedHomeTarget(null, null)).toBeNull()
-  })
-
-  it('returns /dashboard for fund managers', () => {
-    const profile: Profile = { role: 'fund_manager', trading_connected: false }
-    expect(determineAuthedHomeTarget({ id: 'u1' }, profile)).toBe('/dashboard')
-  })
-
-  it('returns /feed for connected subscribers', () => {
-    const profile: Profile = { role: 'subscriber', trading_connected: true }
-    expect(determineAuthedHomeTarget({ id: 'u2' }, profile)).toBe('/feed')
-  })
-
-  it('returns /welcome for subscribers without trading connection', () => {
-    const profile: Profile = { role: 'subscriber', trading_connected: false }
-    expect(determineAuthedHomeTarget({ id: 'u3' }, profile)).toBe('/welcome')
-  })
-
-  it('returns null when profile row is missing (defensive — show marketing, don\'t hard-fail)', () => {
-    expect(determineAuthedHomeTarget({ id: 'u4' }, null)).toBeNull()
+describe('home page (no-redirect behavior)', () => {
+  it('does not re-export determineAuthedHomeTarget (sanity)', async () => {
+    const mod = await import('@/app/page')
+    expect((mod as Record<string, unknown>).determineAuthedHomeTarget).toBeUndefined()
   })
 })

@@ -94,8 +94,10 @@ export async function GET(request: NextRequest) {
       })
       .eq("id", user.id);
 
+    // Sprint 4: onboarding-flow success lands on the new-tab handoff page;
+    // settings/connect flow keeps its original destination.
     const successUrl = fromOnboarding
-      ? `${origin}/onboarding?connected=true`
+      ? `${origin}/oauth-return?provider=snaptrade`
       : `${origin}/dashboard/connect?connected=true&positions=${positionCount}`;
     return clearOnboardingCookie(NextResponse.redirect(successUrl));
   } catch (error) {

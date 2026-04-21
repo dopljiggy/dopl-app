@@ -27,7 +27,7 @@ export default function SubscribeButton({
     <button
       onClick={handleSubscribe}
       disabled={loading}
-      className="btn-lime text-sm px-8 py-3"
+      className="btn-lime text-sm px-8 py-3 disabled:opacity-50"
     >
       {loading
         ? "redirecting..."

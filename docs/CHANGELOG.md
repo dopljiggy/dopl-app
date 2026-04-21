@@ -5,6 +5,45 @@ Format: date, description, files, why, impact, testing, risks.
 
 ---
 
+## [2026-04-21] — Sprint 4: UX Polish
+
+**Files changed:**
+- `src/components/ui/submit-button.tsx` + `__tests__/` — new primitive. Auto-flips pending when `onClick` returns a Promise (`Promise.resolve(x).finally()` handles both resolve + reject + sync throws). Consumers can also control via `isPending`. 5 tests.
+- `src/components/ui/nav-link.tsx` + `__tests__/` — new primitive. Wraps Next 16 `<Link>` + `useLinkStatus` so links visibly dim during in-flight navigation. Split into `<NavLink>` / `<NavLinkInner>` / `<NavLinkView>` so the presentational half is testable without a Link context. 3 tests.
+- `src/components/ui/inline-error.tsx` + `__tests__/` — new primitive. Red/amber banner with optional `nextHref` CTA + dismiss. Replaces `alert()` + ad-hoc red divs. 4 tests.
+- `src/components/ui/user-chip.tsx` + `__tests__/` — new primitive. Top-right handle chip + dropdown (role-appropriate feed/dashboard + settings + sign out). 5 tests.
+- `src/components/ui/finish-setup-checklist.tsx` + `__tests__/` — new primitive. FM dashboard nudge card (broker / first portfolio / positions / share). Auto-hides when every item done. 4 tests.
+- `src/app/marketing-landing.tsx` — extracted client component receiving a `viewer` prop. Renders `<UserChip>` for authed, Sign in / Sign up buttons for unauthed.
+- `src/app/page.tsx` — server component now fetches `{ role, handle, display_name }` and passes a viewer object to `<MarketingLanding>`. No more authed-redirect. `determineAuthedHomeTarget` helper deleted.
+- `src/app/__tests__/home-redirect.test.ts` — replaced 5 helper tests with a 1-line sanity guard against re-introducing the helper.
+- `src/app/oauth-return/page.tsx` + `__tests__/` — new page for new-tab OAuth handoff. Tries `window.close()` immediately; shows a "return to dopl" fallback button after 300ms. 5 tests.
+- `src/app/onboarding/onboarding-client.tsx` — broker + Stripe launchers rewritten to pre-open `about:blank` synchronously (preserves Safari iOS gesture context), then `newTab.location.href = url` after fetch resolves. Cookie now includes `Secure`. New visibilitychange listener calls `router.refresh()` when the user returns from the OAuth tab after > 500ms away. SubmitButton + InlineError applied; mobile progress bar shows `step N of M — name` instead of overflowing dots. 2 visibilitychange tests.
+- `src/app/api/snaptrade/callback/route.ts` + `src/app/api/saltedge/callback/route.ts` + `src/app/api/stripe/connect/route.ts` — onboarding-flow success redirects now land on `/oauth-return?provider=X` instead of `/onboarding?connected=true`. Error paths stay on `/onboarding?error=...` so user isn't stranded on a cold page.
+- `src/components/dopler-shell.tsx` + `src/app/(dashboard)/dashboard-chrome.tsx` — logo `href` changed from `/feed` / `/dashboard` to `/`. Top/bottom dopler nav + dashboard sidebar migrated from `<Link>` to `<NavLink>`.
+- `src/app/(auth)/signup/page.tsx` + `src/app/(auth)/login/page.tsx` + `src/app/(dashboard)/dashboard/portfolios/portfolios-client.tsx` + `src/components/ui/send-manual-update-modal.tsx` — SubmitButton swapped in for every submit button. Existing inline red divs replaced with `<InlineError>`.
+- `src/app/(dashboard)/dashboard/page.tsx` — mounts `<FinishSetupChecklist>` above the stats grid with 4 items (broker / first portfolio / positions / share). Replaces the inline SetupRow block.
+- `src/app/settings/sign-out-button.tsx` + `src/app/feed/[portfolioId]/subscribe-button.tsx` + `src/app/(dashboard)/dashboard/profile/profile-client.tsx` + `src/app/(dashboard)/dashboard/billing/billing-client.tsx` — added `disabled:opacity-50` to hand-rolled buttons that had `disabled=` but no dim class.
+
+**Why:** Phase 1 surfaced a consistent "clicking feels sluggish" complaint — root cause was perceived slowness (clicks fire fast but no visual feedback during the 100–500ms gap before state change). This sprint ships 5 primitives (SubmitButton, NavLink, InlineError, UserChip, FinishSetupChecklist) + sitewide application + OAuth new-tab flow + logo-to-home + mobile progress fix + auth error surfacing. Scope was tightly guarded against adding features — no FM activity log, no dopler dashboard, no optimistic UI, no IA rethink.
+
+**Impact:**
+- Every button that fires a server request now has immediate spinner/disabled feedback within one render frame of click.
+- OAuth (SnapTrade, Salt Edge, Stripe) opens in a new tab; original dopl tab stays live and auto-refreshes on tab return.
+- Authed `/` renders marketing with UserChip instead of force-redirecting. Dopl logo routes to `/` across the app.
+- Zero executable `alert()` calls remain in `src/app` or `src/components`.
+- FM dashboard shows a finish-setup checklist until every core item is done.
+- Mobile onboarding progress shows `step N of M — label` instead of overflowing dots.
+
+**Testing:** `npm test` = **95 passing across 21 files** (71 Sprint 3 baseline + 5 SubmitButton + 3 NavLink + 4 InlineError + 5 UserChip + 5 oauth-return + 2 visibility + 4 FinishSetupChecklist − 4 deleted home-redirect helper tests + 1 new home-redirect sanity = 95). `npm run build` clean with all three critical env vars unset.
+
+**Risks:**
+- `useLinkStatus` pending state is skipped when destinations are prefetched — this is a slow-network safety net, not a fast-network every-click indicator. Documented.
+- Popup blocker on `window.open` — rare in direct click handlers; same-tab fallback kicks in cleanly.
+- `window.close()` blocked on user-opened tabs — `/oauth-return` fallback button handles it.
+- visibilitychange refresh races submit-in-flight — mitigated by `> 500ms` guard; existing form state survives `router.refresh()`.
+
+---
+
 ## [2026-04-21] — Sprint 3 hotfix round 5 (Task 21)
 
 **Files changed:**
