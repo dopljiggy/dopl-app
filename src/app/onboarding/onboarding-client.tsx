@@ -46,6 +46,15 @@ const ALL_STEPS = [
   "share",
 ] as const;
 
+// Regions with meaningful SnapTrade free-tier broker coverage. Other
+// regions (uae, india, other, or unknown) would see a US/Canada-heavy
+// broker catalog they can't use — guaranteeing a failed connect — so
+// we route them to Salt Edge regardless of the server-selected provider.
+// The SnapTrade SDK's login call accepts no country/region filter
+// (confirmed against `SnapTradeLoginUserRequestBody` on 2026-04-21),
+// so this has to be a client-side routing gate, not a widget param.
+const SNAPTRADE_REGIONS = new Set(["us_canada", "australia"]);
+
 export default function OnboardingClient({ initial }: { initial: Initial }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -98,6 +107,24 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
   const [brokerProvider, setBrokerProvider] = useState<BrokerProvider | null>(
     initial.brokerProvider
   );
+  // Override `brokerProvider` for regions where SnapTrade's free tier
+  // has no meaningful broker coverage. The server may have stored
+  // broker_provider='snaptrade' (the region API's legacy mapping for
+  // india), but we still want the wizard to route the FM to Salt Edge
+  // so they don't hit a US-centric broker list they can't use.
+  const snaptradeAllowed = !!region && SNAPTRADE_REGIONS.has(region);
+  const effectiveBrokerProvider: BrokerProvider | null =
+    brokerProvider === "manual"
+      ? "manual"
+      : brokerProvider === "snaptrade" && snaptradeAllowed
+      ? "snaptrade"
+      : brokerProvider === "saltedge" || !snaptradeAllowed
+      ? "saltedge"
+      : brokerProvider;
+  const showManualEntryHint =
+    !initial.hasBroker &&
+    !snaptradeAllowed &&
+    effectiveBrokerProvider !== "manual";
   const [brokerStarting, setBrokerStarting] = useState<BrokerProvider | null>(
     null
   );
@@ -573,9 +600,9 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
                 icon={<Link2 size={22} />}
                 title="connect your broker"
                 subtitle={
-                  brokerProvider === "saltedge"
+                  effectiveBrokerProvider === "saltedge"
                     ? "secure read-only link to your bank/broker via salt edge."
-                    : brokerProvider === "manual"
+                    : effectiveBrokerProvider === "manual"
                     ? "you'll enter positions by hand from the positions page after onboarding."
                     : "dopl reads your positions in real time — read-only, never executes."
                 }
@@ -584,12 +611,12 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
                   <div className="text-sm text-[color:var(--dopl-lime)] flex items-center gap-2">
                     <CheckCircle size={16} /> broker connected
                   </div>
-                ) : brokerProvider === "manual" ? (
+                ) : effectiveBrokerProvider === "manual" ? (
                   <div className="rounded-xl border border-[color:var(--dopl-sage)]/30 bg-[color:var(--dopl-deep)] p-4 text-sm text-[color:var(--dopl-cream)]/65">
                     you can add positions manually any time from the
                     positions page. continue to set up your portfolio.
                   </div>
-                ) : brokerProvider === "saltedge" ? (
+                ) : effectiveBrokerProvider === "saltedge" ? (
                   <button
                     onClick={startSaltedge}
                     disabled={brokerStarting !== null}
@@ -618,7 +645,7 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
                   </div>
                 )}
                 {!initial.hasBroker &&
-                  brokerProvider !== "manual" &&
+                  effectiveBrokerProvider !== "manual" &&
                   brokerLaunched && (
                     <div className="mt-3">
                       <SubmitButton
@@ -631,10 +658,16 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
                       </SubmitButton>
                     </div>
                   )}
-                {!initial.hasBroker && brokerProvider !== "manual" && (
+                {!initial.hasBroker && effectiveBrokerProvider !== "manual" && (
                   <p className="text-xs text-[color:var(--dopl-cream)]/40 mt-3">
                     read-only. we never execute trades. you&apos;ll return here
                     automatically after connecting.
+                  </p>
+                )}
+                {showManualEntryHint && (
+                  <p className="text-xs text-[color:var(--dopl-cream)]/45 mt-3">
+                    manual entry is always available from your dashboard —
+                    head to the positions page after onboarding.
                   </p>
                 )}
                 <ActionRow

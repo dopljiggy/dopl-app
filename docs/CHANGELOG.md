@@ -5,6 +5,37 @@ Format: date, description, files, why, impact, testing, risks.
 
 ---
 
+## [2026-04-21] — Sprint 4 Hotfix R3 (3 smoke bugs)
+
+**Files changed:**
+- `src/lib/saltedge.ts` — replaced hardcoded `MIN_FROM_DATE = "2024-03-26"` with a `getMinFromDate()` function that returns `today − 90 days` as a `YYYY-MM-DD` string. Updated the file's doc comment (line 10) to describe the rolling 2-year-window contract instead of a fixed date. Call site in `createConnectUrl` now defaults `consent.from_date` to `getMinFromDate()` when the caller doesn't pass one.
+- `src/lib/__tests__/saltedge.test.ts` — new file, 3 unit tests asserting shape + rolling-window contracts.
+- `src/app/onboarding/onboarding-client.tsx` — added a `SNAPTRADE_REGIONS` allowlist (`us_canada`, `australia`) and derived an `effectiveBrokerProvider` in the broker step that overrides the server-selected provider when the FM's region has poor SnapTrade coverage. Regions `uae`, `india`, `other`, and unknown now route to Salt Edge regardless of what `broker_provider` the region API stored, with a small "manual entry is always available from your dashboard" hint rendered under the Salt Edge button so FMs know the fallback path.
+- `src/app/api/positions/manual/route.ts` — extracted a `revalidatePositionSurfaces` helper that fetches the FM's handle and calls `revalidatePath` for `/dashboard`, `/dashboard/portfolios`, `/feed/[portfolioId]`, and `/[handle]`. Wired it into every POST branch (update-by-id, upsert existing, fresh insert) and DELETE so any mutation clears the stale Next.js full-route cache for every surface that renders positions.
+- `src/app/api/positions/manual/__tests__/route.test.ts` — new file, 3 integration tests mocking `next/cache` + supabase to verify the revalidation call shape on POST insert, POST insert without an FM handle, and DELETE.
+
+**Why:** Teammate's 2026-04-21 manual smoke on `dopl-app.vercel.app` caught three prod bugs:
+1. Salt Edge consent init rejected every bank-connect attempt with `from_date must be >= 2024-04-01` — the 2024-03-26 constant had aged out of Salt Edge's rolling 2-year acceptance window.
+2. FM with `region=UAE` clicked "i trade through brokerage" during onboarding and landed on a SnapTrade catalog full of US/Canada brokers (Webull Canada, etc.) they couldn't use.
+3. FM (Jack) added 10 shares of $IQE to Manual Holdings; the row persisted in the DB but the portfolio detail, `/feed/[portfolioId]`, and public `/[handle]` surfaces all rendered "no positions yet" — stale page cache.
+
+SnapTrade SDK probe: inspected `SnapTradeLoginUserRequestBody` (8 fields, no `country` / `region` / `countryCode` / `countries` / `allowedBrokerages`). Widget-level region filtering is impossible on the SDK, so the only fix is a client-side routing gate (Path B in the R3 plan).
+
+**Impact:**
+- Every new Salt Edge connect attempt now lands inside the rolling window; no regression for the ~90-day historical window we actually consume for portfolio-change detection.
+- UAE / India / Other / unknown-region FMs on onboarding no longer see the SnapTrade card; they get Salt Edge (or the existing manual-entry path for `other`) with a visible manual-entry hint.
+- Any manual-position write (add, edit, delete) now invalidates all four rendering surfaces. FMs see their position on the portfolio detail card in the same session, and doplers see it on their feed + the public FM profile on next navigation.
+
+**Testing:** `npm test` = **105 passing across 23 files** (Sprint 4 R2 baseline was 99/21, +3 saltedge window tests + 3 positions/manual revalidation tests). `npm run build` clean with all three critical env vars unset.
+
+**Risks:**
+- `getMinFromDate()` returning `today − 90 days` loses the historical window of data Salt Edge could have returned for dates between 2024-03-26 and `today − 90 days`. We don't consume those historical transactions anywhere today, so this is a no-op loss. If future analytics care about deeper history, bump the offset (or expose it as an env var) — still always inside the rolling 2-year window.
+- The SnapTrade region gate routes `india` FMs to Salt Edge even though the `/api/fund-manager/region` API still writes `broker_provider='snaptrade'` for india. The server mapping becomes cosmetically out of sync with the UI. Acceptable for a surgical hotfix — the user-visible flow is correct, and Sprint 6 sandbox work can align the server-side mapping.
+- `revalidatePositionSurfaces` fires for every POST / DELETE on the manual-positions endpoint — up to 4 `revalidatePath` calls per write. Writes on this route are rare (manual entry is the exception case), so the extra SSR on these routes is bounded; no risk of invalidation-storming the CDN.
+- Defense-in-depth server-side region check on `/api/snaptrade/connect` was deliberately deferred out of R3 to keep scope surgical. A client that bypasses the UI (curl, direct POST) can still hit the endpoint from a denylisted region and reach SnapTrade. Flagged for Sprint 6 hardening.
+
+---
+
 ## [2026-04-21] — Sprint 4 Hotfix R2 (4 smoke bugs)
 
 **Files changed:**

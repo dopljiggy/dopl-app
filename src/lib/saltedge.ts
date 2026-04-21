@@ -7,13 +7,20 @@
  *  - Customer id field is `customer_id` (not `id`)
  *  - Create connect URL: POST /connections/connect (not /connect_sessions/create)
  *  - Scopes: one of ["accounts", "holder_info", "transactions"]
- *  - consent.from_date must be >= 2024-03-26
+ *  - consent.from_date must fall inside Salt Edge's rolling 2-year window,
+ *    computed as today − 90 days via `getMinFromDate()`
  */
 
 const BASE_URL = "https://www.saltedge.com/api/v6";
 
-// PSD2 minimum. Salt Edge rejects earlier dates on from_date.
-export const MIN_FROM_DATE = "2024-03-26";
+// Salt Edge's consent.from_date must fall inside their rolling 2-year
+// acceptance window. Computing today - 90 days keeps us comfortably
+// inside the window while giving us ~3 months of historical data,
+// which is all we need for portfolio-change detection.
+export function getMinFromDate(): string {
+  const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+  return ninetyDaysAgo.toISOString().slice(0, 10);
+}
 
 function headers() {
   const appId = process.env.SALTEDGE_APP_ID;
@@ -185,7 +192,7 @@ export const saltedge = {
       customer_id: opts.customer_id,
       consent: {
         scopes: opts.scopes ?? ["accounts", "transactions"],
-        from_date: opts.from_date ?? MIN_FROM_DATE,
+        from_date: opts.from_date ?? getMinFromDate(),
       },
       attempt: {
         return_to: opts.return_to,
