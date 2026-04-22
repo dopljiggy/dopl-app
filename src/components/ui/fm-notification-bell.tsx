@@ -56,33 +56,43 @@ export default function FmNotificationBell({
 
   useEffect(() => setMounted(true), []);
 
+  const computePos = (): AnchorPos | null => {
+    const btn = buttonRef.current;
+    if (!btn) return null;
+    const rect = btn.getBoundingClientRect();
+    if (anchorMode === "bottom") {
+      return {
+        kind: "bottom",
+        bottom: window.innerHeight - rect.top + 8,
+        right: window.innerWidth - rect.right,
+      };
+    }
+    return {
+      kind: "top",
+      top: rect.bottom + 8,
+      right: window.innerWidth - rect.right,
+    };
+  };
+
+  // Keep pos fresh against resize/scroll, but the INITIAL pos is set
+  // synchronously inside the click handler below. An effect-only setter
+  // would leave `pos = null` on the first render after `open` flips,
+  // so the `open && pos` gate inside AnimatePresence would miss the
+  // initial mount. Moving the first computation into the click handler
+  // guarantees both `open` and `pos` are truthy in the same state batch.
   useEffect(() => {
     if (!open) return;
     const update = () => {
-      const btn = buttonRef.current;
-      if (!btn) return;
-      const rect = btn.getBoundingClientRect();
-      if (anchorMode === "bottom") {
-        setPos({
-          kind: "bottom",
-          bottom: window.innerHeight - rect.top + 8,
-          right: window.innerWidth - rect.right,
-        });
-      } else {
-        setPos({
-          kind: "top",
-          top: rect.bottom + 8,
-          right: window.innerWidth - rect.right,
-        });
-      }
+      const next = computePos();
+      if (next) setPos(next);
     };
-    update();
     window.addEventListener("resize", update);
     window.addEventListener("scroll", update, true);
     return () => {
       window.removeEventListener("resize", update);
       window.removeEventListener("scroll", update, true);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, anchorMode]);
 
   useEffect(() => {
@@ -101,8 +111,14 @@ export default function FmNotificationBell({
       <button
         ref={buttonRef}
         onClick={() => {
+          if (!open) {
+            // Compute position BEFORE flipping open so the first render
+            // after this click has pos != null and the portal mounts.
+            const next = computePos();
+            if (next) setPos(next);
+            if (unreadCount > 0) void markAllRead();
+          }
           setOpen((o) => !o);
-          if (!open && unreadCount > 0) void markAllRead();
         }}
         aria-label="fund manager activity"
         data-testid="fm-bell"
