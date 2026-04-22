@@ -105,6 +105,7 @@ export default function FmNotificationBell({
           if (!open && unreadCount > 0) void markAllRead();
         }}
         aria-label="fund manager activity"
+        data-testid="fm-bell"
         className="relative p-2 text-[color:var(--dopl-cream)]/60 hover:text-[color:var(--dopl-cream)] transition-colors"
       >
         <Bell size={20} />
@@ -122,6 +123,7 @@ export default function FmNotificationBell({
             {open && pos && (
               <motion.div
                 ref={dropdownRef}
+                data-testid="fm-bell-dropdown"
                 initial={{ opacity: 0, y: pos.kind === "top" ? -6 : 6, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: pos.kind === "top" ? -6 : 6, scale: 0.98 }}
