@@ -5,6 +5,19 @@ Format: date, description, files, why, impact, testing, risks.
 
 ---
 
+## [2026-04-22] — Hotfix: notification bell visible on all viewports
+
+**Files changed:**
+- `src/app/(dashboard)/dashboard-chrome.tsx` — removed `hidden md:block` from FM bell wrapper so it renders on mobile + desktop
+- `src/components/dopler-shell.tsx` — same fix for dopler bell
+
+**Why:** Both bells were wrapped in `hidden md:block`, making them `display:none` on viewports under 768px. After Sprint 6 removed the 5th bottom-nav tab, FMs had zero notification access on mobile. Users testing on phones or narrow windows saw no bell at all.
+**Impact:** Bell icon now appears in the header bar on all screen sizes. Mobile FMs can tap the bell to see activity and open the dropdown.
+**Testing:** 130 tests pass, build clean.
+**Risks:** None — the bell already rendered correctly, it was just hidden by CSS.
+
+---
+
 ## [2026-04-22] — Sprint 6: position flow + Sprint 5 UI fixes + SnapTrade sandbox
 
 **Files changed:**
