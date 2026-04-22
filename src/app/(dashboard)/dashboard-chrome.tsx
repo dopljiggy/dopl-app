@@ -176,7 +176,7 @@ export default function DashboardChrome({
             <div className="flex items-center gap-3 md:hidden">
               <DoplLogo />
             </div>
-            <div className="hidden md:block ml-auto">
+            <div className="ml-auto">
               <FmNotificationBell anchor="top" />
             </div>
           </div>
