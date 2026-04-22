@@ -116,8 +116,8 @@ export default function NotificationBell({
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -6, scale: 0.98 }}
                 transition={{ duration: 0.18, ease: [0.2, 0.7, 0.2, 1] }}
-                style={{ top: anchor.top, right: anchor.right }}
-                className="fixed w-[min(360px,calc(100vw-2rem))] glass-card glass-card-strong p-3 z-[70]"
+                style={{ position: "fixed", top: anchor.top, right: anchor.right }}
+                className="w-[min(360px,calc(100vw-2rem))] glass-card glass-card-strong p-3 z-[70]"
               >
                 <div className="flex items-center justify-between px-2 py-1 mb-2">
                   <p className="text-xs font-mono text-[color:var(--dopl-cream)]/60 uppercase tracking-wider">

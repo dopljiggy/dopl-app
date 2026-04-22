@@ -146,10 +146,10 @@ export default function FmNotificationBell({
                 transition={{ duration: 0.18, ease: [0.2, 0.7, 0.2, 1] }}
                 style={
                   pos.kind === "top"
-                    ? { top: pos.top, right: pos.right }
-                    : { bottom: pos.bottom, right: pos.right }
+                    ? { position: "fixed", top: pos.top, right: pos.right }
+                    : { position: "fixed", bottom: pos.bottom, right: pos.right }
                 }
-                className="fixed w-[min(360px,calc(100vw-2rem))] glass-card glass-card-strong p-3 z-[70]"
+                className="w-[min(360px,calc(100vw-2rem))] glass-card glass-card-strong p-3 z-[70]"
               >
                 <div className="flex items-center justify-between px-2 py-1 mb-2">
                   <p className="text-xs font-mono text-[color:var(--dopl-cream)]/60 uppercase tracking-wider">
