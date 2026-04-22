@@ -39,25 +39,34 @@ export default function NotificationBell({
 
   useEffect(() => setMounted(true), []);
 
-  // Compute anchor from button bounds when opening.
+  const computeAnchor = (): { top: number; right: number } | null => {
+    const btn = buttonRef.current;
+    if (!btn) return null;
+    const rect = btn.getBoundingClientRect();
+    return {
+      top: rect.bottom + 8,
+      right: window.innerWidth - rect.right,
+    };
+  };
+
+  // Keep anchor fresh against resize/scroll. The INITIAL anchor is set
+  // synchronously inside the click handler below — effect-only setting
+  // leaves anchor=null on the first render after open flips, which makes
+  // the `open && anchor` gate in AnimatePresence miss the initial mount.
+  // Same latent race as the FM bell (Sprint 6 fix).
   useEffect(() => {
     if (!open) return;
     const update = () => {
-      const btn = buttonRef.current;
-      if (!btn) return;
-      const rect = btn.getBoundingClientRect();
-      setAnchor({
-        top: rect.bottom + 8,
-        right: window.innerWidth - rect.right,
-      });
+      const next = computeAnchor();
+      if (next) setAnchor(next);
     };
-    update();
     window.addEventListener("resize", update);
     window.addEventListener("scroll", update, true);
     return () => {
       window.removeEventListener("resize", update);
       window.removeEventListener("scroll", update, true);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   // Click outside to close — guard both button and dropdown (portal means
@@ -78,8 +87,12 @@ export default function NotificationBell({
       <button
         ref={buttonRef}
         onClick={() => {
+          if (!open) {
+            const next = computeAnchor();
+            if (next) setAnchor(next);
+            if (unreadCount > 0) void markAllRead();
+          }
           setOpen((o) => !o);
-          if (!open && unreadCount > 0) void markAllRead();
         }}
         aria-label="notifications"
         className="relative p-2 text-[color:var(--dopl-cream)]/60 hover:text-[color:var(--dopl-cream)] transition-colors"

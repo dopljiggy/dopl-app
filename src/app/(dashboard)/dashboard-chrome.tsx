@@ -139,17 +139,11 @@ function BottomNav() {
               </NavLink>
             );
           })}
-          {/* 5th slot — FM bell (Sprint 5). Opens its portal dropdown in place;
-              not a route link. Dropdown anchor="bottom" flips the direction
-              so it opens UPWARD from the bottom-nav. Labeled "activity" to
-              stay consistent with the other 4 slots + the /fund-manager/activity
-              destination the "see all" link points to. */}
-          <div className="relative flex flex-col items-center justify-center flex-1 py-2 min-h-[44px] text-[color:var(--dopl-cream)]/60">
-            <FmNotificationBell anchor="bottom" />
-            <span className="relative text-[10px] mt-0.5 text-[color:var(--dopl-cream)]/50">
-              activity
-            </span>
-          </div>
+          {/* Sprint 5's 5th "activity" slot was reverted in Sprint 6 —
+              the layout (4 labeled tabs + a button-not-link 5th slot)
+              cramped the labels and left the bell visually isolated on
+              the right. Mobile FMs reach /fund-manager/activity via the
+              dashboard sidebar or in-content links instead. */}
         </div>
       </div>
     </nav>
