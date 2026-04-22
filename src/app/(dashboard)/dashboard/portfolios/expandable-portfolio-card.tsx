@@ -11,6 +11,7 @@ import {
   Settings,
   AlertTriangle,
   Check,
+  Plus,
 } from "lucide-react";
 import {
   PieChart,
@@ -28,6 +29,7 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { fireToast } from "@/components/ui/toast";
 import { SyncBadge } from "@/components/ui/sync-badge";
 import { SendManualUpdateModal } from "@/components/ui/send-manual-update-modal";
+import { AddPositionForm } from "@/components/ui/add-position-form";
 import type { Portfolio } from "@/types/database";
 
 export type PositionRow = {
@@ -95,6 +97,7 @@ export default function ExpandablePortfolioCard({
   );
   const [saving, setSaving] = useState(false);
   const [showManualUpdate, setShowManualUpdate] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
 
   const sum = Object.values(draft).reduce((a, b) => a + (Number(b) || 0), 0);
   const isBalanced = Math.abs(sum - 100) < 0.1;
@@ -366,12 +369,24 @@ export default function ExpandablePortfolioCard({
                     <p className="text-xs text-[color:var(--dopl-cream)]/40 mb-4">
                       no positions assigned yet
                     </p>
-                    <a
-                      href="/dashboard/positions"
-                      className="btn-lime text-xs px-4 py-2 inline-flex items-center gap-2"
-                    >
-                      assign from broker
-                    </a>
+                    <div className="flex items-center justify-center gap-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowAddForm(true);
+                        }}
+                        className="btn-lime text-xs px-4 py-2 inline-flex items-center gap-2"
+                      >
+                        <Plus size={13} />
+                        add position
+                      </button>
+                      <a
+                        href="/dashboard/positions"
+                        className="glass-card-light text-xs px-4 py-2 rounded-xl hover:bg-[color:var(--dopl-sage)]/40 transition-colors inline-flex items-center gap-2"
+                      >
+                        assign from broker
+                      </a>
+                    </div>
                   </div>
                 ) : (
                   <div className="glass-card-light rounded-2xl overflow-hidden">
@@ -453,14 +468,35 @@ export default function ExpandablePortfolioCard({
                 )}
               </div>
 
+              {/* Inline "add position" form — toggled from the footer or
+                  the empty state above. Writes through /api/positions/manual
+                  with portfolio_id so the Sprint 6 fanout path fires a buy
+                  event to every active dopler on this portfolio. */}
+              {showAddForm && (
+                <AddPositionForm
+                  portfolioId={portfolio.id}
+                  onDone={() => setShowAddForm(false)}
+                />
+              )}
+
               {/* Footer actions */}
               <div className="flex flex-wrap items-center gap-3 pt-2">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowAddForm((s) => !s);
+                  }}
+                  className="glass-card-light px-4 py-2 text-xs rounded-xl hover:bg-[color:var(--dopl-sage)]/40 transition-colors inline-flex items-center gap-2"
+                >
+                  <Plus size={13} />
+                  {showAddForm ? "hide form" : "add position"}
+                </button>
                 <a
                   href="/dashboard/positions"
                   className="glass-card-light px-4 py-2 text-xs rounded-xl hover:bg-[color:var(--dopl-sage)]/40 transition-colors inline-flex items-center gap-2"
                 >
                   <Settings size={13} />
-                  edit positions
+                  manage positions
                 </a>
                 <button
                   onClick={(e) => {

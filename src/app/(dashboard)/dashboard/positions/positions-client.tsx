@@ -61,11 +61,16 @@ export default function PositionsClient({
   const unassigned = synced.filter((p) => !assignedTickers.has(p.ticker));
 
   useEffect(() => {
-    if (brokerConnected) void runSync();
+    // Auto-sync on mount — userInitiated=false suppresses the
+    // NotifyDoplersModal. Previously the modal fired on any mount-time
+    // sync, which showed a phantom "portfolio updated" popup when
+    // navigating to /dashboard/positions right after a manual
+    // position edit elsewhere (e.g. the portfolio card's inline form).
+    if (brokerConnected) void runSync(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const runSync = async () => {
+  const runSync = async (userInitiated = false) => {
     setSyncing(true);
     setError(null);
     try {
@@ -75,10 +80,12 @@ export default function PositionsClient({
       setSynced(data.positions ?? []);
       if (Array.isArray(data.perPortfolio)) {
         setPendingChangesets(data.perPortfolio);
-        const hasAny = data.perPortfolio.some(
-          (p: { changes: unknown[] }) => p.changes.length > 0
-        );
-        setShowNotifyModal(hasAny);
+        if (userInitiated) {
+          const hasAny = data.perPortfolio.some(
+            (p: { changes: unknown[] }) => p.changes.length > 0
+          );
+          setShowNotifyModal(hasAny);
+        }
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "sync failed");
@@ -149,7 +156,7 @@ export default function PositionsClient({
       <div className="flex items-center justify-between mb-2">
         <h1 className="font-display text-3xl font-semibold">positions</h1>
         <button
-          onClick={runSync}
+          onClick={() => runSync(true)}
           disabled={syncing}
           className="glass-card-light px-4 py-2 text-sm flex items-center gap-2 hover:bg-dopl-sage/40 transition-colors"
         >

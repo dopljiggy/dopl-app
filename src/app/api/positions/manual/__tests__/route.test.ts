@@ -5,6 +5,21 @@ const ORIGINAL_ENV = { ...process.env }
 const revalidatePath = vi.fn()
 vi.mock('next/cache', () => ({ revalidatePath }))
 
+// Mock the fanout helper so the test can assert call shape + count without
+// dragging the real supabase admin client into the test path.
+const fanOutPortfolioUpdate = vi.fn(() =>
+  Promise.resolve({ ok: true, notified: 0, update_id: '' })
+)
+vi.mock('@/lib/notification-fanout', () => ({
+  fanOutPortfolioUpdate,
+}))
+
+// The route passes `createAdminClient()` to the fanout helper. Since the
+// helper is mocked, the client argument is never touched — a stub is fine.
+vi.mock('@/lib/supabase-admin', () => ({
+  createAdminClient: () => ({}),
+}))
+
 const mockUser = { id: 'fm-uuid-1', email: 'alice@example.com' }
 
 // Mutable per-test state that the supabase mock reads from. Each key
@@ -66,9 +81,11 @@ function makeDeleteRequest(body: Record<string, unknown>): Request {
 describe('/api/positions/manual revalidation', () => {
   beforeEach(() => {
     revalidatePath.mockClear()
+    fanOutPortfolioUpdate.mockClear()
     tableResponses = {}
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon-key'
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-key'
   })
 
   afterEach(() => {
@@ -89,6 +106,8 @@ describe('/api/positions/manual revalidation', () => {
     expect(calls).toContain('/dashboard/portfolios')
     expect(calls).toContain('/feed/pf-id-1')
     expect(calls).toContain('/alice')
+    // Manual Holdings path: no fanout.
+    expect(fanOutPortfolioUpdate).not.toHaveBeenCalled()
   })
 
   it('POST insert skips /[handle] when handle is unresolvable', async () => {
@@ -104,13 +123,24 @@ describe('/api/positions/manual revalidation', () => {
     expect(calls).toContain('/dashboard')
     expect(calls).toContain('/dashboard/portfolios')
     expect(calls).toContain('/feed/pf-id-1')
-    // No handle-based revalidation when the FM handle doesn't resolve.
-    expect(calls.some((p) => p?.startsWith('/') && !p.startsWith('/dashboard') && !p.startsWith('/feed'))).toBe(false)
+    expect(
+      calls.some(
+        (p) => p?.startsWith('/') && !p.startsWith('/dashboard') && !p.startsWith('/feed')
+      )
+    ).toBe(false)
   })
 
-  it('DELETE also revalidates the same surfaces', async () => {
+  it('DELETE revalidates surfaces for a Manual Holdings position without firing fanout', async () => {
     tableResponses = {
-      portfolios: { maybeSingle: { id: 'pf-id-1' } },
+      positions: {
+        maybeSingle: {
+          id: 'pos-id-1',
+          ticker: 'AAPL',
+          shares: 10,
+          portfolio_id: 'pf-manual',
+          portfolios: { fund_manager_id: 'fm-uuid-1', name: 'Manual Holdings' },
+        },
+      },
       fund_managers: { maybeSingle: { handle: 'alice' } },
     }
     const { DELETE } = await importRoute()
@@ -119,7 +149,129 @@ describe('/api/positions/manual revalidation', () => {
     const calls = revalidatePath.mock.calls.map((c) => c[0])
     expect(calls).toContain('/dashboard')
     expect(calls).toContain('/dashboard/portfolios')
-    expect(calls).toContain('/feed/pf-id-1')
+    expect(calls).toContain('/feed/pf-manual')
     expect(calls).toContain('/alice')
+    expect(fanOutPortfolioUpdate).not.toHaveBeenCalled()
+  })
+})
+
+describe('/api/positions/manual Sprint 6 portfolio_id + fanout', () => {
+  beforeEach(() => {
+    revalidatePath.mockClear()
+    fanOutPortfolioUpdate.mockClear()
+    tableResponses = {}
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon-key'
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-key'
+  })
+
+  afterEach(() => {
+    process.env = { ...ORIGINAL_ENV }
+  })
+
+  it('POST with portfolio_id writes to that portfolio and fires a buy fanout', async () => {
+    tableResponses = {
+      portfolios: {
+        maybeSingle: { id: 'pf-named-1', fund_manager_id: 'fm-uuid-1' },
+      },
+      positions: { maybeSingle: null, single: { id: 'pos-id-7' } },
+      fund_managers: { maybeSingle: { handle: 'alice' } },
+    }
+    const { POST } = await importRoute()
+    const res = await POST(
+      makePostRequest({
+        portfolio_id: 'pf-named-1',
+        ticker: 'AAPL',
+        shares: 5,
+        current_price: 180,
+      })
+    )
+    expect(res.status).toBe(200)
+    expect(fanOutPortfolioUpdate).toHaveBeenCalledTimes(1)
+    const [, input] = fanOutPortfolioUpdate.mock.calls[0]
+    expect(input).toMatchObject({
+      portfolio_id: 'pf-named-1',
+      fund_manager_id: 'fm-uuid-1',
+      changes: [{ type: 'buy', ticker: 'AAPL', shares: 5 }],
+    })
+  })
+
+  it('POST with a portfolio_id owned by another user returns 403', async () => {
+    tableResponses = {
+      portfolios: {
+        maybeSingle: { id: 'pf-theirs', fund_manager_id: 'other-fm' },
+      },
+    }
+    const { POST } = await importRoute()
+    const res = await POST(
+      makePostRequest({ portfolio_id: 'pf-theirs', ticker: 'AAPL' })
+    )
+    expect(res.status).toBe(403)
+    expect(fanOutPortfolioUpdate).not.toHaveBeenCalled()
+  })
+
+  it('POST upsert (existing ticker) does not fire fanout', async () => {
+    tableResponses = {
+      portfolios: {
+        maybeSingle: { id: 'pf-named-1', fund_manager_id: 'fm-uuid-1' },
+      },
+      // positions.maybeSingle → a pre-existing row, so the route takes
+      // the update branch and skips the insert+fanout path.
+      positions: { maybeSingle: { id: 'pos-existing' } },
+      fund_managers: { maybeSingle: { handle: 'alice' } },
+    }
+    const { POST } = await importRoute()
+    const res = await POST(
+      makePostRequest({
+        portfolio_id: 'pf-named-1',
+        ticker: 'AAPL',
+        shares: 10,
+      })
+    )
+    expect(res.status).toBe(200)
+    expect(fanOutPortfolioUpdate).not.toHaveBeenCalled()
+  })
+
+  it('DELETE from a named portfolio fires a sell fanout with prevShares', async () => {
+    tableResponses = {
+      positions: {
+        maybeSingle: {
+          id: 'pos-id-1',
+          ticker: 'AAPL',
+          shares: 10,
+          portfolio_id: 'pf-named-1',
+          portfolios: { fund_manager_id: 'fm-uuid-1', name: 'TechGrowth' },
+        },
+      },
+      fund_managers: { maybeSingle: { handle: 'alice' } },
+    }
+    const { DELETE } = await importRoute()
+    const res = await DELETE(makeDeleteRequest({ id: 'pos-id-1' }))
+    expect(res.status).toBe(200)
+    expect(fanOutPortfolioUpdate).toHaveBeenCalledTimes(1)
+    const [, input] = fanOutPortfolioUpdate.mock.calls[0]
+    expect(input).toMatchObject({
+      portfolio_id: 'pf-named-1',
+      fund_manager_id: 'fm-uuid-1',
+      changes: [{ type: 'sell', ticker: 'AAPL', prevShares: 10 }],
+    })
+  })
+
+  it('DELETE of a position the FM does not own returns 403', async () => {
+    tableResponses = {
+      positions: {
+        maybeSingle: {
+          id: 'pos-id-1',
+          ticker: 'AAPL',
+          shares: 10,
+          portfolio_id: 'pf-x',
+          portfolios: { fund_manager_id: 'different-fm', name: 'Theirs' },
+        },
+      },
+    }
+    const { DELETE } = await importRoute()
+    const res = await DELETE(makeDeleteRequest({ id: 'pos-id-1' }))
+    expect(res.status).toBe(403)
+    expect(fanOutPortfolioUpdate).not.toHaveBeenCalled()
   })
 })
