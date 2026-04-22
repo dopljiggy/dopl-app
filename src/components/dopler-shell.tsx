@@ -17,7 +17,7 @@ const nav = [
   { href: "/feed", icon: Home, label: "feed" },
   { href: "/leaderboard", icon: Compass, label: "discover" },
   { href: "/notifications", icon: Bell, label: "alerts" },
-  { href: "/settings", icon: User, label: "profile" },
+  { href: "/me", icon: User, label: "profile" },
 ];
 
 export default function DoplerShell({
@@ -33,6 +33,13 @@ export default function DoplerShell({
     name: string | null;
     website: string | null;
   }>({ connected: false, name: null, website: null });
+
+  // Portfolio ids the viewer is currently subscribed to (`status='active'`).
+  // Used by the popup's stale-actionable guard — position-change
+  // notifications for a portfolio the dopler has since cancelled render
+  // a "view portfolio" CTA instead of a broker-action CTA.
+  const [activeSubscribedPortfolioIds, setActiveSubscribedPortfolioIds] =
+    useState<Set<string>>(new Set());
 
   useEffect(() => {
     const supabase = createClient();
@@ -56,10 +63,30 @@ export default function DoplerShell({
       } catch {
         /* ignore — cols may not exist yet */
       }
+      try {
+        const { data: subs } = await supabase
+          .from("subscriptions")
+          .select("portfolio_id")
+          .eq("user_id", uid)
+          .eq("status", "active");
+        setActiveSubscribedPortfolioIds(
+          new Set(
+            (subs ?? []).map(
+              (s) => (s as { portfolio_id: string }).portfolio_id
+            )
+          )
+        );
+      } catch {
+        /* ignore */
+      }
     });
   }, []);
 
-  const notificationsState = useNotifications(userId);
+  const baseState = useNotifications(userId);
+  const notificationsState = {
+    ...baseState,
+    activeSubscribedPortfolioIds,
+  };
   const { unreadCount } = notificationsState;
 
   return (
@@ -122,10 +149,10 @@ export default function DoplerShell({
               />
             </div>
             <Link
-              href="/settings"
-              aria-label="profile + sign out"
+              href="/me"
+              aria-label="your subscriptions + profile"
               className={`hidden md:inline-flex items-center justify-center w-9 h-9 rounded-full transition-colors ${
-                pathname === "/settings"
+                pathname === "/me"
                   ? "bg-[color:var(--dopl-lime)]/12 text-[color:var(--dopl-lime)]"
                   : "text-[color:var(--dopl-cream)]/60 hover:text-[color:var(--dopl-cream)] hover:bg-[color:var(--dopl-sage)]/25"
               }`}

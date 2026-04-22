@@ -12,6 +12,7 @@ type Props = {
   disabled?: boolean;
   className?: string;
   type?: "button" | "submit";
+  "data-testid"?: string;
 };
 
 /**
@@ -29,6 +30,7 @@ export function SubmitButton({
   disabled,
   className = "",
   type = "button",
+  "data-testid": dataTestid,
 }: Props) {
   const [internalPending, setInternalPending] = useState(false);
   const pending = isPending || internalPending;
@@ -57,6 +59,7 @@ export function SubmitButton({
       type={type}
       onClick={handleClick}
       disabled={isDisabled}
+      data-testid={dataTestid}
       className={`${base} disabled:opacity-50 ${className}`.trim()}
     >
       {pending ? (

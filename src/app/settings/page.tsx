@@ -66,8 +66,14 @@ export default async function SettingsPage({
   return (
     <DoplerShell>
       <div className="max-w-2xl mx-auto px-6 py-8">
+        <Link
+          href="/me"
+          className="text-xs text-[color:var(--dopl-cream)]/50 hover:text-[color:var(--dopl-cream)] inline-flex items-center gap-1 mb-4"
+        >
+          ← back to /me
+        </Link>
         <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight mb-8">
-          profile
+          settings
         </h1>
 
         {params.connected === "true" && (

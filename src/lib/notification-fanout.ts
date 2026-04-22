@@ -139,6 +139,7 @@ export async function fanOutPortfolioUpdate(
         meta: {
           shares: "shares" in change ? change.shares : undefined,
           prev_shares: "prevShares" in change ? change.prevShares : undefined,
+          portfolio_id: input.portfolio_id,
           ...(input.meta_extend ?? {}),
         },
       });
@@ -154,6 +155,7 @@ export async function fanOutPortfolioUpdate(
         ticker: null,
         meta: {
           rebalance_count: rebalances.length,
+          portfolio_id: input.portfolio_id,
           ...(input.meta_extend ?? {}),
         },
       });
@@ -167,7 +169,10 @@ export async function fanOutPortfolioUpdate(
         actionable: true,
         change_type: "note",
         ticker: null,
-        meta: { ...(input.meta_extend ?? {}) },
+        meta: {
+          portfolio_id: input.portfolio_id,
+          ...(input.meta_extend ?? {}),
+        },
       });
     }
   }
@@ -214,4 +219,74 @@ function describeOneChange(
   return change.type === "buy"
     ? `bought ${change.ticker}`
     : `sold ${change.ticker}`;
+}
+
+export type FmEvent = "subscription_added" | "subscription_cancelled";
+
+export interface FmEventInput {
+  fund_manager_id: string;
+  portfolio_id: string;
+  portfolio_name: string;
+  dopler_user_id: string;
+  dopler_handle: string;
+  tier: string;
+  price_cents: number | null;
+  subscription_id: string;
+  event: FmEvent;
+}
+
+/**
+ * Insert one FM-side notification row for a subscription event.
+ *
+ * Idempotency: the row carries `meta.dedup_key = "<event>:<subscription_id>"`,
+ * and this helper short-circuits if a row already exists with that key.
+ * The primary idempotency guard lives upstream — existence check on
+ * `stripe_subscription_id` before insert in the Stripe webhook, and a
+ * unique constraint on that column (migration 004). This is defense in
+ * depth for the free-subscribe path and for any other accidental
+ * double-fire.
+ */
+export async function fanOutFmEvent(
+  admin: FanoutClient,
+  input: FmEventInput
+): Promise<FanoutResult> {
+  const dedupKey = `${input.event}:${input.subscription_id}`;
+
+  const { data: existing } = await admin
+    .from("notifications")
+    .select("id")
+    .eq("user_id", input.fund_manager_id)
+    .eq("change_type", input.event)
+    .contains("meta", { dedup_key: dedupKey })
+    .limit(1)
+    .maybeSingle();
+  if (existing) return { ok: true, notified: 0, update_id: "" };
+
+  const title =
+    input.event === "subscription_added"
+      ? `new dopler on ${input.portfolio_name}`
+      : `dopler left ${input.portfolio_name}`;
+  const body =
+    input.event === "subscription_added"
+      ? `${input.dopler_handle} just dopled your portfolio`
+      : `${input.dopler_handle} cancelled their subscription`;
+
+  await admin.from("notifications").insert({
+    user_id: input.fund_manager_id,
+    portfolio_update_id: null,
+    title,
+    body,
+    actionable: false,
+    change_type: input.event,
+    ticker: null,
+    meta: {
+      dopler_user_id: input.dopler_user_id,
+      dopler_handle: input.dopler_handle,
+      portfolio_id: input.portfolio_id,
+      tier: input.tier,
+      price_cents: input.price_cents,
+      dedup_key: dedupKey,
+    },
+  });
+  return { ok: true, notified: 1, update_id: "" };
 }

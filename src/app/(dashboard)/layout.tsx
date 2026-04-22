@@ -30,5 +30,5 @@ export default async function DashboardLayout({
     redirect("/onboarding");
   }
 
-  return <DashboardChrome>{children}</DashboardChrome>;
+  return <DashboardChrome userId={user.id}>{children}</DashboardChrome>;
 }

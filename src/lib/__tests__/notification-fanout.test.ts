@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { fanOutPortfolioUpdate, type FanoutClient } from '@/lib/notification-fanout'
+import {
+  fanOutFmEvent,
+  fanOutPortfolioUpdate,
+  type FanoutClient,
+} from '@/lib/notification-fanout'
 
 type Row = Record<string, unknown>
 
@@ -23,12 +27,20 @@ function makeFakeSupabase(seed: {
   portfolio: { id: string; name: string; fund_manager_id: string };
   subscriptions: { user_id: string; portfolio_id: string; status: string }[];
   positions: { portfolio_id: string; ticker: string }[];
+  existingFmNotifications?: {
+    user_id: string;
+    change_type: string;
+    meta: Record<string, unknown>;
+  }[];
 }) {
   const inserted: { table: string; rows: Row[] }[] = [];
+  type FilterOp = "eq" | "in" | "contains";
   type Query = {
     select: () => Query;
     eq: (k: string, v: unknown) => Query;
     in: (k: string, vs: unknown[]) => Query;
+    contains: (k: string, v: Record<string, unknown>) => Query;
+    limit: (n: number) => Query;
     maybeSingle: () => Promise<{ data: unknown; error: null }>;
     single: () => Promise<{ data: unknown; error: null }>;
     then: (cb: (v: { data: unknown }) => unknown) => unknown;
@@ -39,19 +51,28 @@ function makeFakeSupabase(seed: {
 
   let _state: {
     table: string;
-    filters: { col: string; val: unknown; op: "eq" | "in" }[];
+    filters: { col: string; val: unknown; op: FilterOp }[];
   } = { table: "", filters: [] };
 
   function apply(
     data: Row[],
-    filters: { col: string; val: unknown; op: "eq" | "in" }[]
+    filters: { col: string; val: unknown; op: FilterOp }[]
   ): Row[] {
     return data.filter((row) =>
-      filters.every((f) =>
-        f.op === "eq"
-          ? row[f.col] === f.val
-          : (f.val as unknown[]).includes(row[f.col])
-      )
+      filters.every((f) => {
+        if (f.op === "eq") return row[f.col] === f.val;
+        if (f.op === "in")
+          return (f.val as unknown[]).includes(row[f.col]);
+        if (f.op === "contains") {
+          const rowVal = row[f.col];
+          if (!rowVal || typeof rowVal !== "object") return false;
+          const asRecord = rowVal as Record<string, unknown>;
+          return Object.entries(f.val as Record<string, unknown>).every(
+            ([k, v]) => asRecord[k] === v
+          );
+        }
+        return false;
+      })
     );
   }
 
@@ -59,6 +80,8 @@ function makeFakeSupabase(seed: {
     if (table === "portfolios") return [seed.portfolio as Row];
     if (table === "subscriptions") return seed.subscriptions as Row[];
     if (table === "positions") return seed.positions as Row[];
+    if (table === "notifications")
+      return (seed.existingFmNotifications ?? []) as Row[];
     return [];
   }
 
@@ -72,6 +95,14 @@ function makeFakeSupabase(seed: {
     },
     in(col, vs) {
       _state.filters.push({ col, val: vs, op: "in" });
+      return q;
+    },
+    contains(col, val) {
+      _state.filters.push({ col, val, op: "contains" });
+      return q;
+    },
+    limit() {
+      // No-op for the fake — maybeSingle/single already cap results.
       return q;
     },
     async maybeSingle() {
@@ -295,6 +326,109 @@ describe('fanOutPortfolioUpdate', () => {
     expect(row).toMatchObject({
       change_type: 'note',
       body: 'thesis update',
+    });
+  });
+});
+
+describe('fanOutFmEvent', () => {
+  const portfolio = {
+    id: 'p1',
+    name: 'TechGrowth',
+    fund_manager_id: 'fm-alice',
+  };
+
+  it('inserts one notification row on the FM, not on subscribers, with price + dedup meta', async () => {
+    const { client, inserted } = makeFakeSupabase({
+      portfolio,
+      subscriptions: [
+        { user_id: 'u1', portfolio_id: 'p1', status: 'active' },
+        { user_id: 'u2', portfolio_id: 'p1', status: 'active' },
+      ],
+      positions: [],
+    });
+    const result = await fanOutFmEvent(client, {
+      fund_manager_id: 'fm-alice',
+      portfolio_id: 'p1',
+      portfolio_name: 'TechGrowth',
+      dopler_user_id: 'u1',
+      dopler_handle: 'alice',
+      tier: 'core',
+      price_cents: 1500,
+      subscription_id: 'sub_abc',
+      event: 'subscription_added',
+    });
+    expect(result.notified).toBe(1);
+    const notifInsert = inserted.find((i) => i.table === 'notifications')!;
+    expect(notifInsert.rows).toHaveLength(1);
+    expect(notifInsert.rows[0]).toMatchObject({
+      user_id: 'fm-alice',
+      change_type: 'subscription_added',
+      actionable: false,
+      title: expect.stringMatching(/new dopler|TechGrowth/i),
+    });
+    expect(notifInsert.rows[0].meta).toMatchObject({
+      dopler_user_id: 'u1',
+      dopler_handle: 'alice',
+      portfolio_id: 'p1',
+      tier: 'core',
+      price_cents: 1500,
+      dedup_key: 'subscription_added:sub_abc',
+    });
+  });
+
+  it('is idempotent — duplicate dedup_key does not insert a second row', async () => {
+    const { client, inserted } = makeFakeSupabase({
+      portfolio,
+      subscriptions: [],
+      positions: [],
+      existingFmNotifications: [
+        {
+          user_id: 'fm-alice',
+          change_type: 'subscription_added',
+          meta: { dedup_key: 'subscription_added:sub_abc' },
+        },
+      ],
+    });
+    const result = await fanOutFmEvent(client, {
+      fund_manager_id: 'fm-alice',
+      portfolio_id: 'p1',
+      portfolio_name: 'TechGrowth',
+      dopler_user_id: 'u1',
+      dopler_handle: 'alice',
+      tier: 'core',
+      price_cents: 1500,
+      subscription_id: 'sub_abc',
+      event: 'subscription_added',
+    });
+    expect(result.notified).toBe(0);
+    const notifInsert = inserted.find((i) => i.table === 'notifications');
+    expect(notifInsert).toBeUndefined();
+  });
+
+  it('subscription_cancelled uses past-tense body copy + null price ok', async () => {
+    const { client, inserted } = makeFakeSupabase({
+      portfolio,
+      subscriptions: [],
+      positions: [],
+    });
+    await fanOutFmEvent(client, {
+      fund_manager_id: 'fm-alice',
+      portfolio_id: 'p1',
+      portfolio_name: 'TechGrowth',
+      dopler_user_id: 'u1',
+      dopler_handle: 'alice',
+      tier: 'free',
+      price_cents: null,
+      subscription_id: 'sub_xyz',
+      event: 'subscription_cancelled',
+    });
+    const row = inserted.find((i) => i.table === 'notifications')!.rows[0];
+    expect(row.body as string).toMatch(/cancel|left/i);
+    expect(row.change_type).toBe('subscription_cancelled');
+    expect(row.meta).toMatchObject({
+      tier: 'free',
+      price_cents: null,
+      dedup_key: 'subscription_cancelled:sub_xyz',
     });
   });
 });
