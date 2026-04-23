@@ -5,6 +5,35 @@ Format: date, description, files, why, impact, testing, risks.
 
 ---
 
+## [2026-04-23] — Sprint 7: dopler deep-link CTAs
+
+**Files changed:**
+- `src/components/ui/notification-bell.tsx` — the bell's click handler now forwards `meta`, `ticker`, and `change_type` from the notification row when it builds `PopupNotification`. The popup's `extractPortfolioId(meta)`, stale-actionable guard, and manual-sent badge were all designed to consume this data in Sprint 5 but never received it — the handler was only passing `{id, title, body, created_at, actionable}`.
+- `src/components/ui/notification-popup.tsx` — primary CTA is now a ticker-scoped broker deep-link ("dopl AAPL on Robinhood" / "dopl AAPL on Schwab" / etc.) that opens the broker's actual stock page via `buildBrokerTradeUrl`. Falls back to "open {broker}" with the homepage URL when either the broker isn't in the pattern list or the notification has no ticker. Unauthenticated doplers see "connect your broker to dopl instantly" → `/settings`. Adds a "view portfolio" secondary link to `/feed/[portfolio_id]` below the primary whenever `meta.portfolio_id` resolves. Ticker-card label pulls from the typed `notification.change_type` column — "sold" when `change_type === "sell"`, "ticker" otherwise. `PopupNotification` type gains optional `ticker` + `change_type` fields; ticker extraction prefers the typed column and falls back to the existing body-regex for legacy rows.
+- `src/components/__tests__/notification-popup.test.tsx` — existing three stale-actionable cases updated to assert the Sprint 7 copy ("dopl AAPL on Fidelity") instead of the pre-Sprint-7 "open Fidelity". +3 new Sprint 7 cases covering typed-ticker preference with the Robinhood URL pattern, the "sold" action badge from `change_type`, and the no-broker-connected empty-state copy.
+- `src/lib/broker-deeplinks.ts` — new `buildBrokerTradeUrl(brokerName, websiteUrl, ticker)` helper. 5 verified deep-link patterns (Robinhood, Alpaca, Schwab, Fidelity, Tradier) + case-insensitive matching + homepage fallback for unknown brokers and null-ticker rows. Instance 2 audit verified the previous candidate patterns against live broker sites — Webull requires an exchange prefix we don't have from SnapTrade, Interactive Brokers has no public per-ticker URL, TD Ameritrade's domain is DNS-dead (merged into Schwab in 2023), and E\*TRADE has no public per-ticker URL; all four fall through to the homepage URL instead, which is strictly safer UX than a 404.
+- `src/lib/__tests__/broker-deeplinks.test.ts` — new file, 15 cases. Verified-pattern asserts (1 per broker + 1 case-insensitivity spot check), fall-through asserts for the 4 brokers we deliberately omit (so the homepage fallback is regression-pinned), and edge cases (null ticker, null broker + null website, null broker + website only).
+
+**Why:** The notification → action loop was broken end-to-end for doplers. A "bought AAPL" notification would open, show a "trade this · open Robinhood" CTA, link to robinhood.com's homepage, and force the dopler to manually search for AAPL — multiple seconds of friction between intent and action. Separately, the bell's click handler had been silently dropping `meta`/`ticker`/`change_type` since Sprint 5 shipped, which meant the stale-actionable guard never fired, the manual-sent badge never showed, and the ticker card fell back to body-regex extraction that drifts every time the FM's notification copy changes. Sprint 7 fixes the data flow and upgrades the CTA in one coherent pass.
+
+**Impact:**
+- Clicking a position-change notification now opens a popup with the ticker scoped broker deep-link as the primary CTA ("dopl AAPL on Robinhood"). Tapping it opens robinhood.com/stocks/AAPL (or the verified equivalent for Schwab / Fidelity / Alpaca / Tradier).
+- Unknown brokers keep working via the existing homepage fallback — conservative on purpose, since a wrong deep link (wrong exchange prefix, dead domain) is worse UX than a homepage link.
+- The stale-actionable guard now activates as designed: doplers opening a notification for a portfolio they've since cancelled see "view portfolio" instead of a broker deep-link, eliminating broken action paths.
+- The "view portfolio" secondary link is now reachable on every active-sub notification, giving doplers a one-tap path from the popup to the full portfolio context without dismissing the notification.
+- The "manually sent by the fund manager" badge fires correctly for manual updates.
+- The ticker card now labels a sell event as "sold" instead of "ticker", giving quick visual context before the dopler reads the body.
+
+**Testing:** `npm test` = **148 passing across 28 files** (Sprint 6 baseline 130 + 15 broker-deeplinks cases + 3 new popup cases = 148). `npm run build` clean with all three critical env vars unset. Playwright suite unchanged at 5 chromium tests.
+
+**Risks:**
+- **Broker name drift.** SnapTrade returns broker names as free-form strings; a rebrand or punctuation change ("Charles Schwab" vs "Schwab") could silently drop a pattern match. The regex matchers are intentionally loose (`/schwab/i`), but a partner-name change still risks falling back to the homepage. Acceptable — the fallback is safe — and we can expand the pattern regex when we see drift in analytics.
+- **Auth-gated broker URLs (Alpaca, Tradier)** route an unauthed dopler through a login page before landing on the ticker. Minor friction on first tap; subsequent taps are seamless once the broker session is live.
+- **No write-side integration.** The CTA deep-links to the broker's UI — the dopler still places the order themselves. Full mirror-trade is regulatory-gated and out of scope.
+- **Body-regex fallback kept for legacy rows.** Any notification with `ticker=NULL` pre-Sprint-5 still runs through `extractTicker(body)`. Safe today but worth deleting once the column backfill is confirmed. Flagged for Sprint 9+ cleanup.
+
+---
+
 ## [2026-04-22] — Hotfix: notification bell visible on all viewports
 
 **Files changed:**
