@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { buildBrokerTradeUrl } from "@/lib/broker-deeplinks";
 
 export type PopupNotification = {
   id: string;
@@ -153,7 +154,7 @@ export function NotificationPopup({
                 <div className="flex items-baseline justify-between">
                   <div>
                     <p className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/40 mb-1">
-                      ticker
+                      {notification.change_type === "sell" ? "sold" : "ticker"}
                     </p>
                     <p className="font-mono text-2xl font-semibold text-[color:var(--dopl-lime)]">
                       {ticker}
@@ -184,13 +185,21 @@ export function NotificationPopup({
                 <>
                   {tradingConnected && tradingWebsite ? (
                     <a
-                      href={tradingWebsite}
+                      href={
+                        buildBrokerTradeUrl(
+                          tradingName,
+                          tradingWebsite,
+                          ticker
+                        ) ?? tradingWebsite
+                      }
                       target="_blank"
                       rel="noreferrer"
                       className="btn-lime w-full text-sm py-3 inline-flex items-center justify-center gap-2"
                     >
                       <ExternalLink size={14} />
-                      trade this · open {tradingName ?? "broker"}
+                      {ticker
+                        ? `dopl ${ticker} on ${tradingName ?? "your broker"}`
+                        : `open ${tradingName ?? "broker"}`}
                     </a>
                   ) : (
                     <Link
@@ -199,7 +208,18 @@ export function NotificationPopup({
                       className="btn-lime w-full text-sm py-3 inline-flex items-center justify-center gap-2"
                     >
                       <Link2 size={14} />
-                      connect where you trade
+                      connect your broker to dopl instantly
+                    </Link>
+                  )}
+
+                  {notifPortfolioId && (
+                    <Link
+                      href={`/feed/${notifPortfolioId}`}
+                      onClick={onClose}
+                      className="w-full glass-card-light py-2.5 text-sm rounded-xl hover:bg-[color:var(--dopl-sage)]/40 transition-colors inline-flex items-center justify-center gap-2"
+                    >
+                      <TrendingUp size={14} />
+                      view portfolio
                     </Link>
                   )}
 
