@@ -148,6 +148,9 @@ export default function NotificationBell({
                             body: n.body,
                             created_at: n.created_at,
                             actionable: n.actionable,
+                            meta: n.meta,
+                            ticker: n.ticker,
+                            change_type: n.change_type,
                           });
                           setOpen(false);
                         }}

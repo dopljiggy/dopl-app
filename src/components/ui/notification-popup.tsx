@@ -19,6 +19,11 @@ export type PopupNotification = {
   created_at: string;
   actionable?: boolean;
   meta?: Record<string, unknown> | null;
+  // Typed DB columns — prefer these over regex-parsing the body.
+  // Optional so legacy callers that only pass {id,title,body,created_at}
+  // still compile; the popup falls back to extractTicker for those.
+  ticker?: string | null;
+  change_type?: string | null;
 };
 
 function extractPortfolioId(
@@ -64,7 +69,9 @@ export function NotificationPopup({
     setCopied(false);
   }, [notification?.id]);
 
-  const ticker = extractTicker(notification?.body);
+  // Prefer the typed ticker column; fall back to regex-extracting the
+  // body for legacy notifications that predate the column being populated.
+  const ticker = notification?.ticker ?? extractTicker(notification?.body);
   const notifPortfolioId = extractPortfolioId(notification?.meta);
   // Stale-actionable guard: if the notification's portfolio is NOT in the
   // dopler's currently-active subscriptions (e.g. they cancelled, or the
