@@ -2,6 +2,13 @@ import { NextResponse } from "next/server";
 import { saltedge } from "@/lib/saltedge";
 import { createServerSupabase } from "@/lib/supabase-server";
 
+const REGION_TO_COUNTRY: Record<string, string> = {
+  uk: "GB",
+  uae: "AE",
+  australia: "AU",
+  india: "IN",
+};
+
 /**
  * Create a Salt Edge Connect URL and return it to the client for redirect.
  * v6 endpoint: POST /connections/connect
@@ -17,7 +24,7 @@ export async function POST(request: Request) {
 
   const { data: fm } = await supabase
     .from("fund_managers")
-    .select("saltedge_customer_id")
+    .select("saltedge_customer_id, region")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -33,10 +40,12 @@ export async function POST(request: Request) {
       process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
       new URL(request.url).origin;
     const returnTo = `${origin}/api/saltedge/callback`;
+    const countryCode = fm.region ? REGION_TO_COUNTRY[fm.region] : undefined;
 
     const session = await saltedge.createConnectUrl({
       customer_id: fm.saltedge_customer_id,
       return_to: returnTo,
+      country_code: countryCode,
     });
 
     return NextResponse.json({

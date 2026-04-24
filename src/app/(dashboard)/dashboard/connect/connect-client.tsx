@@ -169,6 +169,7 @@ export default function ConnectClient({
           read-only, never executes trades.
         </p>
         <BrokerTypeSelector
+          persist={false}
           onSelected={(c) => setActiveChoice(c.key)}
         />
       </div>
