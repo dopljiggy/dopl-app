@@ -118,7 +118,7 @@ export async function POST() {
       .from("fund_managers")
       .update({
         broker_connected: true,
-        broker_name: accounts.data[0]?.institution_name || "Unknown",
+        broker_name: accounts.data[0]?.institution_name || "Broker",
       })
       .eq("id", user.id);
 
