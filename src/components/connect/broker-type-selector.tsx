@@ -61,8 +61,6 @@ export function BrokerTypeSelector({
         const res = await fetch("/api/fund-manager/region", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          // Region is retained only for DB persistence. broker_provider is
-          // what actually drives flow.
           body: JSON.stringify({
             region:
               choice.key === "manual"

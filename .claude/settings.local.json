@@ -97,7 +97,13 @@
       "Bash(npm test *)",
       "Bash(git mv *)",
       "Bash(unset STRIPE_SECRET_KEY)",
-      "Bash(git merge --no-ff fix/sprint-1-launch-blockers -m ' *)"
+      "Bash(git merge --no-ff fix/sprint-1-launch-blockers -m ' *)",
+      "Bash(node *)",
+      "Bash(kill %1)",
+      "Bash(git merge *)",
+      "Bash(brew list *)",
+      "Bash(qlmanage *)",
+      "Bash(host *)"
     ]
   }
 }
