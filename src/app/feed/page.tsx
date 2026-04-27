@@ -73,9 +73,6 @@ export default async function FeedPage() {
 
   const subs = (subsData ?? []) as unknown as SubscriptionRow[];
 
-  // 2) fund managers by id. Use both subscriptions.fund_manager_id and the
-  //    nested portfolio.fund_manager_id as sources — covers the case where
-  //    an older subscription row has an unexpected fund_manager_id.
   const fmIds = Array.from(
     new Set(
       subs.flatMap((s) =>
@@ -85,41 +82,48 @@ export default async function FeedPage() {
       )
     )
   );
+  const portfolioIds = subs.map((s) => s.portfolio_id);
+
+  const [fmResult, profileResult, posResult] = await Promise.all([
+    fmIds.length
+      ? admin
+          .from("fund_managers")
+          .select(
+            "id, handle, display_name, avatar_url, bio, subscriber_count, broker_provider"
+          )
+          .in("id", fmIds)
+      : Promise.resolve({ data: [] }),
+    fmIds.length
+      ? admin.from("profiles").select("id, full_name, email").in("id", fmIds)
+      : Promise.resolve({ data: [] }),
+    portfolioIds.length
+      ? admin
+          .from("positions")
+          .select(
+            "id, portfolio_id, ticker, name, allocation_pct, current_price, gain_loss_pct, shares, market_value"
+          )
+          .in("portfolio_id", portfolioIds)
+          .order("market_value", { ascending: false })
+      : Promise.resolve({ data: [] }),
+  ]);
+
   const fmMap = new Map<string, FundManagerRow>();
-  if (fmIds.length) {
-    const { data: fmRows } = await admin
-      .from("fund_managers")
-      .select(
-        "id, handle, display_name, avatar_url, bio, subscriber_count, broker_provider"
-      )
-      .in("id", fmIds);
-    for (const row of (fmRows ?? []) as FundManagerRow[]) {
-      fmMap.set(row.id, row);
-    }
+  for (const row of (fmResult.data ?? []) as FundManagerRow[]) {
+    fmMap.set(row.id, row);
   }
 
-  // 2b) Backstop: if any fund_manager is missing or has a blank display_name,
-  //     look them up in profiles for `full_name` / `email`. This catches
-  //     fund managers whose fund_managers row hasn't been provisioned yet
-  //     (ensure runs on the share page).
   const profileMap = new Map<
     string,
     { full_name: string | null; email: string | null }
   >();
-  if (fmIds.length) {
-    const { data: profileRows } = await admin
-      .from("profiles")
-      .select("id, full_name, email")
-      .in("id", fmIds);
-    for (const row of profileRows ?? []) {
-      profileMap.set(
-        (row as { id: string }).id,
-        {
-          full_name: (row as { full_name: string | null }).full_name,
-          email: (row as { email: string | null }).email,
-        }
-      );
-    }
+  for (const row of profileResult.data ?? []) {
+    profileMap.set(
+      (row as { id: string }).id,
+      {
+        full_name: (row as { full_name: string | null }).full_name,
+        email: (row as { email: string | null }).email,
+      }
+    );
   }
 
   const resolveFmById = (id: string) =>
@@ -129,22 +133,11 @@ export default async function FeedPage() {
       id
     );
 
-  // 3) positions for every subscribed portfolio.
-  const portfolioIds = subs.map((s) => s.portfolio_id);
   const positionsByPortfolio = new Map<string, PositionLike[]>();
-  if (portfolioIds.length) {
-    const { data: posRows } = await admin
-      .from("positions")
-      .select(
-        "id, portfolio_id, ticker, name, allocation_pct, current_price, gain_loss_pct, shares, market_value"
-      )
-      .in("portfolio_id", portfolioIds)
-      .order("market_value", { ascending: false });
-    for (const p of (posRows ?? []) as PositionRow[]) {
-      const list = positionsByPortfolio.get(p.portfolio_id) ?? [];
-      list.push(p);
-      positionsByPortfolio.set(p.portfolio_id, list);
-    }
+  for (const p of (posResult.data ?? []) as PositionRow[]) {
+    const list = positionsByPortfolio.get(p.portfolio_id) ?? [];
+    list.push(p);
+    positionsByPortfolio.set(p.portfolio_id, list);
   }
 
   return (
