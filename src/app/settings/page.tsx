@@ -4,50 +4,27 @@ import DoplerShell from "@/components/dopler-shell";
 import { GlassCard } from "@/components/ui/glass-card";
 import SignOutButton from "./sign-out-button";
 import Link from "next/link";
-import { TradingConnect } from "@/components/connect/trading-connect";
+import { BrokerPreferencePicker } from "@/components/broker-preference-picker";
 
 type ProfileRow = {
   full_name?: string | null;
   email?: string | null;
   role?: string | null;
-  trading_provider?: "snaptrade" | "saltedge" | null;
-  trading_connected?: boolean | null;
-  trading_connection_data?: {
-    broker_name?: string;
-    bank_name?: string;
-    website_url?: string | null;
-  } | null;
+  trading_broker_preference?: string | null;
 };
 
-export default async function SettingsPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ connected?: string; error?: string }>;
-}) {
+export default async function SettingsPage() {
   const supabase = await createServerSupabase();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  let profile: ProfileRow | null = null;
-  const withNew = await supabase
+  const { data: profile } = await supabase
     .from("profiles")
-    .select(
-      "full_name, email, role, trading_provider, trading_connected, trading_connection_data"
-    )
+    .select("full_name, email, role, trading_broker_preference")
     .eq("id", user.id)
     .maybeSingle();
-  if (withNew.error) {
-    const fallback = await supabase
-      .from("profiles")
-      .select("full_name, email, role")
-      .eq("id", user.id)
-      .maybeSingle();
-    profile = (fallback.data as ProfileRow) ?? null;
-  } else {
-    profile = (withNew.data as ProfileRow) ?? null;
-  }
 
   if (profile?.role === "fund_manager") redirect("/dashboard/profile");
 
@@ -56,12 +33,6 @@ export default async function SettingsPage({
     .select("id", { count: "exact", head: true })
     .eq("user_id", user.id)
     .eq("status", "active");
-
-  const params = await searchParams;
-  const tradingName =
-    profile?.trading_connection_data?.broker_name ??
-    profile?.trading_connection_data?.bank_name ??
-    null;
 
   return (
     <DoplerShell>
@@ -75,19 +46,6 @@ export default async function SettingsPage({
         <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight mb-8">
           settings
         </h1>
-
-        {params.connected === "true" && (
-          <GlassCard className="p-4 mb-4 border-[color:var(--dopl-lime)]/40">
-            <p className="text-sm text-[color:var(--dopl-lime)]">
-              trading account connected.
-            </p>
-          </GlassCard>
-        )}
-        {params.error && (
-          <GlassCard className="p-4 mb-4 border-red-400/40">
-            <p className="text-sm text-red-300">{params.error}</p>
-          </GlassCard>
-        )}
 
         <GlassCard className="p-6 mb-4">
           <p className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/40 mb-1">
@@ -118,17 +76,11 @@ export default async function SettingsPage({
           </Link>
         </GlassCard>
 
-        <div className="mb-8">
-          <TradingConnect
-            initial={{
-              provider: profile?.trading_provider ?? null,
-              connected: !!profile?.trading_connected,
-              name: tradingName,
-              websiteUrl:
-                profile?.trading_connection_data?.website_url ?? null,
-            }}
+        <GlassCard className="p-6 mb-8">
+          <BrokerPreferencePicker
+            initial={profile?.trading_broker_preference ?? null}
           />
-        </div>
+        </GlassCard>
 
         <div className="mt-8">
           <SignOutButton />
