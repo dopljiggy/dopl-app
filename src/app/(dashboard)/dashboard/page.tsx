@@ -15,16 +15,17 @@ export default async function DashboardPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: fm } = await supabase
-    .from("fund_managers")
-    .select("*")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  const { data: portfolios } = await supabase
-    .from("portfolios")
-    .select("id, price_cents, subscriber_count, is_active")
-    .eq("fund_manager_id", user.id);
+  const [{ data: fm }, { data: portfolios }] = await Promise.all([
+    supabase
+      .from("fund_managers")
+      .select("*")
+      .eq("id", user.id)
+      .maybeSingle(),
+    supabase
+      .from("portfolios")
+      .select("id, price_cents, subscriber_count, is_active")
+      .eq("fund_manager_id", user.id),
+  ]);
 
   const portfolioIds = (portfolios ?? []).map((p) => p.id);
   const { count: positionCount } = portfolioIds.length
