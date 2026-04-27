@@ -81,7 +81,7 @@ export default function DoplerShell({
 
   return (
     <NotificationsProvider value={notificationsState}>
-      <div className="min-h-screen pb-24 md:pb-0">
+      <div className="min-h-screen pb-32 md:pb-0">
       {/* Top nav — all sizes */}
       <nav className="sticky top-0 z-30 backdrop-blur-xl bg-[color:var(--dopl-deep)]/65 border-b border-[color:var(--glass-border)]">
         <div className="max-w-5xl mx-auto px-6 py-3 flex items-center gap-6">
