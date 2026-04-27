@@ -173,23 +173,15 @@ export default function DoplerShell({
                   prefetch
                   className="relative flex flex-col items-center justify-center flex-1 py-2 min-h-[44px]"
                 >
-                  {active && (
-                    <motion.span
-                      layoutId="dopler-bottom-active"
-                      className="absolute inset-1 rounded-xl bg-[color:var(--dopl-lime)]/12 border border-[color:var(--dopl-lime)]/25"
-                      transition={{ type: "spring", stiffness: 380, damping: 30 }}
-                    />
-                  )}
                   <div className="relative">
                     <item.icon
                       size={20}
-                      strokeWidth={active ? 2.4 : 1.6}
-                      className={`relative ${
+                      strokeWidth={active ? 2.2 : 1.6}
+                      className={
                         active
                           ? "text-[color:var(--dopl-lime)]"
                           : "text-[color:var(--dopl-cream)]/60"
-                      }`}
-                      fill={active ? "rgba(197,214,52,0.18)" : "none"}
+                      }
                     />
                     {showBadge && (
                       <span className="absolute -top-1 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-[color:var(--dopl-lime)] text-[color:var(--dopl-deep)] text-[9px] font-mono font-bold flex items-center justify-center">
