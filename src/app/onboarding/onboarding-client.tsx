@@ -443,14 +443,11 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
   const prev = () => setStep((s) => Math.max(s - 1, 0));
 
   const finish = () => {
-    // Clear persisted onboarding session state so the next FM's session
-    // starts fresh.
     if (typeof window !== "undefined") {
       window.sessionStorage.removeItem(SESSION_KEY);
       window.sessionStorage.removeItem(PORTFOLIO_FLAG);
+      window.location.href = "/dashboard";
     }
-    router.replace("/dashboard");
-    router.refresh();
   };
 
   const copyLink = async () => {
