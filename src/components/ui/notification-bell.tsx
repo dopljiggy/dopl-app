@@ -13,14 +13,10 @@ import {
 
 export default function NotificationBell({
   userId: _userId,
-  tradingConnected = false,
-  tradingName = null,
-  tradingWebsite = null,
+  brokerPreference = null,
 }: {
   userId: string | null;
-  tradingConnected?: boolean;
-  tradingName?: string | null;
-  tradingWebsite?: string | null;
+  brokerPreference?: string | null;
 }) {
   const {
     notifications,
@@ -178,9 +174,7 @@ export default function NotificationBell({
 
       <NotificationPopup
         notification={popup}
-        tradingConnected={tradingConnected}
-        tradingName={tradingName}
-        tradingWebsite={tradingWebsite}
+        brokerPreference={brokerPreference}
         activeSubscribedPortfolioIds={activeSubscribedPortfolioIds}
         onClose={() => setPopup(null)}
       />
