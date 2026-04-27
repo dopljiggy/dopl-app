@@ -51,6 +51,22 @@ const BROKER_PATTERNS: BrokerPattern[] = [
   },
 ];
 
+const BROKER_HOMEPAGES: Record<string, string> = {
+  Robinhood: "https://robinhood.com",
+  Fidelity: "https://www.fidelity.com",
+  Schwab: "https://www.schwab.com",
+  Webull: "https://www.webull.com",
+  "Interactive Brokers": "https://www.interactivebrokers.com",
+  Coinbase: "https://www.coinbase.com",
+  "Trading 212": "https://www.trading212.com",
+  Wealthsimple: "https://www.wealthsimple.com",
+};
+
+export function getBrokerHomepage(name: string | null): string | null {
+  if (!name) return null;
+  return BROKER_HOMEPAGES[name] ?? null;
+}
+
 /**
  * Resolve a broker + ticker into a trade-page URL, or null when nothing
  * is actionable (both brokerName and websiteUrl are absent).
