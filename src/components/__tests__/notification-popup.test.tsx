@@ -16,16 +16,11 @@ describe('NotificationPopup — stale-actionable guard', () => {
           actionable: true,
           meta: { portfolio_id: 'p-old' },
         }}
-        tradingConnected
-        tradingName="Fidelity"
-        tradingWebsite="https://fidelity.com"
+        brokerPreference="Fidelity"
         activeSubscribedPortfolioIds={new Set(['p-new'])}
         onClose={() => {}}
       />
     )
-    // Guard triggers — "view portfolio" is the ONLY action. The Sprint 7
-    // deep-link CTA (`dopl AAPL on Fidelity`) must NOT render when the
-    // subscription is stale.
     expect(screen.getByText(/view portfolio/i)).toBeInTheDocument()
     expect(screen.queryByText(/dopl AAPL/i)).not.toBeInTheDocument()
   })
@@ -41,15 +36,11 @@ describe('NotificationPopup — stale-actionable guard', () => {
           actionable: true,
           meta: { portfolio_id: 'p-active' },
         }}
-        tradingConnected
-        tradingName="Fidelity"
-        tradingWebsite="https://fidelity.com"
+        brokerPreference="Fidelity"
         activeSubscribedPortfolioIds={new Set(['p-active'])}
         onClose={() => {}}
       />
     )
-    // Primary: ticker-scoped broker deep-link copy. Secondary (Sprint 7):
-    // always-present "view portfolio" link when notifPortfolioId resolves.
     expect(
       screen.getByText(/dopl AAPL on Fidelity/i)
     ).toBeInTheDocument()
@@ -67,17 +58,11 @@ describe('NotificationPopup — stale-actionable guard', () => {
           actionable: true,
           meta: null,
         }}
-        tradingConnected
-        tradingName="Fidelity"
-        tradingWebsite="https://fidelity.com"
+        brokerPreference="Fidelity"
         activeSubscribedPortfolioIds={new Set()}
         onClose={() => {}}
       />
     )
-    // No portfolio_id → permissive fallback: deep-link CTA still
-    // renders (we can't tell the subscription is stale), and the
-    // view-portfolio secondary is suppressed since we don't know where
-    // to link to.
     expect(
       screen.getByText(/dopl AAPL on Fidelity/i)
     ).toBeInTheDocument()
@@ -85,7 +70,7 @@ describe('NotificationPopup — stale-actionable guard', () => {
   })
 })
 
-describe('NotificationPopup — Sprint 7 deep-link CTA', () => {
+describe('NotificationPopup — broker preference CTA', () => {
   it('prefers typed ticker over regex extraction and uses the broker pattern URL', () => {
     render(
       <NotificationPopup
@@ -99,9 +84,7 @@ describe('NotificationPopup — Sprint 7 deep-link CTA', () => {
           change_type: 'buy',
           meta: { portfolio_id: 'p-active' },
         }}
-        tradingConnected
-        tradingName="Robinhood"
-        tradingWebsite="https://robinhood.com"
+        brokerPreference="Robinhood"
         activeSubscribedPortfolioIds={new Set(['p-active'])}
         onClose={() => {}}
       />
@@ -125,9 +108,7 @@ describe('NotificationPopup — Sprint 7 deep-link CTA', () => {
           change_type: 'sell',
           meta: { portfolio_id: 'p-active' },
         }}
-        tradingConnected
-        tradingName="Robinhood"
-        tradingWebsite="https://robinhood.com"
+        brokerPreference="Robinhood"
         activeSubscribedPortfolioIds={new Set(['p-active'])}
         onClose={() => {}}
       />
@@ -135,7 +116,7 @@ describe('NotificationPopup — Sprint 7 deep-link CTA', () => {
     expect(screen.getByText(/^sold$/i)).toBeInTheDocument()
   })
 
-  it('shows "connect your broker" CTA when dopler has no trading connection', () => {
+  it('shows "set your broker" CTA when dopler has no broker preference', () => {
     render(
       <NotificationPopup
         notification={{
@@ -147,14 +128,57 @@ describe('NotificationPopup — Sprint 7 deep-link CTA', () => {
           ticker: 'AAPL',
           change_type: 'buy',
         }}
-        tradingConnected={false}
-        tradingName={null}
-        tradingWebsite={null}
+        brokerPreference={null}
         onClose={() => {}}
       />
     )
     expect(
-      screen.getByText(/connect your broker to dopl instantly/i)
+      screen.getByText(/set your broker in settings/i)
     ).toBeInTheDocument()
+  })
+
+  it('hides broker CTA when preference is "Other"', () => {
+    render(
+      <NotificationPopup
+        notification={{
+          id: 'n4',
+          title: 'TechGrowth',
+          body: 'bought AAPL',
+          created_at: new Date().toISOString(),
+          actionable: true,
+          ticker: 'AAPL',
+          change_type: 'buy',
+        }}
+        brokerPreference="Other"
+        onClose={() => {}}
+      />
+    )
+    expect(screen.queryByText(/dopl AAPL on/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/set your broker/i)).not.toBeInTheDocument()
+    expect(screen.getByText(/copy AAPL/i)).toBeInTheDocument()
+  })
+
+  it('falls back to broker homepage for unmatched broker with ticker', () => {
+    render(
+      <NotificationPopup
+        notification={{
+          id: 'n5',
+          title: 'TechGrowth',
+          body: 'bought AAPL',
+          created_at: new Date().toISOString(),
+          actionable: true,
+          ticker: 'AAPL',
+          change_type: 'buy',
+          meta: { portfolio_id: 'p-active' },
+        }}
+        brokerPreference="Coinbase"
+        activeSubscribedPortfolioIds={new Set(['p-active'])}
+        onClose={() => {}}
+      />
+    )
+    const link = screen.getByRole('link', {
+      name: /dopl AAPL on Coinbase/i,
+    })
+    expect(link).toHaveAttribute('href', 'https://www.coinbase.com')
   })
 })
