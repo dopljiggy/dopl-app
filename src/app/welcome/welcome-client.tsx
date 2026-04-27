@@ -2,26 +2,16 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, Globe, Link2, ArrowRight } from "lucide-react";
+import { Sparkles, Globe, ArrowRight } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { REGIONS } from "@/components/connect/region-selector";
-import { TradingConnect } from "@/components/connect/trading-connect";
 
-type Initial = {
-  provider: "snaptrade" | "saltedge" | null;
-  connected: boolean;
-  name: string | null;
-  websiteUrl: string | null;
-};
-
-const STEPS = ["welcome", "region", "connect"] as const;
+const STEPS = ["welcome", "region"] as const;
 
 export default function WelcomeClient({
   firstName,
-  initial,
 }: {
   firstName: string;
-  initial: Initial;
 }) {
   const [step, setStep] = useState(0);
   const [region, setRegion] = useState<string | null>(null);
@@ -31,7 +21,7 @@ export default function WelcomeClient({
 
   const chooseRegion = (key: string) => {
     setRegion(key);
-    next();
+    window.location.href = "/feed";
   };
 
   return (
@@ -64,10 +54,8 @@ export default function WelcomeClient({
                   {firstName ? `, ${firstName}` : ""}
                 </h1>
                 <p className="text-[color:var(--dopl-cream)]/60 text-sm md:text-base mt-4 mb-6 max-w-md mx-auto">
-                  find a fund manager worth dopling. when they trade, you&apos;ll see it live — tap to execute in your own broker.
-                </p>
-                <p className="text-[color:var(--dopl-cream)]/50 text-xs mb-6">
-                  first, connect where you trade. takes about 30 seconds.
+                  find a fund manager worth dopling. when they trade, you&apos;ll
+                  see it live — tap to execute in your own broker.
                 </p>
                 <button
                   onClick={next}
@@ -88,7 +76,7 @@ export default function WelcomeClient({
                   where do you trade?
                 </h2>
                 <p className="text-[color:var(--dopl-cream)]/55 text-sm mt-2 mb-6">
-                  pick your region so we show you the right broker network.
+                  pick your region so we show you the right fund managers.
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   {REGIONS.map((r) => {
@@ -106,7 +94,9 @@ export default function WelcomeClient({
                         <div className="flex items-start gap-3">
                           <div className="text-2xl leading-none">{r.flag}</div>
                           <div className="flex-1 min-w-0">
-                            <div className="font-display text-sm font-semibold">{r.label}</div>
+                            <div className="font-display text-sm font-semibold">
+                              {r.label}
+                            </div>
                             <div className="text-[11px] text-[color:var(--dopl-cream)]/45 truncate">
                               {r.subtitle}
                             </div>
@@ -116,27 +106,6 @@ export default function WelcomeClient({
                     );
                   })}
                 </div>
-                <button
-                  onClick={prev}
-                  className="text-xs text-[color:var(--dopl-cream)]/50 hover:text-[color:var(--dopl-cream)] mt-6"
-                >
-                  ← back
-                </button>
-              </GlassCard>
-            )}
-
-            {step === 2 && (
-              <GlassCard className="p-8 md:p-10">
-                <div className="w-12 h-12 rounded-2xl bg-[color:var(--dopl-lime)]/12 border border-[color:var(--dopl-lime)]/25 flex items-center justify-center text-[color:var(--dopl-lime)] mb-5">
-                  <Link2 size={22} />
-                </div>
-                <h2 className="font-display text-2xl md:text-3xl font-semibold leading-tight tracking-tight">
-                  connect your broker
-                </h2>
-                <p className="text-[color:var(--dopl-cream)]/55 text-sm mt-2 mb-6">
-                  read-only. dopl never executes trades on your behalf — you tap in the app, execute manually in your broker.
-                </p>
-                <TradingConnect initial={initial} />
                 <button
                   onClick={prev}
                   className="text-xs text-[color:var(--dopl-cream)]/50 hover:text-[color:var(--dopl-cream)] mt-6"
