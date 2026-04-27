@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createServerSupabase } from "@/lib/supabase-server";
+import { createServerSupabase, getCachedUser } from "@/lib/supabase-server";
 import { fmNeedsOnboarding } from "@/lib/onboarding-gates";
 import DashboardChrome from "./dashboard-chrome";
 
@@ -8,11 +8,10 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCachedUser();
   if (!user) redirect("/login");
+
+  const supabase = await createServerSupabase();
 
   const [{ data: fm }, { count: portfolioCount }] = await Promise.all([
     supabase

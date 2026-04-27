@@ -66,6 +66,7 @@ function SideNav() {
           <NavLink
             key={item.href}
             href={item.href}
+            prefetch
             className={`relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors ${
               active
                 ? "text-[color:var(--dopl-lime)]"
@@ -108,6 +109,7 @@ function BottomNav() {
               <NavLink
                 key={item.href}
                 href={item.href}
+                prefetch
                 className="relative flex flex-col items-center justify-center flex-1 py-2 min-h-[44px]"
               >
                 {active && (

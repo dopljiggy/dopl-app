@@ -1,6 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { doplerNeedsOnboarding } from "@/lib/proxy-gates";
 
 /**
  * Gated routes:
@@ -54,11 +53,10 @@ export async function proxy(request: NextRequest) {
   // Resolve role: profile first, then auth metadata fallback for race
   // conditions right after signup.
   let role: "fund_manager" | "subscriber" = "subscriber";
-  let tradingConnected = false;
   try {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("role, trading_connected")
+      .select("role")
       .eq("id", user.id)
       .maybeSingle();
     if (profile?.role === "fund_manager") role = "fund_manager";
@@ -67,7 +65,6 @@ export async function proxy(request: NextRequest) {
       const metaRole = (user.user_metadata as { role?: string } | null)?.role;
       if (metaRole === "fund_manager") role = "fund_manager";
     }
-    tradingConnected = !!profile?.trading_connected;
   } catch {
     const metaRole = (user.user_metadata as { role?: string } | null)?.role;
     if (metaRole === "fund_manager") role = "fund_manager";
@@ -81,12 +78,6 @@ export async function proxy(request: NextRequest) {
   if (isFeed && role === "fund_manager") {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
-    return NextResponse.redirect(url);
-  }
-
-  if (doplerNeedsOnboarding({ role, tradingConnected, path })) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/welcome";
     return NextResponse.redirect(url);
   }
 

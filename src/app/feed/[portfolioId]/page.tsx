@@ -32,32 +32,31 @@ export default async function PortfolioDetail({
   const isOwner = portfolio.fund_manager_id === user.id;
   const isFree = portfolio.tier === "free";
 
-  let subscribed = false;
-  if (!isOwner && !isFree) {
-    const { data: sub } = await supabase
-      .from("subscriptions")
-      .select("id")
-      .eq("user_id", user.id)
+  const [subResult, { data: positions }, { data: updates }] = await Promise.all([
+    !isOwner && !isFree
+      ? supabase
+          .from("subscriptions")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("portfolio_id", portfolioId)
+          .eq("status", "active")
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    supabase
+      .from("positions")
+      .select("*")
       .eq("portfolio_id", portfolioId)
-      .eq("status", "active")
-      .maybeSingle();
-    subscribed = !!sub;
-  }
+      .order("market_value", { ascending: false }),
+    supabase
+      .from("portfolio_updates")
+      .select("*")
+      .eq("portfolio_id", portfolioId)
+      .order("created_at", { ascending: false })
+      .limit(10),
+  ]);
 
+  const subscribed = !!subResult.data;
   const canView = isOwner || isFree || subscribed;
-
-  const { data: positions } = await supabase
-    .from("positions")
-    .select("*")
-    .eq("portfolio_id", portfolioId)
-    .order("market_value", { ascending: false });
-
-  const { data: updates } = await supabase
-    .from("portfolio_updates")
-    .select("*")
-    .eq("portfolio_id", portfolioId)
-    .order("created_at", { ascending: false })
-    .limit(10);
 
   return (
     <DoplerShell>

@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { buildBrokerTradeUrl } from "@/lib/broker-deeplinks";
+import { buildBrokerTradeUrl, getBrokerHomepage } from "@/lib/broker-deeplinks";
 
 export type PopupNotification = {
   id: string;
@@ -51,16 +51,12 @@ function extractTicker(body: string | null | undefined): string | null {
  */
 export function NotificationPopup({
   notification,
-  tradingConnected,
-  tradingName,
-  tradingWebsite,
+  brokerPreference,
   activeSubscribedPortfolioIds,
   onClose,
 }: {
   notification: PopupNotification | null;
-  tradingConnected: boolean;
-  tradingName: string | null;
-  tradingWebsite: string | null;
+  brokerPreference: string | null;
   activeSubscribedPortfolioIds?: Set<string>;
   onClose: () => void;
 }) {
@@ -117,7 +113,7 @@ export function NotificationPopup({
             exit={{ y: "100%", opacity: 0, scale: 0.97 }}
             transition={{ duration: 0.3, ease: [0.2, 0.7, 0.2, 1] }}
             onClick={(e) => e.stopPropagation()}
-            className="relative w-full md:max-w-md glass-card glass-card-strong rounded-t-3xl md:rounded-3xl p-6 md:p-7 md:mx-4 pb-8 md:pb-7"
+            className="relative w-full md:max-w-md rounded-t-3xl md:rounded-3xl p-6 md:p-7 md:mx-4 pb-8 md:pb-7 max-h-[85vh] overflow-y-auto bg-[color:var(--dopl-deep-2)] border border-[color:var(--glass-border-strong)] shadow-[0_20px_60px_-20px_rgba(0,0,0,0.7)]"
             style={{ paddingBottom: "max(2rem, env(safe-area-inset-bottom))" }}
           >
             <button
@@ -183,14 +179,14 @@ export function NotificationPopup({
                 </Link>
               ) : (
                 <>
-                  {tradingConnected && tradingWebsite ? (
+                  {brokerPreference && brokerPreference !== "Other" ? (
                     <a
                       href={
                         buildBrokerTradeUrl(
-                          tradingName,
-                          tradingWebsite,
+                          brokerPreference,
+                          getBrokerHomepage(brokerPreference),
                           ticker
-                        ) ?? tradingWebsite
+                        ) ?? getBrokerHomepage(brokerPreference) ?? "#"
                       }
                       target="_blank"
                       rel="noreferrer"
@@ -198,19 +194,19 @@ export function NotificationPopup({
                     >
                       <ExternalLink size={14} />
                       {ticker
-                        ? `dopl ${ticker} on ${tradingName ?? "your broker"}`
-                        : `open ${tradingName ?? "broker"}`}
+                        ? `dopl ${ticker} on ${brokerPreference}`
+                        : `open ${brokerPreference}`}
                     </a>
-                  ) : (
+                  ) : !brokerPreference ? (
                     <Link
                       href="/settings"
                       onClick={onClose}
                       className="btn-lime w-full text-sm py-3 inline-flex items-center justify-center gap-2"
                     >
                       <Link2 size={14} />
-                      connect your broker to dopl instantly
+                      set your broker in settings
                     </Link>
-                  )}
+                  ) : null}
 
                   {notifPortfolioId && (
                     <Link

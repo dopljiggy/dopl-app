@@ -5,6 +5,58 @@ Format: date, description, files, why, impact, testing, risks.
 
 ---
 
+## [2026-04-27] — Sprint 8: Regulatory + Polish + Performance
+
+**Files changed:**
+- Delete: `src/app/api/trading/snaptrade/{register,connect,callback}/route.ts`, `src/app/api/trading/saltedge/{register,connect,callback}/route.ts`, `src/app/api/trading/disconnect/route.ts` — 7 dopler-side broker/bank OAuth API routes removed for regulatory compliance.
+- Delete: `src/components/connect/trading-connect.tsx` — TradingConnect component that powered the OAuth connect UI.
+- Delete: `src/lib/proxy-gates.ts`, `src/lib/__tests__/proxy-gates.test.ts` — `doplerNeedsOnboarding` gate that redirected doplers to `/welcome` when `trading_connected` was false, creating an infinite redirect loop after OAuth removal.
+- `src/proxy.ts` — removed `doplerNeedsOnboarding` import, `trading_connected` query, and redirect block. Feed access is now ungated for all authenticated subscribers.
+- `src/app/welcome/welcome-client.tsx` — simplified from 3-step (welcome → region → connect) to 2-step (welcome → region → redirect to feed). Removed TradingConnect import and step.
+- `src/app/welcome/page.tsx` — removed trading queries, `trading_connected` redirect, and `initial` prop. Query simplified to `role, full_name`.
+- `supabase/migrations/20260427_add_broker_preference.sql` — adds `trading_broker_preference TEXT` to profiles.
+- `src/app/api/broker-preference/route.ts` — new GET/POST endpoint for dopler broker preference (simple text column, no OAuth).
+- `src/components/broker-preference-picker.tsx` — new dropdown component for selecting preferred broker. Saves on change via `/api/broker-preference`.
+- `src/app/settings/page.tsx` — replaced TradingConnect with BrokerPreferencePicker. Simplified profile query. Removed `connected`/`error` search param banners. Parallelized profile + subscription count queries.
+- `src/components/dopler-shell.tsx` — replaced `trading_connected`/`trading_connection_data` fetch with `trading_broker_preference`. Passes `brokerPreference` to NotificationBell. Added `prefetch` to nav links.
+- `src/components/ui/notification-bell.tsx` — replaced `tradingConnected`/`tradingName`/`tradingWebsite` props with single `brokerPreference` prop.
+- `src/lib/broker-deeplinks.ts` — added `BROKER_HOMEPAGES` map (8 brokers) and `getBrokerHomepage()` export for deep-link fallback.
+- `src/components/ui/notification-popup.tsx` — replaced trading connect props with `brokerPreference`. Fixed overflow (max-h-[85vh] overflow-y-auto), opaque background (bg-[dopl-deep-2] replaces glass-card), and CTA logic (broker preference deep-links, "Other" hides broker CTA, null shows "set your broker in settings").
+- `src/components/__tests__/notification-popup.test.tsx` — updated all 6 tests for broker preference props. Added 2 new tests: "Other" hides broker CTA, Coinbase falls back to homepage.
+- `src/app/notifications/page.tsx` — replaced trading profile query with `trading_broker_preference`.
+- `src/app/notifications/notifications-client.tsx` — replaced trading props with `brokerPreference`. Fixed missing `ticker`/`change_type` passthrough to popup. Inline CTAs use broker preference deep-links. Ticker extraction prefers typed field.
+- `src/app/marketing-landing.tsx` — role-aware hero + bottom CTAs: dopler → "your feed", FM → "your dashboard", logged-out → "launch your fund".
+- `src/app/layout.tsx` — added `padding-top: env(safe-area-inset-top)` to body for Dynamic Island.
+- `src/app/(dashboard)/dashboard/page.tsx` — parallelized fund_managers + portfolios queries. Uses `getCachedUser()`.
+- `src/app/feed/page.tsx` — parallelized fund_managers + profiles + positions queries via Promise.all().
+- `src/app/(dashboard)/dashboard/positions/page.tsx` — parallelized portfolios + fund_managers queries.
+- `src/app/feed/[portfolioId]/page.tsx` — parallelized subscription + positions + updates queries.
+- `src/app/(dashboard)/layout.tsx` — uses `getCachedUser()` for deduplication with child pages.
+- `src/app/(dashboard)/dashboard-chrome.tsx` — added `prefetch` to nav links.
+- `src/lib/supabase-server.ts` — added `getCachedUser()` wrapped in `React.cache` for per-request auth deduplication.
+- `public/manifest.json` — added `"id": "/"` field for iOS 16.4+ push notification support.
+
+**Why:** Regulatory compliance required removing all dopler-side broker/bank OAuth. The broker preference picker replaces OAuth with a simple dropdown. Three notification popup bugs (overflow, opaque background, missing data) were fixed alongside the prop refactor. Homepage CTAs were generic for logged-in users. Dynamic Island overlap was unaddressed. Sequential Supabase queries on 5 pages created unnecessary waterfall latency.
+
+**Impact:**
+- New doplers can reach /feed without any broker OAuth — no infinite redirect loop.
+- Welcome onboarding is 2 steps (welcome → region → feed), not 3.
+- Broker preference picker replaces OAuth in settings — dropdown saves broker name, deep-link CTAs use it.
+- 6 broker options that previously produced dead `#` links now fall back to homepage URLs.
+- "Other" broker preference hides the broker CTA entirely — only "copy ticker" shows.
+- Role-aware homepage CTAs: doplers see "your feed", FMs see "your dashboard".
+- Dynamic Island no longer overlaps content on iPhone PWA.
+- 5 pages load faster via parallelized Supabase queries + React.cache auth dedup.
+- Nav link prefetch enables eager loading for faster page transitions.
+
+**Testing:** `npm test` = **145 passing across 27 files**. `npm run build` clean. All grep checks for deleted code pass (zero references to TradingConnect, /api/trading/, trading_connected, trading_connection_data, proxy-gates, doplerNeedsOnboarding).
+
+**Risks:**
+- `trading_broker_preference` column must exist before deploy — migration already applied.
+- Existing doplers with `trading_connected = true` won't see their old OAuth broker in the new dropdown — they need to re-select via the picker. Acceptable for regulatory compliance.
+
+---
+
 ## [2026-04-23] — Sprint 7: dopler deep-link CTAs
 
 **Files changed:**

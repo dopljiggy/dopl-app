@@ -1,4 +1,4 @@
-import { createServerSupabase } from "@/lib/supabase-server";
+import { createServerSupabase, getCachedUser } from "@/lib/supabase-server";
 import { redirect } from "next/navigation";
 import CountUp from "@/components/ui/count-up";
 import Sparkline from "@/components/ui/sparkline";
@@ -9,22 +9,22 @@ import {
 } from "@/components/ui/finish-setup-checklist";
 
 export default async function DashboardPage() {
-  const supabase = await createServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCachedUser();
   if (!user) redirect("/login");
 
-  const { data: fm } = await supabase
-    .from("fund_managers")
-    .select("*")
-    .eq("id", user.id)
-    .maybeSingle();
+  const supabase = await createServerSupabase();
 
-  const { data: portfolios } = await supabase
-    .from("portfolios")
-    .select("id, price_cents, subscriber_count, is_active")
-    .eq("fund_manager_id", user.id);
+  const [{ data: fm }, { data: portfolios }] = await Promise.all([
+    supabase
+      .from("fund_managers")
+      .select("*")
+      .eq("id", user.id)
+      .maybeSingle(),
+    supabase
+      .from("portfolios")
+      .select("id, price_cents, subscriber_count, is_active")
+      .eq("fund_manager_id", user.id),
+  ]);
 
   const portfolioIds = (portfolios ?? []).map((p) => p.id);
   const { count: positionCount } = portfolioIds.length

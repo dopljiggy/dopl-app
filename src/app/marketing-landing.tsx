@@ -68,15 +68,43 @@ export default function MarketingLanding({ viewer }: { viewer: Viewer }) {
           and see your live positions. you get paid. dopl handles the rest.
         </p>
         <div className="flex items-center justify-center gap-4">
-          <Link href="/signup" className="btn-lime text-base px-8 py-3.5">
-            launch your fund
-          </Link>
-          <Link
-            href="/leaderboard"
-            className="text-sm text-dopl-cream/50 hover:text-dopl-cream transition-colors underline underline-offset-4"
-          >
-            see fund managers →
-          </Link>
+          {viewer?.role === "subscriber" ? (
+            <>
+              <Link href="/feed" className="btn-lime text-base px-8 py-3.5">
+                your feed
+              </Link>
+              <Link
+                href="/leaderboard"
+                className="text-sm text-dopl-cream/50 hover:text-dopl-cream transition-colors underline underline-offset-4"
+              >
+                discover fund managers →
+              </Link>
+            </>
+          ) : viewer?.role === "fund_manager" ? (
+            <>
+              <Link href="/dashboard" className="btn-lime text-base px-8 py-3.5">
+                your dashboard
+              </Link>
+              <Link
+                href="/leaderboard"
+                className="text-sm text-dopl-cream/50 hover:text-dopl-cream transition-colors underline underline-offset-4"
+              >
+                see fund managers →
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link href="/signup" className="btn-lime text-base px-8 py-3.5">
+                launch your fund
+              </Link>
+              <Link
+                href="/leaderboard"
+                className="text-sm text-dopl-cream/50 hover:text-dopl-cream transition-colors underline underline-offset-4"
+              >
+                see fund managers →
+              </Link>
+            </>
+          )}
         </div>
       </section>
 
@@ -142,9 +170,19 @@ export default function MarketingLanding({ viewer }: { viewer: Viewer }) {
         <p className="text-dopl-cream/50 mb-8">
           your followers are already copying your positions manually. badly. and late. dopl makes it automatic.
         </p>
-        <Link href="/signup" className="btn-lime text-base px-8 py-3.5 inline-block">
-          launch your fund
-        </Link>
+        {viewer?.role === "subscriber" ? (
+          <Link href="/feed" className="btn-lime text-base px-8 py-3.5 inline-block">
+            your feed
+          </Link>
+        ) : viewer?.role === "fund_manager" ? (
+          <Link href="/dashboard" className="btn-lime text-base px-8 py-3.5 inline-block">
+            your dashboard
+          </Link>
+        ) : (
+          <Link href="/signup" className="btn-lime text-base px-8 py-3.5 inline-block">
+            launch your fund
+          </Link>
+        )}
       </section>
 
       {/* Footer */}
