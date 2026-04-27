@@ -20,19 +20,21 @@ export default async function SettingsPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("full_name, email, role, trading_broker_preference")
-    .eq("id", user.id)
-    .maybeSingle();
+  const [{ data: profileData }, { count: activeSubs }] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("full_name, email, role, trading_broker_preference")
+      .eq("id", user.id)
+      .maybeSingle(),
+    supabase
+      .from("subscriptions")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("status", "active"),
+  ]);
 
+  const profile = profileData as ProfileRow | null;
   if (profile?.role === "fund_manager") redirect("/dashboard/profile");
-
-  const { count: activeSubs } = await supabase
-    .from("subscriptions")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", user.id)
-    .eq("status", "active");
 
   return (
     <DoplerShell>
