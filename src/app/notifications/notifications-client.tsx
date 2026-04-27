@@ -10,6 +10,7 @@ import {
   NotificationPopup,
   type PopupNotification,
 } from "@/components/ui/notification-popup";
+import { buildBrokerTradeUrl, getBrokerHomepage } from "@/lib/broker-deeplinks";
 
 function extractTicker(body: string | null | undefined): string | null {
   if (!body) return null;
@@ -21,13 +22,9 @@ function extractTicker(body: string | null | undefined): string | null {
 }
 
 export default function NotificationsClient({
-  tradingConnected,
-  tradingName,
-  tradingWebsite,
+  brokerPreference,
 }: {
-  tradingConnected: boolean;
-  tradingName: string | null;
-  tradingWebsite: string | null;
+  brokerPreference: string | null;
 }) {
   const {
     notifications,
@@ -76,7 +73,7 @@ export default function NotificationsClient({
         <div className="space-y-2">
           <AnimatePresence initial={false}>
             {notifications.map((n) => {
-              const ticker = extractTicker(n.body);
+              const ticker = n.ticker ?? extractTicker(n.body);
               const isCopied = copied === n.id;
               return (
                 <motion.div
@@ -95,6 +92,8 @@ export default function NotificationsClient({
                       created_at: n.created_at,
                       actionable: n.actionable,
                       meta: n.meta,
+                      ticker: n.ticker,
+                      change_type: n.change_type,
                     })
                   }
                 >
@@ -160,25 +159,31 @@ export default function NotificationsClient({
                         </button>
                       )}
 
-                      {tradingConnected && tradingWebsite ? (
+                      {brokerPreference && brokerPreference !== "Other" ? (
                         <a
-                          href={tradingWebsite}
+                          href={
+                            buildBrokerTradeUrl(
+                              brokerPreference,
+                              getBrokerHomepage(brokerPreference),
+                              ticker
+                            ) ?? getBrokerHomepage(brokerPreference) ?? "#"
+                          }
                           target="_blank"
                           rel="noreferrer"
                           className="glass-card-light px-3 py-1.5 text-xs rounded-lg hover:bg-[color:var(--dopl-lime)]/15 transition-colors inline-flex items-center gap-1.5 text-[color:var(--dopl-lime)]"
                         >
                           <ExternalLink size={12} />
-                          open {tradingName ?? "broker"}
+                          open {brokerPreference}
                         </a>
-                      ) : (
+                      ) : !brokerPreference ? (
                         <Link
                           href="/settings"
                           className="px-3 py-1.5 text-xs rounded-lg hover:bg-[color:var(--dopl-lime)]/10 transition-colors inline-flex items-center gap-1.5 text-[color:var(--dopl-cream)]/50 hover:text-[color:var(--dopl-lime)]"
                         >
                           <Link2 size={12} />
-                          connect where you trade
+                          set your broker
                         </Link>
-                      )}
+                      ) : null}
                     </div>
                   )}
                 </motion.div>
@@ -190,9 +195,7 @@ export default function NotificationsClient({
 
       <NotificationPopup
         notification={popup}
-        tradingConnected={tradingConnected}
-        tradingName={tradingName}
-        tradingWebsite={tradingWebsite}
+        brokerPreference={brokerPreference}
         activeSubscribedPortfolioIds={activeSubscribedPortfolioIds}
         onClose={() => setPopup(null)}
       />
