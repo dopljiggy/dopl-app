@@ -16,6 +16,7 @@ export default function WelcomeClient({
 }) {
   const [step, setStep] = useState(0);
   const [region, setRegion] = useState<string | null>(null);
+  const [brokerChosen, setBrokerChosen] = useState(false);
 
   const next = () => setStep((s) => Math.min(s + 1, STEPS.length - 1));
   const prev = () => setStep((s) => Math.max(s - 1, 0));
@@ -130,9 +131,7 @@ export default function WelcomeClient({
                 </p>
                 <BrokerPreferencePicker
                   initial={null}
-                  onSaved={() => {
-                    window.location.href = "/feed";
-                  }}
+                  onSaved={() => setBrokerChosen(true)}
                 />
                 <div className="flex items-center justify-between mt-6">
                   <button
@@ -141,14 +140,26 @@ export default function WelcomeClient({
                   >
                     ← back
                   </button>
-                  <button
-                    onClick={() => {
-                      window.location.href = "/feed";
-                    }}
-                    className="text-xs text-[color:var(--dopl-cream)]/50 hover:text-[color:var(--dopl-cream)]"
-                  >
-                    skip for now →
-                  </button>
+                  {brokerChosen ? (
+                    <button
+                      onClick={() => {
+                        window.location.href = "/feed";
+                      }}
+                      className="btn-lime text-sm px-6 py-2.5 inline-flex items-center gap-2"
+                    >
+                      continue
+                      <ArrowRight size={14} />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        window.location.href = "/feed";
+                      }}
+                      className="text-xs text-[color:var(--dopl-cream)]/50 hover:text-[color:var(--dopl-cream)]"
+                    >
+                      skip for now →
+                    </button>
+                  )}
                 </div>
               </GlassCard>
             )}
