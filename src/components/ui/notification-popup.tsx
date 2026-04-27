@@ -113,8 +113,11 @@ export function NotificationPopup({
             exit={{ y: "100%", opacity: 0, scale: 0.97 }}
             transition={{ duration: 0.3, ease: [0.2, 0.7, 0.2, 1] }}
             onClick={(e) => e.stopPropagation()}
-            className="relative w-full md:max-w-md rounded-t-3xl md:rounded-3xl p-6 md:p-7 md:mx-4 pb-8 md:pb-7 max-h-[85vh] overflow-y-auto bg-[color:var(--dopl-deep-2)] border border-[color:var(--glass-border-strong)] shadow-[0_20px_60px_-20px_rgba(0,0,0,0.7)]"
-            style={{ paddingBottom: "max(2rem, env(safe-area-inset-bottom))" }}
+            className="relative w-full md:max-w-md rounded-t-3xl md:rounded-3xl p-6 md:p-7 md:mx-4 pb-8 md:pb-7 overflow-y-auto bg-[color:var(--dopl-deep-2)] border border-[color:var(--glass-border-strong)] shadow-[0_20px_60px_-20px_rgba(0,0,0,0.7)]"
+            style={{
+              paddingBottom: "max(2rem, env(safe-area-inset-bottom))",
+              maxHeight: "calc(85dvh - env(safe-area-inset-top, 0px))",
+            }}
           >
             <button
               onClick={onClose}

@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, Globe, ArrowRight } from "lucide-react";
+import { Sparkles, Globe, ArrowRight, Link2 } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
+import { BrokerPreferencePicker } from "@/components/broker-preference-picker";
 import { REGIONS } from "@/components/connect/region-selector";
 
-const STEPS = ["welcome", "region"] as const;
+const STEPS = ["welcome", "region", "broker"] as const;
 
 export default function WelcomeClient({
   firstName,
@@ -21,7 +22,7 @@ export default function WelcomeClient({
 
   const chooseRegion = (key: string) => {
     setRegion(key);
-    window.location.href = "/feed";
+    next();
   };
 
   return (
@@ -112,6 +113,43 @@ export default function WelcomeClient({
                 >
                   ← back
                 </button>
+              </GlassCard>
+            )}
+
+            {step === 2 && (
+              <GlassCard className="p-8 md:p-10">
+                <div className="w-12 h-12 rounded-2xl bg-[color:var(--dopl-lime)]/12 border border-[color:var(--dopl-lime)]/25 flex items-center justify-center text-[color:var(--dopl-lime)] mb-5">
+                  <Link2 size={22} />
+                </div>
+                <h2 className="font-display text-2xl md:text-3xl font-semibold leading-tight tracking-tight">
+                  which broker do you use?
+                </h2>
+                <p className="text-[color:var(--dopl-cream)]/55 text-sm mt-2 mb-6">
+                  we&apos;ll deep-link you straight to it when a fund manager
+                  trades. no account linking required.
+                </p>
+                <BrokerPreferencePicker
+                  initial={null}
+                  onSaved={() => {
+                    window.location.href = "/feed";
+                  }}
+                />
+                <div className="flex items-center justify-between mt-6">
+                  <button
+                    onClick={prev}
+                    className="text-xs text-[color:var(--dopl-cream)]/50 hover:text-[color:var(--dopl-cream)]"
+                  >
+                    ← back
+                  </button>
+                  <button
+                    onClick={() => {
+                      window.location.href = "/feed";
+                    }}
+                    className="text-xs text-[color:var(--dopl-cream)]/50 hover:text-[color:var(--dopl-cream)]"
+                  >
+                    skip for now →
+                  </button>
+                </div>
               </GlassCard>
             )}
           </motion.div>
