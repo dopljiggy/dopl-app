@@ -72,7 +72,10 @@ export default function RootLayout({
         />
         <meta name="apple-mobile-web-app-title" content="dopl" />
       </head>
-      <body className="min-h-screen text-dopl-cream antialiased">
+      <body
+        className="min-h-screen text-dopl-cream antialiased"
+        style={{ paddingTop: "env(safe-area-inset-top)" }}
+      >
         <StandaloneSplash />
         <LoadingProvider>
           <ToastProvider>{children}</ToastProvider>
