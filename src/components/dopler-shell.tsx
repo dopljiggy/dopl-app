@@ -110,6 +110,7 @@ export default function DoplerShell({
                 <NavLink
                   key={item.href}
                   href={item.href}
+                  prefetch
                   className={`relative px-3 py-1.5 text-sm rounded-lg transition-colors ${
                     active
                       ? "text-[color:var(--dopl-lime)]"
@@ -169,6 +170,7 @@ export default function DoplerShell({
                 <NavLink
                   key={item.href}
                   href={item.href}
+                  prefetch
                   className="relative flex flex-col items-center justify-center flex-1 py-2 min-h-[44px]"
                 >
                   {active && (
