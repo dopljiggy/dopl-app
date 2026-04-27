@@ -28,11 +28,7 @@ export default function DoplerShell({
   const pathname = usePathname();
   const [userId, setUserId] = useState<string | null>(null);
 
-  const [trading, setTrading] = useState<{
-    connected: boolean;
-    name: string | null;
-    website: string | null;
-  }>({ connected: false, name: null, website: null });
+  const [brokerPreference, setBrokerPreference] = useState<string | null>(null);
 
   // Portfolio ids the viewer is currently subscribed to (`status='active'`).
   // Used by the popup's stale-actionable guard — position-change
@@ -50,18 +46,12 @@ export default function DoplerShell({
       try {
         const { data: profile } = await supabase
           .from("profiles")
-          .select("trading_connected, trading_connection_data")
+          .select("trading_broker_preference")
           .eq("id", uid)
           .maybeSingle();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const d: any = profile?.trading_connection_data ?? {};
-        setTrading({
-          connected: !!profile?.trading_connected,
-          name: d.broker_name ?? d.bank_name ?? null,
-          website: d.website_url ?? null,
-        });
+        setBrokerPreference(profile?.trading_broker_preference ?? null);
       } catch {
-        /* ignore — cols may not exist yet */
+        /* ignore — column may not exist yet */
       }
       try {
         const { data: subs } = await supabase
@@ -143,9 +133,7 @@ export default function DoplerShell({
             <div>
               <NotificationBell
                 userId={userId}
-                tradingConnected={trading.connected}
-                tradingName={trading.name}
-                tradingWebsite={trading.website}
+                brokerPreference={brokerPreference}
               />
             </div>
             <Link
