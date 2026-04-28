@@ -5,6 +5,48 @@ Format: date, description, files, why, impact, testing, risks.
 
 ---
 
+## [2026-04-28] — Sprint 9: Web Push + Apple Sports Design
+
+**Files changed:**
+- `supabase/migrations/20260427_push_subscriptions.sql` — new `push_subscriptions` table with RLS (users can only manage their own subscriptions).
+- `.env.example` — added `NEXT_PUBLIC_VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` placeholders.
+- `package.json`, `package-lock.json` — added `web-push` runtime dependency and `@types/web-push` dev dependency.
+- `src/app/api/push/subscribe/route.ts` — new POST route that upserts a push subscription for the authenticated user.
+- `src/app/api/push/unsubscribe/route.ts` — new POST route that removes a push subscription by endpoint.
+- `src/lib/push.ts` — new shared push module. `sendPushToUser()` reads `push_subscriptions`, signs payloads with VAPID, fans out to every device, and prunes 410/404 subscriptions.
+- `src/app/api/push/send/route.ts` — thin API wrapper around `sendPushToUser()` for manual/debug use. Authentication uses `crypto.timingSafeEqual` against the service role key.
+- `public/sw.js` — added `push` and `notificationclick` event handlers. Tap-to-navigate uses `client.postMessage({ type: "PUSH_NAV", url })` instead of `client.navigate()` (iOS Safari compat). Cache version bumped to `dopl-shell-v22`.
+- `src/components/pwa/push-prompt.tsx` — new dismissable in-app prompt that appears 3s after load if `Notification.permission === "default"`. Subscribes via `pushManager.subscribe` and POSTs to `/api/push/subscribe`. Persists dismissal in `localStorage`.
+- `src/components/dopler-shell.tsx` — renders `<PushPrompt />`, listens for `PUSH_NAV` messages from the SW, and syncs `unreadCount` to the PWA app icon via `navigator.setAppBadge`/`clearAppBadge` (locally type-asserted).
+- `src/lib/notification-fanout.ts` — after `notifications.insert()`, fans out web push to every unique notified subscriber via `Promise.allSettled(sendPushToUser(...))`. Best-effort: push failures don't block the sync.
+- `src/lib/time-ago.ts` — new shared utility. Single terse format (`5s`, `5m`, `2h`, `3d`).
+- `src/components/ui/notification-popup.tsx` — removed local `timeAgo`, imports shared. Ticker card redesigned: 3xl bold mono ticker, lime for buy / amber for sell, transparent sage background, smaller time-ago.
+- `src/app/notifications/notifications-client.tsx` — removed local `timeAgo`, imports shared. Notification cards redesigned: 2xl bold mono ticker, lime/amber color accents, lighter card backgrounds, tighter spacing, glanceable hierarchy.
+- `src/components/ui/notification-bell.tsx` — bell-dropdown rows redesigned: bold lg mono ticker leads, lime/amber accents, time-ago shrunk, body line-clamped to one line.
+
+**Why:** Sprint 9 closes the loop on real push notifications (the in-app toast was always meant as a stopgap) and addresses the in-app notification UI feeling generic. Apple Sports' approach — bold ticker, terse time, color-coded direction, minimal chrome — maps cleanly onto position-change notifications. iOS 16.4+ enables web push for installed PWAs, so this finally works on iPhone.
+
+**Impact:**
+- Doplers see a one-time prompt to enable push 3s after load. Granted permissions persist; dismissals are stored in localStorage.
+- Position changes fan out to every push subscription a notified subscriber owns; expired endpoints (410/404) are pruned automatically.
+- Tapping a push notification opens dopl to `/feed/<portfolio_id>` (iOS Safari uses postMessage; other browsers use `clients.openWindow`).
+- PWA app icon shows a numeric badge equal to unread count on Chromium and iOS Safari.
+- Notification bell, popup, and `/notifications` page all share a consistent terse time format and Apple Sports-style ticker hierarchy. Sells render in amber, buys/adds in lime.
+- Service worker cache invalidates to v22 — clients reload after activation to pick up the new push handlers.
+
+**Testing:**
+- `npm test` — 145/145 passing across 27 files.
+- `npm run build` — clean. New routes appear in build output: `/api/push/subscribe`, `/api/push/unsubscribe`, `/api/push/send`.
+- Manual smoke (Surfer, post-merge): see Sprint 9 plan's Manual Smoke Checks section. Includes iPhone PWA push delivery, Android Chrome, desktop, and edge cases (dismiss/deny/permission flows).
+
+**Risks:**
+- VAPID keys are environment-dependent. Surfer must generate them locally (`npx web-push generate-vapid-keys`), set `NEXT_PUBLIC_VAPID_PUBLIC_KEY` + `VAPID_PRIVATE_KEY` in `.env.local`, and add both to Vercel before push will work in production.
+- The migration `20260427_push_subscriptions.sql` must be run in the Supabase SQL editor before subscribe routes will succeed.
+- iOS only delivers web push to PWAs that have been explicitly added to the home screen. Users who only visit in Safari proper will not receive push.
+- `sendPushToUser` runs sequentially per device inside the function but `Promise.allSettled` fans out per user. For >500 subscribers per portfolio, the outer parallelism may strain Vercel's function timeout — flagged as a future scaling concern in the plan's Round 2 review.
+
+---
+
 ## [2026-04-27] — Sprint 8: Regulatory + Polish + Performance
 
 **Files changed:**
