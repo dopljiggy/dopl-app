@@ -1,4 +1,4 @@
-**Status:** needs-revision
+**Status:** approved
 
 # Sprint 10: FM Trading Terminal + Feed Redesign + Thesis Notes + Richer Notifications
 
@@ -330,3 +330,34 @@ Free tier: 60 calls/min globally (not per-user). Each add-position flow triggers
 - **1 nit:** Acknowledged, no action needed.
 
 All fixable with minor plan edits — no structural changes to the task breakdown or dependency graph.
+
+---
+
+## Plan Review — Round 2 (Instance 2)
+
+**Reviewed:** 2026-04-28
+**Round 1 findings:** 1 critical, 2 important, 1 nit
+
+### Round 1 Fix Verification
+
+1. **[CRITICAL] Task 5/6 type ordering — RESOLVED.** FanoutChange type extension moved into Task 5 (lines 93-98). Explicit ordering note at line 98 prevents misinterpretation. Task 6 line 119 confirms types are already in place. Dependency graph updated at line 188 with explanatory note at line 195. TypeScript will now accept `price` on change objects when the route changes in the same task reference them.
+
+2. **[IMPORTANT] Dual-fallback failure — RESOLVED.** Task 2 quote route (line 38) now specifies: 200 response with `{ticker, price: null, change: null, changePercent: null, error: "price unavailable"}` when both Finnhub and Yahoo fail. Form treats `price: null` as manual-entry mode. The 200 status (not 502) is the right call — the request succeeded, just without price data.
+
+3. **[IMPORTANT] ARIA combobox — RESOLVED.** Task 3 (line 54) now specifies the full WAI-ARIA combobox pattern: `role="combobox"`, `aria-expanded`, `aria-autocomplete="list"`, `aria-activedescendant` on the input; `role="listbox"` with matching `id` on the dropdown; `role="option"` with unique `id` on each option.
+
+### New Issues Check
+
+No new issues introduced by the revisions. Verified:
+- Type extension code block shows buy + sell variants only; rebalance left as-is — correct, since `describeOneChange` only handles buy/sell and rebalances get a summary message
+- Dependency graph accurately reflects the merged Task 5 scope
+- Review Notes section (lines 201-213) correctly documents the Architect's fixes inline with the plan body
+
+### Verdict: APPROVED
+
+All 3 Round 1 findings resolved correctly. Plan is ready for Instance 3 implementation.
+
+**Implementation notes for Instance 3:**
+- Task 5 is now the heaviest task — type extension + 2 route files. Commit the type extension first, then the route changes, to keep commits logical.
+- The `rebalance` variant of FanoutChange is intentionally NOT extended with `price?` — only buy and sell need it.
+- Quote route's `price: null` fallback means Task 4's AddPositionForm must handle null price gracefully (hide quote card, show manual shares input only).
