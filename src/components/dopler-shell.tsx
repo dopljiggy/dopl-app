@@ -94,6 +94,22 @@ export default function DoplerShell({
   };
   const { unreadCount } = notificationsState;
 
+  // Sync unread count to the PWA app icon badge. setAppBadge/clearAppBadge
+  // are non-standard (Chromium + iOS Safari PWA), so type-assert locally
+  // rather than augmenting the global Navigator type.
+  useEffect(() => {
+    const nav = navigator as Navigator & {
+      setAppBadge?: (count: number) => Promise<void>;
+      clearAppBadge?: () => Promise<void>;
+    };
+    if (typeof nav.setAppBadge !== "function") return;
+    if (unreadCount > 0) {
+      nav.setAppBadge(unreadCount).catch(() => {});
+    } else {
+      nav.clearAppBadge?.().catch(() => {});
+    }
+  }, [unreadCount]);
+
   return (
     <NotificationsProvider value={notificationsState}>
       <div className="min-h-screen pb-32 md:pb-0">
