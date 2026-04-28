@@ -1,5 +1,5 @@
 **Created:** 2026-04-27
-**Status:** implemented
+**Status:** closed
 **Author:** Instance 1 (Architect)
 **Reviewer:** Instance 2 (Reviewer)
 
@@ -1903,3 +1903,103 @@ Region selection is cosmetic per Architect decision. Accepted — no further act
 All 4 Round 1 issues resolved. No new critical or important issues found. The plan is complete with 24 well-ordered tasks, proper dependency sequencing, and comprehensive smoke checks.
 
 Ready for implementation on a feature branch.
+
+---
+
+## Implementation Review (Instance 2)
+
+**Date:** 2026-04-27
+**Branch:** `feat/sprint-8-regulatory-polish-perf`
+**Commits:** 25
+**Tests:** 27 files, 145 tests — all passing
+**Build:** Clean (`npm run build` exits 0)
+**Verdict:** APPROVED
+
+---
+
+### Verification checklist
+
+| Check | Result |
+|-------|--------|
+| `npm test` | 27 test suites, 145 tests pass |
+| `npm run build` | Clean, no errors or warnings |
+| Deleted files gone (7 API routes + TradingConnect + proxy-gates + proxy-gates test) | Confirmed — all 10 files absent |
+| Grep for dangling references (`TradingConnect`, `trading/snaptrade`, `trading/saltedge`, `trading/disconnect`, `doplerNeedsOnboarding`, `proxy-gates`) | Zero hits across codebase |
+
+---
+
+### File-by-file verification
+
+**Regulatory removal (Tasks 1–8):**
+
+- 7 API routes under `src/app/api/trading/` — deleted ✓
+- `src/components/connect/trading-connect.tsx` — deleted ✓
+- `src/lib/proxy-gates.ts` + test — deleted ✓
+- `src/proxy.ts` — proxy gate import removed, query simplified to `.select("role")`, `tradingConnected` variable and redirect block deleted. Clean 97-line file ✓
+- `src/app/welcome/page.tsx` — rewritten to 22 lines, trading queries/redirect/prop removed, auth + FM redirect preserved ✓
+- `src/app/welcome/welcome-client.tsx` — step 3 ("connect") removed, 2-step flow (welcome → region), region pick redirects to `/feed` ✓
+- `src/app/settings/page.tsx` — TradingConnect replaced with BrokerPreferencePicker, `searchParams` removed, queries parallelized ✓
+
+**Broker preference (Tasks 9–14):**
+
+- `src/app/api/broker-preference/route.ts` — new GET/POST route, auth via `getUser()`, reads/writes `trading_broker_preference` ✓
+- `src/components/broker-preference-picker.tsx` — dropdown with 9 options, auto-saves on change, checkmark feedback ✓
+- `src/components/dopler-shell.tsx` — 3 trading state variables replaced with single `brokerPreference`, fetches from profiles, passes to NotificationBell ✓
+- `src/components/ui/notification-bell.tsx` — 3 trading props → single `brokerPreference`, passes to NotificationPopup ✓
+- `src/components/ui/notification-popup.tsx` — props updated, overflow fix (`max-h-[85vh] overflow-y-auto`), opaque background (`bg-[color:var(--dopl-deep-2)]`), CTA uses `getBrokerHomepage` fallback, "Other" excluded from broker CTA ✓
+- `src/app/notifications/notifications-client.tsx` — props updated, **bug fix: `ticker` and `change_type` now passed to popup** (lines 95-96), inline CTA uses `getBrokerHomepage` fallback ✓
+- `src/app/notifications/page.tsx` — simplified query to single `trading_broker_preference` select ✓
+- `src/lib/broker-deeplinks.ts` — `BROKER_HOMEPAGES` map (8 entries) and `getBrokerHomepage()` added ✓
+
+**Prop threading chain verified:** DoplerShell → NotificationBell → NotificationPopup consistent. notifications-client → NotificationPopup consistent. No dangling old props.
+
+**Homepage + PWA (Tasks 15–17):**
+
+- `src/app/marketing-landing.tsx` — role-aware CTAs for dopler/FM/logged-out in both hero and bottom sections ✓
+- `src/app/layout.tsx` — `paddingTop: "env(safe-area-inset-top)"` on `<body>` ✓
+- `public/manifest.json` — `"id": "/"` added ✓
+
+**Performance (Tasks 18–24):**
+
+- `src/lib/supabase-server.ts` — `getCachedUser` with `React.cache` wrapping `getUser()` ✓
+- 5 pages parallelized with `Promise.all`:
+  - `src/app/(dashboard)/layout.tsx` — `getCachedUser()` for auth, separate supabase for data ✓
+  - `src/app/(dashboard)/dashboard/page.tsx` — `getCachedUser()` + `Promise.all` for fm + portfolios ✓
+  - `src/app/feed/page.tsx` — `Promise.all` for 3 queries after subscriptions ✓
+  - `src/app/(dashboard)/dashboard/positions/page.tsx` — `Promise.all` for portfolios + fm ✓
+  - `src/app/feed/[portfolioId]/page.tsx` — `Promise.all` for subscription + positions + updates ✓
+- Prefetch on NavLinks: `src/app/(dashboard)/dashboard-chrome.tsx` (both desktop + mobile) and `src/components/dopler-shell.tsx` (top + bottom nav) ✓
+
+---
+
+### Issues found
+
+None. Implementation matches the approved plan across all 24 tasks.
+
+---
+
+### Notes
+
+1. Instance 3 correctly handled the Round 2 minor note about `getCachedUser()` — each page that uses it also creates a separate `createServerSupabase()` for data queries.
+2. The notification-popup missing data bug (ticker/change_type not passed through) was a real pre-existing bug fixed as part of Task 13 — confirmed by comparing the notification-bell path (which had the data) with the notifications-client path (which didn't).
+3. `Promise.all` parallelizations preserve correct dependency chains — no query references results from a sibling query.
+
+---
+
+>>> REPORT FOR ARCHITECT >>>
+
+**Implementation review: APPROVED.**
+
+25 commits, 145 tests pass, build clean. All 24 tasks verified file-by-file against the approved plan. Zero dangling references to deleted code. Prop threading consistent across all 4 notification components. 5 pages correctly parallelized. No issues found.
+
+**Manual smoke checks** (for Surfer on `dopl-app.vercel.app` after merge):
+1. Log in as a dopler → `/welcome` shows 2-step flow (no trading connect step)
+2. Hit `/api/trading/snaptrade/connect` directly → 404
+3. Open notification popup with 10+ items → scrolls, no overflow
+4. Notification with position change → CTA shows broker deep-link (or homepage for brokers without deep-link patterns)
+5. Set broker preference to "Other" in settings → notification CTA hides broker button
+6. Visit homepage as dopler → "your feed" + "discover fund managers" CTAs
+7. Visit homepage as FM → "your dashboard" CTA
+8. Visit homepage logged out → "launch your fund" CTA
+9. Open on iPhone with Dynamic Island → no content hidden behind notch
+10. Page loads feel snappier (parallel queries)
