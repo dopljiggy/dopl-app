@@ -1,3 +1,5 @@
+**Status:** needs-revision
+
 # Sprint 10: FM Trading Terminal + Feed Redesign + Thesis Notes + Richer Notifications
 
 ## Context
@@ -33,7 +35,7 @@ Three thin authenticated route handlers. All use `createServerSupabase()` + `get
 
 **Create:**
 - `src/app/api/market/search/route.ts` — GET `?q=AAP` → `{results: {symbol, description}[]}`
-- `src/app/api/market/quote/route.ts` — GET `?ticker=AAPL` → `{ticker, price, change, changePercent, name?, currency?}`. Falls back to Yahoo Finance (`query1.finance.yahoo.com`) if Finnhub fails.
+- `src/app/api/market/quote/route.ts` — GET `?ticker=AAPL` → `{ticker, price, change, changePercent, name?, currency?}`. Falls back to Yahoo Finance (`query1.finance.yahoo.com`) if Finnhub fails. If BOTH fail, returns `{ticker, price: null, change: null, changePercent: null, error: "price unavailable"}` (200, not 502) so the FM can still add positions manually without live pricing — the form treats `price: null` as "enter price yourself".
 - `src/app/api/market/status/route.ts` — GET → `{isOpen, exchange}`
 
 **Depends on:** Task 1
@@ -49,6 +51,7 @@ Reusable client component. Props: `onSelect: (result: {symbol, description}) => 
 - Debounced input (300ms) calling `/api/market/search?q=`
 - Dropdown: bold mono `symbol` + lighter `description`
 - Keyboard nav: arrow up/down, enter to select, escape to close
+- ARIA combobox pattern: input has `role="combobox"`, `aria-expanded`, `aria-autocomplete="list"`, `aria-activedescendant` pointing to the focused option. Listbox has `role="listbox"`, each option has `role="option"` with unique `id`.
 - Loading spinner in input while fetching
 - Empty state: "no matches"
 - Design: existing glass input style (`bg-[color:var(--dopl-deep)]`, `border-[color:var(--dopl-sage)]/30`)
@@ -85,20 +88,25 @@ Layout: vertical flow (search → quote card → buy controls → thesis → sub
 
 ---
 
-## Task 5: Wire thesis_note Through API Routes
+## Task 5: Wire thesis_note + Extend FanoutChange Types
+
+**Modify:** `src/lib/notification-fanout.ts` — Extend `FanoutChange` types (additive, backward-compatible):
+```
+buy:  { type: "buy"; ticker; shares; price?: number; allocation_pct?: number }
+sell: { type: "sell"; ticker; prevShares; price?: number }
+```
+This type change MUST happen in Task 5 (before the route changes below reference it), otherwise TypeScript rejects the excess `price` property on change objects.
 
 **Modify:** `src/app/api/positions/manual/route.ts`
 - POST body type: add `thesis_note?: string | null`
 - Line ~227: change `thesis_note: null` → `thesis_note: body.thesis_note ?? null`
+- POST changes array: add `price: price ?? undefined` to the buy change object
 - DELETE body type: add `thesis_note?: string | null`
 - Line ~307: change `thesis_note: null` → `thesis_note: (body as any).thesis_note ?? null`
-- POST changes array: add `price: price ?? undefined` to the buy change object
 
 **Modify:** `src/app/api/positions/assign/route.ts`
 - DELETE body (line 108): extend from `{ id }` to `{ id, thesis_note? }`
 - Line 134: change `thesis_note: null` → `thesis_note: body.thesis_note ?? null`
-
-6 lines changed total across 2 files.
 
 **Depends on:** None (thesis_note already accepted by fanout). Logically after Task 4 since the form now sends it.
 
@@ -108,11 +116,7 @@ Layout: vertical flow (search → quote card → buy controls → thesis → sub
 
 **Modify:** `src/lib/notification-fanout.ts`
 
-Extend `FanoutChange` types (additive, backward-compatible):
-```
-buy:  { type: "buy"; ticker; shares; price?: number; allocation_pct?: number }
-sell: { type: "sell"; ticker; prevShares; price?: number }
-```
+(FanoutChange type extension already done in Task 5.)
 
 Rewrite `describeOneChange(change, thesisNote?)`:
 - Buy + price + allocation: `"bought AAPL · $189.50 · 40% allocation"`
@@ -181,14 +185,31 @@ The feed page already fetches `id, portfolio_id, ticker, name, allocation_pct, c
 ```
 Task 1 → Task 2 → Task 3 → Task 4
                                 ↓
-                   Task 5 → Task 6
+              Task 5 (types + routes) → Task 6 (richer bodies)
                      ↓
                    Task 7
 
 Task 8 (independent — parallel with any)
 ```
 
-Recommended execution: 1, 2, 3, 4, 5, 8, 6, 7 (start feed redesign early while notification wiring proceeds)
+Task 5 now includes the `FanoutChange` type extension (moved from Task 6) so TypeScript accepts the `price` property on change objects before the routes reference it.
+
+Recommended execution: 1, 2, 3, 4, 5, 8, 6, 7
+
+---
+
+## Review Notes (Instance 2, Round 1)
+
+**Date:** 2026-04-28
+
+### Finding 1 (Critical): Task 5/6 type ordering — FIXED
+Moved `FanoutChange` type extension from Task 6 into Task 5. The type must be widened before routes add `price` to change objects, otherwise TypeScript rejects the excess property.
+
+### Finding 2 (Important): Dual-fallback failure — FIXED
+Quote route now returns `{ticker, price: null, ...}` (200) when both Finnhub and Yahoo are down. The AddPositionForm treats `price: null` as "enter price yourself" — FM can still add positions without live pricing.
+
+### Finding 3 (Important): ARIA combobox — FIXED
+TickerSearch spec now requires `role="combobox"`, `aria-expanded`, `aria-autocomplete="list"`, `aria-activedescendant`, and `role="listbox"` / `role="option"` on the dropdown per WAI-ARIA combobox pattern.
 
 ---
 
@@ -251,3 +272,61 @@ Recommended execution: 1, 2, 3, 4, 5, 8, 6, 7 (start feed redesign early while n
 16. Market closed → status badge shows "closed"
 17. Ticker with no Finnhub data → graceful "no matches" in search
 18. Position with no price data → notification body falls back to basic format
+
+---
+
+## Plan Review — Round 1 (Instance 2)
+
+**Reviewed:** 2026-04-28
+**Reviewer focus areas:** Finnhub API compatibility, TickerSearch keyboard nav, AddPositionForm container, FanoutChange backward compat, feed data verification, Yahoo Finance fallback
+
+### Verified ✓
+
+1. **Finnhub API endpoints correct** — `/search?q=`, `/quote?symbol=`, `/stock/market-status?exchange=US` are all documented free-tier endpoints. `AbortSignal.timeout(5000)` works on Vercel serverless (Node 18+). Free tier: 60 calls/min — adequate for FM-only feature.
+
+2. **FanoutChange extension is backward-compatible** — Adding optional `price?: number` and `allocation_pct?: number` to the discriminated union variants is safe. All 4 callers (`manual/route.ts` POST/DELETE, `assign/route.ts` POST/DELETE) construct plain objects without these fields. SnapTrade sync uses `PositionChange` from `position-diff.ts` (has extra `positionId` field, only emits sell/rebalance) — unaffected.
+
+3. **AddPositionForm container compatibility** — `expandable-portfolio-card.tsx` wraps the form in AnimatePresence + `motion.div` (line 475-479). The outer `GlassCard` has `overflow-hidden p-0` but AnimatePresence handles dynamic height transitions. Switching from the current 4-column grid (line 116 of `add-position-form.tsx`) to vertical flow will work — the container adapts to content height.
+
+4. **Feed redesign data availability** — `feed/page.tsx` line 103 already fetches `id, portfolio_id, ticker, name, allocation_pct, current_price, gain_loss_pct, shares, market_value`. All columns needed for the dense table (TICKER, SHARES, PRICE, ALLOC, G/L) are present. No server page changes needed.
+
+5. **assign/route.ts POST already wires thesis_note** — Line 93 already has `thesis_note: body.thesis_note ?? null`. Task 5 correctly targets only the DELETE path (line 134) for this file.
+
+### Findings
+
+**Finding 1 — [CRITICAL] Task dependency: Task 5 adds `price` before FanoutChange type allows it**
+
+Task 5 says: "POST changes array: add `price: price ?? undefined` to the buy change object" in `manual/route.ts`. But the `FanoutChange` buy variant is currently `{ type: "buy"; ticker: string; shares: number }` — no `price` field. The type extension adding `price?: number` is in Task 6.
+
+Dependency graph has Task 5 → Task 6 (5 executes first). TypeScript's excess property checking will reject `{ type: "buy", ticker, shares, price }` passed where `FanoutChange` is expected because `price` isn't a known property yet.
+
+**Fix:** Move the `FanoutChange` type extension (adding `price?` and `allocation_pct?` to all three variants) from Task 6 into Task 5. Task 5 becomes: "extend FanoutChange types, then wire thesis_note + price through API routes." Task 6 then focuses purely on `describeOneChange()` rewrite and notification enrichment.
+
+**Finding 2 — [IMPORTANT] Dual-fallback failure path not specified**
+
+Task 2's quote route falls back to Yahoo Finance if Finnhub fails. But `query1.finance.yahoo.com/v8/finance/chart/` is unofficial — Yahoo has been intermittently blocking unauthenticated requests (429s, cookie/crumb requirements). The existing `src/app/api/positions/price/route.ts` already uses this endpoint, so it's a known codebase risk.
+
+The plan should specify what happens when BOTH providers fail. Recommendation: return `{ ticker, price: null, change: null, changePercent: null, error: "price_unavailable" }` and let the UI show the ticker with "price unavailable" rather than blocking the entire add-position flow. The FM can still manually enter shares without live pricing.
+
+**Finding 3 — [IMPORTANT] TickerSearch missing accessibility spec**
+
+Task 3 describes keyboard navigation (arrow up/down, enter to select, escape to close) but omits WAI-ARIA combobox attributes. The component needs:
+- Input: `role="combobox"`, `aria-expanded`, `aria-autocomplete="list"`, `aria-controls="[listbox-id]"`
+- Dropdown: `role="listbox"`, `id` matching `aria-controls`
+- Each option: `role="option"`, `aria-selected`
+- Active option tracking via `aria-activedescendant` on the input
+
+Add a one-liner to Task 3: "Follow WAI-ARIA combobox pattern (role, aria-expanded, aria-activedescendant)."
+
+**Finding 4 — [NIT] Finnhub rate limit at scale**
+
+Free tier: 60 calls/min globally (not per-user). Each add-position flow triggers up to 3 calls (search keystrokes + quote + market status). With aggressive debouncing (300ms) and 5-min/30s/60s caching, this is fine for early usage. Flag as a known limitation — if multiple FMs are active simultaneously, search calls could exhaust the limit. The 5-min cache on search results is the right mitigation.
+
+### Verdict: NEEDS REVISION
+
+- **1 critical:** Task 5/6 dependency ordering causes a TypeScript build error. Move FanoutChange type extension into Task 5.
+- **1 important:** Specify graceful degradation when both Finnhub and Yahoo Finance fail.
+- **1 important:** Add ARIA combobox spec to Task 3 (one line).
+- **1 nit:** Acknowledged, no action needed.
+
+All fixable with minor plan edits — no structural changes to the task breakdown or dependency graph.
