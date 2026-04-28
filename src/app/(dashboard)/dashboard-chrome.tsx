@@ -112,22 +112,14 @@ function BottomNav() {
                 prefetch
                 className="relative flex flex-col items-center justify-center flex-1 py-2 min-h-[44px]"
               >
-                {active && (
-                  <motion.span
-                    layoutId="bottom-active"
-                    className="absolute inset-1 rounded-xl bg-[color:var(--dopl-lime)]/12 border border-[color:var(--dopl-lime)]/25"
-                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
-                  />
-                )}
                 <item.icon
                   size={20}
-                  strokeWidth={active ? 2.4 : 1.6}
-                  className={`relative ${
+                  strokeWidth={active ? 2.2 : 1.6}
+                  className={
                     active
                       ? "text-[color:var(--dopl-lime)]"
                       : "text-[color:var(--dopl-cream)]/60"
-                  }`}
-                  fill={active ? "rgba(197,214,52,0.18)" : "none"}
+                  }
                 />
                 <span
                   className={`relative text-[10px] mt-0.5 ${
@@ -173,7 +165,7 @@ export default function DashboardChrome({
           </div>
         </aside>
 
-        <main className="flex-1 p-5 md:p-10 pb-28 md:pb-10 min-w-0 max-w-[1200px] mx-auto w-full">
+        <main className="flex-1 p-5 md:p-10 pb-36 md:pb-10 min-w-0 max-w-[1200px] mx-auto w-full">
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-3 md:hidden">
               <DoplLogo />
