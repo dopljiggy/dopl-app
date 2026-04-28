@@ -100,7 +100,7 @@ export function NotificationPopup({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[80] flex items-end md:items-center justify-center"
+          className="fixed inset-0 z-[80] flex items-center justify-center p-4"
           onClick={onClose}
         >
           <div
@@ -109,14 +109,13 @@ export function NotificationPopup({
           />
 
           <motion.div
-            initial={{ y: "100%", opacity: 0, scale: 0.96 }}
-            animate={{ y: 0, opacity: 1, scale: 1 }}
-            exit={{ y: "100%", opacity: 0, scale: 0.97 }}
-            transition={{ duration: 0.3, ease: [0.2, 0.7, 0.2, 1] }}
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.25, ease: [0.2, 0.7, 0.2, 1] }}
             onClick={(e) => e.stopPropagation()}
-            className="relative w-full md:max-w-md rounded-t-3xl md:rounded-3xl p-6 md:p-7 md:mx-4 pb-8 md:pb-7 overflow-y-auto bg-[color:var(--dopl-deep-2)] border border-[color:var(--glass-border-strong)] shadow-[0_20px_60px_-20px_rgba(0,0,0,0.7)]"
+            className="relative w-full max-w-md rounded-3xl p-6 md:p-7 pb-8 md:pb-7 overflow-y-auto bg-[color:var(--dopl-deep-2)] border border-[color:var(--glass-border-strong)] shadow-[0_20px_60px_-20px_rgba(0,0,0,0.7)]"
             style={{
-              paddingBottom: "max(2rem, env(safe-area-inset-bottom))",
               maxHeight: "calc(85dvh - env(safe-area-inset-top, 0px))",
             }}
           >
@@ -128,8 +127,6 @@ export function NotificationPopup({
               <X size={16} />
             </button>
 
-            {/* Mobile grabber */}
-            <div className="md:hidden mx-auto mb-5 h-1 w-10 rounded-full bg-[color:var(--dopl-cream)]/20" />
 
             <div className="w-11 h-11 rounded-2xl bg-[color:var(--dopl-lime)]/12 border border-[color:var(--dopl-lime)]/25 flex items-center justify-center text-[color:var(--dopl-lime)] mb-4">
               <TrendingUp size={18} />
