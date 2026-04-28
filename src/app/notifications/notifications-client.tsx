@@ -37,9 +37,9 @@ export default function NotificationsClient({
   const [popup, setPopup] = useState<PopupNotification | null>(null);
 
   useEffect(() => {
-    void markAllRead();
+    if (unreadCount > 0) void markAllRead();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [unreadCount]);
 
   const copyTicker = async (ticker: string, id: string) => {
     try {
