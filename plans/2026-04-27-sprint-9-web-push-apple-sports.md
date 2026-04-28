@@ -1,5 +1,5 @@
 **Created:** 2026-04-27
-**Status:** under-review
+**Status:** approved
 **Author:** Instance 1 (Architect)
 **Reviewer:** Instance 2 (Reviewer)
 
@@ -1153,3 +1153,69 @@ The popup will say "5m ago" while the bell and page say "5m" — looks like a bu
 1 critical issue (iOS notificationclick), 4 important issues. The push infrastructure is solid in concept but the self-HTTP pattern and iOS Safari incompatibility need to be addressed before implementation.
 
 **Status: needs-revision.** Awaiting Round 2.
+
+---
+
+## Review Notes (Instance 2, Round 2)
+
+**Date:** 2026-04-28
+**Reviewed against:** Revised plan (all 5 Round 1 findings addressed)
+
+### Critical 1 (iOS `client.navigate()`) — VERIFIED FIXED
+
+Task 5 now uses `client.postMessage({ type: "PUSH_NAV", url })` + `client.focus()` instead of `client.navigate(url)`. Task 6 Step 2 adds the matching `PUSH_NAV` message listener in `dopler-shell.tsx` that navigates via `window.location.href`. Message type `"PUSH_NAV"` is consistent between SW and client. Both the service worker side and client-side handler are in the correct tasks.
+
+---
+
+### Important 1 (self-HTTP pattern) — VERIFIED FIXED
+
+Task 4 now creates `src/lib/push.ts` with `sendPushToUser()` as a direct-import module. Task 7 imports and calls it inline from `fanOutPortfolioUpdate()` — no HTTP round-trip, no self-request, no Vercel double-invocation. The API route in Task 4 Step 2 is explicitly scoped as "thin API wrapper — for manual/debug use only." Clean separation.
+
+---
+
+### Important 2 (timing-safe comparison) — VERIFIED FIXED
+
+Task 4 Step 2 API route uses `crypto.timingSafeEqual` with `Buffer.from` on both operands and a length pre-check. Correct implementation.
+
+---
+
+### Important 3 (bell dropdown snippet alignment) — VERIFIED FIXED
+
+Task 9 Step 1 now explicitly says "Keep the `max-h-[70vh] overflow-y-auto space-y-1` wrapper div itself — only replace the `.map()` block inside it." Correct — the implementer knows the wrapper stays and only the inner map content changes.
+
+---
+
+### Important 4 (`timeAgo` duplication) — VERIFIED FIXED
+
+New Task 8 extracts `timeAgo` to `src/lib/time-ago.ts` with terse format (`"5m"`, no " ago" suffix). Step 2 removes local copies from both `notification-popup.tsx` and `notifications-client.tsx`. Task 9 imports the shared version for the bell. All three consumers will use the same format. Correct.
+
+---
+
+### Minor issues from Round 1 (still present, still non-blocking)
+
+1. **Task 7 step numbering** still skips Step 2 (goes 1, 3, 4). Cosmetic.
+2. **Task 7 git add** still says `git add src/app/api/` — should be `git add src/lib/notification-fanout.ts`. Implementer will notice.
+3. **Task 11 line range** still says "lines 82-185" — after Task 8's `timeAgo` extraction shifts line numbers, this will be even more off. Snippet itself is clear enough.
+4. **Task 12 `navigator.setAppBadge` TypeScript** — no type augmentation specified. Implementer should add a global declaration or `@ts-expect-error`. Build will catch this.
+
+None of these are blocking. The implementer can handle all four without ambiguity.
+
+---
+
+### New observations (non-blocking)
+
+1. **Task 4 `push.ts` creates its own admin client** via `createAdminClient()` rather than accepting the caller's `admin` parameter. This is fine — `fanOutPortfolioUpdate`'s `admin` is typed as `FanoutClient` (narrowed to `Pick<SupabaseClient, "from">`), and the push module needs the full admin client. Separate admin creation keeps concerns clean.
+
+2. **Push fan-out is `Promise.allSettled` per unique user, but `sendPushToUser` is sequential per subscription** (the `for...of` loop inside `push.ts`). For a user with many devices (3-4 subscriptions), the inner loop is negligible. For a portfolio with 500 subscribers, the outer `allSettled` runs 500 concurrent `sendPushToUser` calls, each creating its own admin client. This is fine for launch scale but worth revisiting if subscriber counts grow significantly — a batched approach or queue would be more efficient. Not a blocker for Sprint 9.
+
+3. **`ensureVapid()` with module-level `let vapidConfigured`** — correct pattern for Vercel serverless (module state persists within a warm invocation but resets on cold start). `ensureVapid` re-checks env vars each time if not yet configured. No issue.
+
+---
+
+### Approval summary
+
+All 5 Round 1 issues resolved correctly. No new critical or important issues found. The plan has 13 well-ordered tasks with proper dependency sequencing: DB migration → VAPID setup → subscribe/unsubscribe routes → shared push module → service worker → push prompt + client listener → fan-out trigger → timeAgo extraction → Apple Sports redesign (bell → popup → page) → badge API → final build.
+
+Ready for implementation on a feature branch.
+
+>>> REPORT FOR ARCHITECT >>> Plan review Round 2 complete. All 5 findings verified fixed. Status set to `approved`. 4 non-blocking minor notes carried forward for implementer awareness. Ready for Instance 3.
