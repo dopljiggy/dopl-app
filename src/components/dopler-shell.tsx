@@ -12,6 +12,7 @@ import { NavLink } from "@/components/ui/nav-link";
 import { createClient } from "@/lib/supabase";
 import { useNotifications } from "@/hooks/use-notifications";
 import { NotificationsProvider } from "@/components/notifications-context";
+import PushPrompt from "@/components/pwa/push-prompt";
 
 const nav = [
   { href: "/feed", icon: Home, label: "feed" },
@@ -72,12 +73,42 @@ export default function DoplerShell({
     });
   }, []);
 
+  // Service worker posts PUSH_NAV when a push notification is tapped — iOS
+  // Safari doesn't support client.navigate(), so the SW posts a message
+  // and this listener does the navigation client-side.
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      if (event.data?.type === "PUSH_NAV" && event.data.url) {
+        window.location.href = event.data.url;
+      }
+    };
+    navigator.serviceWorker?.addEventListener("message", onMessage);
+    return () =>
+      navigator.serviceWorker?.removeEventListener("message", onMessage);
+  }, []);
+
   const baseState = useNotifications(userId);
   const notificationsState = {
     ...baseState,
     activeSubscribedPortfolioIds,
   };
   const { unreadCount } = notificationsState;
+
+  // Sync unread count to the PWA app icon badge. setAppBadge/clearAppBadge
+  // are non-standard (Chromium + iOS Safari PWA), so type-assert locally
+  // rather than augmenting the global Navigator type.
+  useEffect(() => {
+    const nav = navigator as Navigator & {
+      setAppBadge?: (count: number) => Promise<void>;
+      clearAppBadge?: () => Promise<void>;
+    };
+    if (typeof nav.setAppBadge !== "function") return;
+    if (unreadCount > 0) {
+      nav.setAppBadge(unreadCount).catch(() => {});
+    } else {
+      nav.clearAppBadge?.().catch(() => {});
+    }
+  }, [unreadCount]);
 
   return (
     <NotificationsProvider value={notificationsState}>
@@ -204,6 +235,7 @@ export default function DoplerShell({
           </div>
         </div>
       </nav>
+      <PushPrompt />
       </div>
     </NotificationsProvider>
   );

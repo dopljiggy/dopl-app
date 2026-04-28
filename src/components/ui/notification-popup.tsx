@@ -12,6 +12,7 @@ import {
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { buildBrokerTradeUrl, getBrokerHomepage } from "@/lib/broker-deeplinks";
+import { timeAgo } from "@/lib/time-ago";
 
 export type PopupNotification = {
   id: string;
@@ -149,17 +150,23 @@ export function NotificationPopup({
             )}
 
             {ticker && (
-              <div className="glass-card-light rounded-xl p-4 mb-5">
+              <div className="rounded-xl p-4 mb-5 bg-[color:var(--dopl-sage)]/15">
                 <div className="flex items-baseline justify-between">
                   <div>
                     <p className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/40 mb-1">
-                      {notification.change_type === "sell" ? "sold" : "ticker"}
+                      {notification.change_type === "sell" ? "sold" : "added"}
                     </p>
-                    <p className="font-mono text-2xl font-semibold text-[color:var(--dopl-lime)]">
+                    <p
+                      className={`font-mono text-3xl font-bold ${
+                        notification.change_type === "sell"
+                          ? "text-amber-400"
+                          : "text-[color:var(--dopl-lime)]"
+                      }`}
+                    >
                       {ticker}
                     </p>
                   </div>
-                  <span className="text-xs text-[color:var(--dopl-cream)]/40 font-mono">
+                  <span className="text-[10px] text-[color:var(--dopl-cream)]/30 font-mono">
                     {timeAgo(notification.created_at)}
                   </span>
                 </div>
@@ -257,10 +264,3 @@ export function NotificationPopup({
   );
 }
 
-function timeAgo(iso: string) {
-  const s = (Date.now() - new Date(iso).getTime()) / 1000;
-  if (s < 60) return `${Math.floor(s)}s ago`;
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-  return `${Math.floor(s / 86400)}d ago`;
-}

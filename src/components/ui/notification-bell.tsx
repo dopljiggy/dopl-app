@@ -10,6 +10,7 @@ import {
   NotificationPopup,
   type PopupNotification,
 } from "@/components/ui/notification-popup";
+import { timeAgo } from "@/lib/time-ago";
 
 export default function NotificationBell({
   userId: _userId,
@@ -133,37 +134,65 @@ export default function NotificationBell({
                   </div>
                 ) : (
                   <div className="max-h-[70vh] overflow-y-auto space-y-1">
-                    {notifications.slice(0, 8).map((n) => (
-                      <button
-                        key={n.id}
-                        type="button"
-                        onClick={() => {
-                          setPopup({
-                            id: n.id,
-                            title: n.title,
-                            body: n.body,
-                            created_at: n.created_at,
-                            actionable: n.actionable,
-                            meta: n.meta,
-                            ticker: n.ticker,
-                            change_type: n.change_type,
-                          });
-                          setOpen(false);
-                        }}
-                        className={`w-full text-left p-3 rounded-lg hover:bg-[color:var(--dopl-sage)]/25 transition-colors ${
-                          !n.read
-                            ? "border-l-2 border-[color:var(--dopl-lime)]"
-                            : ""
-                        }`}
-                      >
-                        <p className="text-sm font-semibold">{n.title}</p>
-                        {n.body && (
-                          <p className="text-xs text-[color:var(--dopl-cream)]/50 mt-0.5 line-clamp-2">
-                            {n.body}
-                          </p>
-                        )}
-                      </button>
-                    ))}
+                    {notifications.slice(0, 8).map((n) => {
+                      const ticker = n.ticker;
+                      const isSell = n.change_type === "sell";
+                      return (
+                        <button
+                          key={n.id}
+                          type="button"
+                          onClick={() => {
+                            setPopup({
+                              id: n.id,
+                              title: n.title,
+                              body: n.body,
+                              created_at: n.created_at,
+                              actionable: n.actionable,
+                              meta: n.meta,
+                              ticker: n.ticker,
+                              change_type: n.change_type,
+                            });
+                            setOpen(false);
+                          }}
+                          className={`w-full text-left p-3 rounded-xl hover:bg-[color:var(--dopl-sage)]/25 transition-colors ${
+                            !n.read
+                              ? "border-l-2 border-[color:var(--dopl-lime)]"
+                              : ""
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            {ticker ? (
+                              <span
+                                className={`font-mono text-lg font-bold ${
+                                  isSell
+                                    ? "text-amber-400"
+                                    : "text-[color:var(--dopl-lime)]"
+                                }`}
+                              >
+                                {ticker}
+                              </span>
+                            ) : (
+                              <span className="text-sm font-semibold">
+                                {n.title}
+                              </span>
+                            )}
+                            <span className="text-[10px] text-[color:var(--dopl-cream)]/30 font-mono shrink-0">
+                              {timeAgo(n.created_at)}
+                            </span>
+                          </div>
+                          {ticker && (
+                            <p className="text-xs font-semibold text-[color:var(--dopl-cream)]/70">
+                              {n.title}
+                            </p>
+                          )}
+                          {n.body && (
+                            <p className="text-[11px] text-[color:var(--dopl-cream)]/40 mt-0.5 line-clamp-1">
+                              {n.body}
+                            </p>
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </motion.div>

@@ -11,6 +11,7 @@ import {
   type PopupNotification,
 } from "@/components/ui/notification-popup";
 import { buildBrokerTradeUrl, getBrokerHomepage } from "@/lib/broker-deeplinks";
+import { timeAgo } from "@/lib/time-ago";
 
 function extractTicker(body: string | null | undefined): string | null {
   if (!body) return null;
@@ -75,14 +76,15 @@ export default function NotificationsClient({
             {notifications.map((n) => {
               const ticker = n.ticker ?? extractTicker(n.body);
               const isCopied = copied === n.id;
+              const isSell = n.change_type === "sell";
               return (
                 <motion.div
                   key={n.id}
                   initial={{ opacity: 0, y: -8 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
-                  className={`glass-card p-4 cursor-pointer ${
-                    !n.read ? "glow-gain" : ""
+                  className={`rounded-xl p-4 cursor-pointer transition-colors bg-[color:var(--dopl-sage)]/10 hover:bg-[color:var(--dopl-sage)]/20 ${
+                    !n.read ? "border-l-2 border-[color:var(--dopl-lime)]" : ""
                   }`}
                   onClick={() =>
                     setPopup({
@@ -97,50 +99,57 @@ export default function NotificationsClient({
                     })
                   }
                 >
-                  <div className="flex items-start gap-3">
-                    <span
-                      className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${
-                        n.read
-                          ? "bg-[color:var(--dopl-sage)]"
-                          : "bg-[color:var(--dopl-lime)]"
-                      }`}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold">
-                        {n.title}
-                        {n.meta?.manual === true && (
-                          <span
-                            title="manually sent by the fund manager"
-                            className="text-[9px] uppercase tracking-[0.2em] font-mono text-[color:var(--dopl-cream)]/40 border border-[color:var(--dopl-cream)]/20 px-1.5 py-0.5 rounded-md ml-2"
-                          >
-                            manual
-                          </span>
-                        )}
-                      </p>
-                      {n.body && (
-                        <p className="text-xs text-[color:var(--dopl-cream)]/50 mt-0.5">
-                          {n.body}
-                        </p>
+                  <div className="flex items-center justify-between gap-3 mb-1">
+                    <div className="flex items-center gap-3">
+                      {ticker ? (
+                        <span
+                          className={`font-mono text-2xl font-bold ${
+                            isSell
+                              ? "text-amber-400"
+                              : "text-[color:var(--dopl-lime)]"
+                          }`}
+                        >
+                          {ticker}
+                        </span>
+                      ) : (
+                        <span className="text-sm font-semibold">{n.title}</span>
+                      )}
+                      {n.meta?.manual === true && (
+                        <span className="text-[9px] uppercase tracking-[0.2em] font-mono text-[color:var(--dopl-cream)]/40 border border-[color:var(--dopl-cream)]/20 px-1.5 py-0.5 rounded-md">
+                          manual
+                        </span>
                       )}
                     </div>
-                    <span className="text-xs text-[color:var(--dopl-cream)]/30 font-mono shrink-0">
+                    <span className="text-[10px] text-[color:var(--dopl-cream)]/30 font-mono shrink-0">
                       {timeAgo(n.created_at)}
                     </span>
                   </div>
 
+                  {ticker && (
+                    <p className="text-sm font-semibold text-[color:var(--dopl-cream)]/70 mb-0.5">
+                      {n.title}
+                    </p>
+                  )}
+
+                  {n.body && (
+                    <p className="text-xs text-[color:var(--dopl-cream)]/40">
+                      {n.body}
+                    </p>
+                  )}
+
                   {n.actionable === false ? (
-                    <div className="mt-2 pl-5 text-[10px] uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/40 font-mono">
+                    <div className="mt-2 text-[10px] uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/40 font-mono">
                       informational
                     </div>
                   ) : (
                     <div
-                      className="mt-3 pl-5 flex flex-wrap gap-2"
+                      className="mt-3 flex flex-wrap gap-2"
                       onClick={(e) => e.stopPropagation()}
                     >
                       {ticker && (
                         <button
                           onClick={() => copyTicker(ticker, n.id)}
-                          className="glass-card-light px-3 py-1.5 text-xs rounded-lg hover:bg-[color:var(--dopl-sage)]/40 transition-colors inline-flex items-center gap-1.5"
+                          className="px-3 py-1.5 text-xs rounded-lg bg-[color:var(--dopl-sage)]/20 hover:bg-[color:var(--dopl-sage)]/40 transition-colors inline-flex items-center gap-1.5"
                         >
                           {isCopied ? (
                             <>
@@ -170,7 +179,7 @@ export default function NotificationsClient({
                           }
                           target="_blank"
                           rel="noreferrer"
-                          className="glass-card-light px-3 py-1.5 text-xs rounded-lg hover:bg-[color:var(--dopl-lime)]/15 transition-colors inline-flex items-center gap-1.5 text-[color:var(--dopl-lime)]"
+                          className="px-3 py-1.5 text-xs rounded-lg bg-[color:var(--dopl-lime)]/10 hover:bg-[color:var(--dopl-lime)]/20 transition-colors inline-flex items-center gap-1.5 text-[color:var(--dopl-lime)]"
                         >
                           <ExternalLink size={12} />
                           open {brokerPreference}
@@ -203,10 +212,3 @@ export default function NotificationsClient({
   );
 }
 
-function timeAgo(iso: string) {
-  const s = (Date.now() - new Date(iso).getTime()) / 1000;
-  if (s < 60) return `${Math.floor(s)}s`;
-  if (s < 3600) return `${Math.floor(s / 60)}m`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h`;
-  return `${Math.floor(s / 86400)}d`;
-}

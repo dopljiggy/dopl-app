@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { sendPushToUser } from "@/lib/push";
 
 /**
  * Narrow the client surface to just `from`. Lets the hand-rolled test mock
@@ -179,6 +180,20 @@ export async function fanOutPortfolioUpdate(
 
   if (notifRows.length > 0) {
     await admin.from("notifications").insert(notifRows);
+
+    // Best-effort web push to every notified subscriber.
+    const uniqueUserIds = [...new Set(notifRows.map((r) => r.user_id))] as string[];
+    await Promise.allSettled(
+      uniqueUserIds.map((uid) => {
+        const row = notifRows.find((r) => r.user_id === uid);
+        return sendPushToUser(
+          uid,
+          (row?.title as string | undefined) ?? "Portfolio Update",
+          (row?.body as string | undefined) ?? "",
+          `/feed/${input.portfolio_id}`
+        );
+      })
+    );
   }
 
   return { ok: true, notified: notifRows.length, update_id: updateId };

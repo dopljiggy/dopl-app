@@ -1,5 +1,5 @@
 /* dopl service worker — cache-first for static assets, network-first for everything else. */
-const CACHE_NAME = "dopl-shell-v21";
+const CACHE_NAME = "dopl-shell-v22";
 const SHELL = [
   "/manifest.json",
   "/dopl-logo.svg",
@@ -102,3 +102,40 @@ async function networkFirst(req) {
     throw e;
   }
 }
+
+/* Web Push — Sprint 9 */
+self.addEventListener("push", (event) => {
+  if (!event.data) return;
+  try {
+    const payload = event.data.json();
+    const options = {
+      body: payload.body || "",
+      icon: payload.icon || "/apple-touch-icon.png",
+      badge: "/icons/icon-96x96.png",
+      data: payload.data || {},
+    };
+    event.waitUntil(self.registration.showNotification(payload.title, options));
+  } catch {
+    // Malformed payload — ignore.
+  }
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = event.notification.data?.url || "/";
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then((clientList) => {
+        for (const client of clientList) {
+          if (client.url.includes(self.location.origin) && "focus" in client) {
+            // iOS Safari doesn't support client.navigate() — use
+            // postMessage and let the client-side handler navigate.
+            client.postMessage({ type: "PUSH_NAV", url });
+            return client.focus();
+          }
+        }
+        return self.clients.openWindow(url);
+      })
+  );
+});
