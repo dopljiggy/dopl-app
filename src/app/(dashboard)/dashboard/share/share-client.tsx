@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Copy, Download, Share2, Check, Link2 } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -91,9 +91,21 @@ export default function ShareClient({
     markShared();
   };
 
-  // Card dimensions — preview fixed at 540×283 so export hits 1200×630 cleanly.
   const CARD_W = 540;
   const CARD_H = 283;
+
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [cardScale, setCardScale] = useState(1);
+
+  useEffect(() => {
+    const el = wrapperRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      setCardScale(Math.min(1, entry.contentRect.width / CARD_W));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   return (
     <div>
@@ -110,32 +122,34 @@ export default function ShareClient({
             preview
           </p>
 
-          {/* Floating pedestal */}
-          <motion.div
-            animate={{ y: [0, -4, 0] }}
-            transition={{
-              duration: 6,
-              repeat: Infinity,
-              ease: "easeInOut",
-            }}
-            style={{ width: CARD_W, maxWidth: "100%" }}
-            className="relative"
-          >
-            {/* Animated gradient border shell */}
-            <div
-              className="share-card-shell"
-              style={{
-                borderRadius: 22,
-                padding: 1,
-                maxWidth: "100%",
+          {/* Floating pedestal — wrapper measures available width for scaling */}
+          <div ref={wrapperRef} style={{ maxWidth: CARD_W, width: "100%" }}>
+            <motion.div
+              animate={{ y: [0, -4, 0] }}
+              transition={{
+                duration: 6,
+                repeat: Infinity,
+                ease: "easeInOut",
               }}
+              className="relative"
             >
-              <div
-                ref={cardRef}
-                style={{
-                  width: CARD_W,
-                  height: CARD_H,
-                  maxWidth: "100%",
+              <div style={{ height: (CARD_H + 2) * cardScale }}>
+                <div
+                  style={{
+                    transform: `scale(${cardScale})`,
+                    transformOrigin: "top left",
+                  }}
+                >
+                  {/* Animated gradient border shell */}
+                  <div
+                    className="share-card-shell"
+                    style={{ borderRadius: 22, padding: 1 }}
+                  >
+                    <div
+                      ref={cardRef}
+                      style={{
+                        width: CARD_W,
+                        height: CARD_H,
                   borderRadius: 20,
                   padding: 28,
                   position: "relative",
@@ -433,7 +447,10 @@ export default function ShareClient({
                 </div>
               </div>
             </div>
-          </motion.div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
         </div>
 
         {/* Action panel */}
