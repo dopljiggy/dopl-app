@@ -203,41 +203,40 @@ POST /api/push/unsubscribe removes it by endpoint."
 
 ---
 
-### Task 4: Push Send API Route
+### Task 4: Shared Push Module + API Route
 
 **Files:**
-- Create: `src/app/api/push/send/route.ts`
+- Create: `src/lib/push.ts` (shared push logic)
+- Create: `src/app/api/push/send/route.ts` (thin API wrapper — for manual/debug use only)
 
-This is an internal-only route called by the sync/notification logic to fan out push messages.
+The core push logic lives in a shared module so `notification-fanout.ts` can call it directly without an HTTP round-trip. The API route wraps it for manual testing.
 
-- [ ] **Step 1: Write the send route**
+- [ ] **Step 1: Write the shared push module**
 
 ```typescript
-import { NextResponse, type NextRequest } from "next/server";
+// src/lib/push.ts
 import webpush from "web-push";
 import { createAdminClient } from "@/lib/supabase-admin";
 
-webpush.setVapidDetails(
-  "mailto:pirates@teamdopl.com",
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
-  process.env.VAPID_PRIVATE_KEY!
-);
+let vapidConfigured = false;
 
-export async function POST(request: NextRequest) {
-  const authHeader = request.headers.get("authorization");
-  if (authHeader !== `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+function ensureVapid() {
+  if (vapidConfigured) return;
+  const pub = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+  const priv = process.env.VAPID_PRIVATE_KEY;
+  if (!pub || !priv) return;
+  webpush.setVapidDetails("mailto:pirates@teamdopl.com", pub, priv);
+  vapidConfigured = true;
+}
 
-  const body = await request.json();
-  const { userId, title, body: pushBody, url } = body;
-
-  if (!userId || !title) {
-    return NextResponse.json(
-      { error: "Missing userId or title" },
-      { status: 400 }
-    );
-  }
+export async function sendPushToUser(
+  userId: string,
+  title: string,
+  body: string,
+  url: string
+): Promise<{ sent: number; expired: number }> {
+  ensureVapid();
+  if (!vapidConfigured) return { sent: 0, expired: 0 };
 
   const admin = createAdminClient();
   const { data: subs } = await admin
@@ -245,15 +244,13 @@ export async function POST(request: NextRequest) {
     .select("id, endpoint, p256dh, auth")
     .eq("user_id", userId);
 
-  if (!subs?.length) {
-    return NextResponse.json({ sent: 0 });
-  }
+  if (!subs?.length) return { sent: 0, expired: 0 };
 
   const payload = JSON.stringify({
     title,
-    body: pushBody ?? "",
+    body,
     icon: "/apple-touch-icon.png",
-    data: { url: url ?? "/notifications" },
+    data: { url },
   });
 
   let sent = 0;
@@ -281,24 +278,62 @@ export async function POST(request: NextRequest) {
     await admin.from("push_subscriptions").delete().in("id", expired);
   }
 
-  return NextResponse.json({ sent, expired: expired.length });
+  return { sent, expired: expired.length };
 }
 ```
 
-- [ ] **Step 2: Verify build**
+- [ ] **Step 2: Write the API route wrapper**
+
+```typescript
+// src/app/api/push/send/route.ts
+import { NextResponse, type NextRequest } from "next/server";
+import crypto from "crypto";
+import { sendPushToUser } from "@/lib/push";
+
+export async function POST(request: NextRequest) {
+  const authHeader = request.headers.get("authorization") ?? "";
+  const expected = `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`;
+  const a = Buffer.from(authHeader);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const body = await request.json();
+  const { userId, title, body: pushBody, url } = body;
+
+  if (!userId || !title) {
+    return NextResponse.json(
+      { error: "Missing userId or title" },
+      { status: 400 }
+    );
+  }
+
+  const result = await sendPushToUser(
+    userId,
+    title,
+    pushBody ?? "",
+    url ?? "/notifications"
+  );
+
+  return NextResponse.json(result);
+}
+```
+
+- [ ] **Step 3: Verify build**
 
 Run: `npm run build`
 Expected: Clean build.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
-git add src/app/api/push/send/route.ts
-git commit -m "feat: add push send API route (internal)
+git add src/lib/push.ts src/app/api/push/send/route.ts
+git commit -m "feat: shared push module + API route wrapper
 
-Server-to-server route that fans out web push notifications to a
-user's subscriptions. Authenticates via service role key. Removes
-expired subscriptions on 410/404."
+Core push logic in src/lib/push.ts — called directly from
+notification-fanout.ts without HTTP round-trip. API route wraps
+it for manual/debug use with timing-safe auth."
 ```
 
 ---
@@ -339,7 +374,9 @@ self.addEventListener("notificationclick", (event) => {
       .then((clientList) => {
         for (const client of clientList) {
           if (client.url.includes(self.location.origin) && "focus" in client) {
-            client.navigate(url);
+            // iOS Safari doesn't support client.navigate() — use
+            // postMessage and let the client-side handler navigate.
+            client.postMessage({ type: "PUSH_NAV", url });
             return client.focus();
           }
         }
@@ -458,10 +495,21 @@ export default function PushPrompt() {
 
 - [ ] **Step 2: Wire it into DoplerShell**
 
-In `src/components/dopler-shell.tsx`, import and render `PushPrompt` inside the shell:
+In `src/components/dopler-shell.tsx`, import and render `PushPrompt` inside the shell, and add a `useEffect` to listen for `PUSH_NAV` messages from the service worker (iOS Safari doesn't support `client.navigate()`, so the SW posts a message instead):
 
 ```tsx
 import PushPrompt from "@/components/pwa/push-prompt";
+
+// Inside the component body, add the SW message listener:
+useEffect(() => {
+  const onMessage = (event: MessageEvent) => {
+    if (event.data?.type === "PUSH_NAV" && event.data.url) {
+      window.location.href = event.data.url;
+    }
+  };
+  navigator.serviceWorker?.addEventListener("message", onMessage);
+  return () => navigator.serviceWorker?.removeEventListener("message", onMessage);
+}, []);
 
 // ... at the end of the return, before closing </NotificationsProvider>:
 <PushPrompt />
@@ -492,37 +540,33 @@ and saves subscription to /api/push/subscribe."
 
 The centralized notification fan-out lives in `src/lib/notification-fanout.ts`. The function `fanOutPortfolioUpdate()` inserts notification rows at line 181 (`admin.from("notifications").insert(notifRows)`). Each row has a `user_id` (the subscriber). After the insert, we fan out push to each unique subscriber.
 
-- [ ] **Step 1: Add push fan-out after the notification insert**
+- [ ] **Step 1: Import sendPushToUser and add push fan-out after the notification insert**
 
-In `src/lib/notification-fanout.ts`, after line 181 (`await admin.from("notifications").insert(notifRows)`), add the push fan-out:
+In `src/lib/notification-fanout.ts`, add the import at the top:
+
+```typescript
+import { sendPushToUser } from "@/lib/push";
+```
+
+Then after line 181 (`await admin.from("notifications").insert(notifRows)`), add the push fan-out. Calls the shared module directly — no HTTP round-trip:
 
 ```typescript
   if (notifRows.length > 0) {
     await admin.from("notifications").insert(notifRows);
 
     // Best-effort web push to every notified subscriber.
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL;
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (appUrl && serviceKey) {
-      const uniqueUserIds = [...new Set(notifRows.map((r) => r.user_id))];
-      await Promise.allSettled(
-        uniqueUserIds.map((uid) =>
-          fetch(`${appUrl}/api/push/send`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${serviceKey}`,
-            },
-            body: JSON.stringify({
-              userId: uid,
-              title: notifRows.find((r) => r.user_id === uid)?.title ?? "Portfolio Update",
-              body: notifRows.find((r) => r.user_id === uid)?.body ?? "",
-              url: `/feed/${input.portfolio_id}`,
-            }),
-          })
-        )
-      );
-    }
+    const uniqueUserIds = [...new Set(notifRows.map((r) => r.user_id))];
+    await Promise.allSettled(
+      uniqueUserIds.map((uid) => {
+        const row = notifRows.find((r) => r.user_id === uid);
+        return sendPushToUser(
+          uid,
+          row?.title ?? "Portfolio Update",
+          row?.body ?? "",
+          `/feed/${input.portfolio_id}`
+        );
+      })
+    );
   }
 ```
 
@@ -546,7 +590,56 @@ push failures don't block the sync."
 
 ---
 
-### Task 8: Apple Sports Card Redesign — Notification Bell Dropdown
+### Task 8: Extract Shared `timeAgo` Utility
+
+**Files:**
+- Create: `src/lib/time-ago.ts`
+- Modify: `src/components/ui/notification-popup.tsx` (remove local `timeAgo`, import shared)
+- Modify: `src/app/notifications/notifications-client.tsx` (remove local `timeAgo`, import shared)
+
+`timeAgo` is duplicated in notification-popup.tsx (format: "5m ago") and notifications-client.tsx (format: "5m"). The bell dropdown will also need it. Extract to one shared function with a consistent format (short, no "ago" suffix — matches Apple Sports' terse style).
+
+- [ ] **Step 1: Create the shared utility**
+
+```typescript
+// src/lib/time-ago.ts
+export function timeAgo(iso: string): string {
+  const s = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (s < 60) return `${Math.floor(s)}s`;
+  if (s < 3600) return `${Math.floor(s / 60)}m`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h`;
+  return `${Math.floor(s / 86400)}d`;
+}
+```
+
+- [ ] **Step 2: Replace local copies in notification-popup.tsx and notifications-client.tsx**
+
+In both files, delete the local `function timeAgo(...)` definition and add:
+
+```typescript
+import { timeAgo } from "@/lib/time-ago";
+```
+
+In `notification-popup.tsx`, update the call from `timeAgo(notification.created_at)` — it currently returns `"5m ago"` format. The shared version returns `"5m"`. No other changes needed since the surrounding UI just renders the string.
+
+- [ ] **Step 3: Verify build**
+
+Run: `npm run build`
+Expected: Clean build.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add src/lib/time-ago.ts src/components/ui/notification-popup.tsx src/app/notifications/notifications-client.tsx
+git commit -m "refactor: extract timeAgo to shared utility
+
+Removes 2 duplicate definitions. Consistent terse format (5m, 2h, 3d)
+across popup, notifications page, and bell dropdown."
+```
+
+---
+
+### Task 9: Apple Sports Card Redesign — Notification Bell Dropdown
 
 **Files:**
 - Modify: `src/components/ui/notification-bell.tsx`
@@ -555,7 +648,7 @@ The Apple Sports design language: bold mono ticker as largest element, minimal c
 
 - [ ] **Step 1: Redesign the notification row in the bell dropdown**
 
-Replace the notification row button (lines 140-170) with a bolder card layout:
+Replace the inner content of the `<div className="max-h-[70vh] overflow-y-auto space-y-1">` wrapper (lines 135-167 in `notification-bell.tsx`). Keep the `max-h-[70vh] overflow-y-auto space-y-1` wrapper div itself — only replace the `.map()` block inside it:
 
 ```tsx
 {notifications.slice(0, 8).map((n) => {
@@ -617,16 +710,10 @@ Replace the notification row button (lines 140-170) with a bolder card layout:
 })}
 ```
 
-Add a local `timeAgo` function (same as in notifications-client):
+Import the shared `timeAgo` at the top of the file:
 
 ```typescript
-function timeAgo(iso: string) {
-  const s = (Date.now() - new Date(iso).getTime()) / 1000;
-  if (s < 60) return `${Math.floor(s)}s`;
-  if (s < 3600) return `${Math.floor(s / 60)}m`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h`;
-  return `${Math.floor(s / 86400)}d`;
-}
+import { timeAgo } from "@/lib/time-ago";
 ```
 
 - [ ] **Step 2: Verify build**
@@ -646,7 +733,7 @@ time-ago smallest, tight spacing. Minimal chrome."
 
 ---
 
-### Task 9: Apple Sports Card Redesign — Notification Popup
+### Task 10: Apple Sports Card Redesign — Notification Popup
 
 **Files:**
 - Modify: `src/components/ui/notification-popup.tsx`
@@ -698,7 +785,7 @@ tighter layout. Time-ago in smallest size."
 
 ---
 
-### Task 10: Apple Sports Card Redesign — Notifications Page
+### Task 11: Apple Sports Card Redesign — Notifications Page
 
 **Files:**
 - Modify: `src/app/notifications/notifications-client.tsx`
@@ -853,7 +940,7 @@ with ticker largest, time-ago smallest."
 
 ---
 
-### Task 11: Badge API for PWA App Icon
+### Task 12: Badge API for PWA App Icon
 
 **Files:**
 - Modify: `src/components/dopler-shell.tsx`
@@ -891,7 +978,7 @@ on the PWA home screen icon."
 
 ---
 
-### Task 12: Final Build + Test
+### Task 13: Final Build + Test
 
 - [ ] **Step 1: Full build verification**
 
@@ -937,3 +1024,132 @@ Expected: All tests pass.
 13. Dismiss push prompt → doesn't reappear on refresh (localStorage)
 14. Deny push permission → prompt doesn't show again (Notification.permission check)
 15. Push while app is open → toast listener still fires (push is supplementary)
+
+---
+
+## Review Notes (Instance 2, Round 1)
+
+**Date:** 2026-04-28
+**Reviewed against:** Current codebase on main (post-Sprint 8 hotfixes)
+
+### Critical 1: iOS Safari `client.navigate()` not supported in service worker notificationclick
+
+**Severity:** Critical
+**Location:** Task 5, `notificationclick` handler
+
+`Client.navigate()` is not implemented in Safari's service worker (iOS 16.4+). The plan's `client.navigate(url)` call will throw silently on iPhone, meaning tapping a push notification does nothing — the app's primary mobile target is broken.
+
+**Fix:** Replace `client.navigate(url)` with `client.postMessage({ type: "dopl-navigate", url })` + `client.focus()`. Add a corresponding `message` event listener in `dopler-shell.tsx` that handles `dopl-navigate` by setting `window.location.href`. Example:
+
+Service worker:
+```javascript
+for (const client of clientList) {
+  if (client.url.includes(self.location.origin) && "focus" in client) {
+    client.postMessage({ type: "dopl-navigate", url });
+    return client.focus();
+  }
+}
+return self.clients.openWindow(url);
+```
+
+DoplerShell (new useEffect):
+```typescript
+useEffect(() => {
+  const handler = (e: MessageEvent) => {
+    if (e.data?.type === "dopl-navigate") {
+      window.location.href = e.data.url;
+    }
+  };
+  navigator.serviceWorker?.addEventListener("message", handler);
+  return () => navigator.serviceWorker?.removeEventListener("message", handler);
+}, []);
+```
+
+This needs a new task (or additions to Tasks 5 and 6) for the client-side listener.
+
+---
+
+### Important 1: Self-HTTP-request pattern for push fan-out is fragile and slow
+
+**Severity:** Important
+**Location:** Task 7
+
+`fanOutPortfolioUpdate()` calls `fetch(\`${appUrl}/api/push/send\`)` — the server calling itself over HTTP. Problems:
+- On Vercel, this spawns a *separate* serverless invocation per subscriber, doubling cold-start cost
+- 500 subscribers = 500 HTTP round-trips inside `Promise.allSettled`, likely hitting function timeout
+- `NEXT_PUBLIC_APP_URL` mismatches on preview deployments
+- Unnecessary — the push logic can be imported directly since both run server-side with admin credentials
+
+**Fix:** Extract push logic into `src/lib/push-send.ts`:
+```
+export async function sendPushToUser(admin, userId, { title, body, url })
+  → reads push_subscriptions, calls webpush.sendNotification, cleans expired
+```
+
+Call directly from `fanOutPortfolioUpdate`. Keep the HTTP route as a thin wrapper for debugging. This eliminates the self-HTTP pattern and the per-user round-trips.
+
+---
+
+### Important 2: Push send route needs timing-safe comparison
+
+**Severity:** Important
+**Location:** Task 4, line 228
+
+`authHeader !== \`Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}\`` is vulnerable to timing attacks. The route is publicly reachable (not "internal-only" in practice). An attacker can oracle the service role key byte-by-byte.
+
+**Fix:** Use `crypto.timingSafeEqual`:
+```typescript
+import { timingSafeEqual } from "crypto";
+const expected = Buffer.from(`Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`);
+const actual = Buffer.from(authHeader ?? "");
+if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) {
+  return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+}
+```
+
+---
+
+### Important 3: Task 8 bell dropdown snippet misaligned with current code
+
+**Severity:** Important
+**Location:** Task 8
+
+The plan says "Replace the notification row button (lines 140-170)" but:
+- Current rows are at lines 136-166 inside `<div className="max-h-[70vh] overflow-y-auto space-y-1">`
+- The plan's snippet includes `{notifications.slice(0, 8).map(...)}` which already exists at line 136
+- Taking the snippet literally would either nest the map or lose the `max-h-[70vh]` overflow wrapper
+
+**Fix:** Clarify that the replacement target is the `<button>` element inside the existing `.map()` callback (lines 137-165), not the entire map. Keep the existing `<div className="max-h-[70vh] overflow-y-auto space-y-1">` and `notifications.slice(0, 8).map(...)` wrapper intact.
+
+---
+
+### Important 4: `timeAgo` duplicated 3× with inconsistent format
+
+**Severity:** Important
+**Location:** Tasks 8, 9, 10
+
+The plan adds a *third* copy of `timeAgo` to `notification-bell.tsx`. Current state:
+- `notification-popup.tsx:260` → returns `"5m ago"` (with " ago" suffix)
+- `notifications-client.tsx:206` → returns `"5m"` (no suffix)
+- New in Task 8 → returns `"5m"` (no suffix)
+
+The popup will say "5m ago" while the bell and page say "5m" — looks like a bug.
+
+**Fix:** Extract to `src/lib/time-ago.ts` with a single consistent format. Import in all three files. Pick one format (recommend `"5m"` — shorter, Apple Sports style).
+
+---
+
+### Minor issues (non-blocking)
+
+1. **Task 7 step numbering:** Steps go 1, 3, 4 — Step 2 is missing.
+2. **Task 7 git add:** Says `git add src/app/api/` but the modified file is `src/lib/notification-fanout.ts`.
+3. **Task 10 line range:** Says "lines 82-185" but the notification map in current `notifications-client.tsx` spans lines 75-191.
+4. **Task 11 TypeScript:** `navigator.setAppBadge` / `navigator.clearAppBadge` are not on the standard `Navigator` type. Build will fail without a global type augmentation (e.g., `declare global { interface Navigator { setAppBadge?(count: number): Promise<void>; clearAppBadge?(): Promise<void>; } }`). Plan should specify the approach.
+
+---
+
+### Approval summary
+
+1 critical issue (iOS notificationclick), 4 important issues. The push infrastructure is solid in concept but the self-HTTP pattern and iOS Safari incompatibility need to be addressed before implementation.
+
+**Status: needs-revision.** Awaiting Round 2.
