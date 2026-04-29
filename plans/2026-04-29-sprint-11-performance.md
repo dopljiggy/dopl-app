@@ -298,3 +298,132 @@ All 5 tasks are independent. Execute in any order. Recommended: 3, 4, 5 first (s
 **General:**
 10. Fast page navigations don't show a loading spinner
 11. Overall app feels significantly snappier — no 1.5s+ splash, no blank white, no font flash
+
+---
+
+## Plan Review (Instance 2)
+
+**Reviewed:** 2026-04-29
+**Reviewer focus:** Task 2 event-race, Task 3 Tailwind v4 + globals.css fonts, Task 4 getCachedUser signature, Task 5 fetch-flicker
+
+### Verified ✓
+
+1. **Task 1 — `loading.tsx` is the canonical Next.js pattern.** Each route directory's `loading.tsx` exports a default component used as Suspense fallback while the page server-renders. No risk; standard usage.
+
+2. **Task 3 — globals.css font references confirmed.** Verified directly: line 64 (`'Inter'`), line 71 (`'Fraunces'`), line 76 (`'JetBrains Mono'`) all reference the fonts by literal name in font-family stacks. The plan's instruction to update them to `var(--font-inter)`, `var(--font-fraunces)`, `var(--font-jetbrains-mono)` is correct. No `tailwind.config.ts/js` exists — Tailwind v4 uses the `@import "tailwindcss"` directive at globals.css line 1, with theme tokens defined inline. The font CSS variables work seamlessly with this setup.
+
+3. **Task 5 route-change to 150ms is fine.** Once Task 1 (skeletons) lands, the aurora becomes redundant for navigation — `loading.tsx` already covers initial render. 150ms minimum is just for tail-end transition shimmer.
+
+4. **`StandaloneSplash` placement verified.** It's rendered as a direct child of `<body>` in `src/app/layout.tsx:79`, BEFORE `<LoadingProvider>` containing `{children}`. In React's standard sibling effect ordering, StandaloneSplash's `useEffect` fires before content's effects — which is the saving grace that makes Task 2 partially work (see Finding 1).
+
+### Findings
+
+**Finding 1 — [IMPORTANT] Task 2's event-listener race is plausible; needs defensive guard**
+
+The plan's pattern relies on React firing StandaloneSplash's `useEffect` (which adds the `dopl:content-ready` listener) BEFORE any descendant component's `useEffect` (which dispatches the event). Verified that the current JSX has StandaloneSplash as the first child of `<body>` (`src/app/layout.tsx:79`), so React's sibling source-order rule should put its effect first — listener registered before content dispatches.
+
+**However**, this is brittle against:
+- Future JSX reordering (someone moves `<StandaloneSplash />` after `<LoadingProvider>` and the event quietly stops firing)
+- Suspense/streaming SSR delaying the splash subtree's hydration
+- React concurrent-mode scheduling changes in future versions
+- Cold-launch with iOS PWA where SW-controlled hydration can interleave unpredictably
+
+**Defensive fix** — set a global flag in the dispatcher BEFORE firing the event, and have the splash check it on mount:
+
+```tsx
+// In each dispatcher (DoplerShell, dashboard/layout, app/page):
+useEffect(() => {
+  (window as any).__doplContentReady = true;
+  window.dispatchEvent(new Event("dopl:content-ready"));
+}, []);
+
+// In StandaloneSplash:
+useEffect(() => {
+  if (!isStandalone) return;
+  setShow(true);
+  const start = Date.now();
+  const dismiss = () => { /* ... */ };
+
+  if ((window as any).__doplContentReady) {
+    dismiss();
+    return;
+  }
+
+  window.addEventListener("dopl:content-ready", dismiss, { once: true });
+  const fallback = setTimeout(dismiss, MAX);
+  return () => { /* cleanup */ };
+}, [isStandalone]);
+```
+
+Three lines added; eliminates the ordering dependency entirely. Also covers the case where a navigation re-mounts the splash after content already dispatched.
+
+**Finding 2 — [IMPORTANT] Task 4's `getCachedUser()` signature must be extended (not optional)**
+
+Verified directly against `src/lib/supabase-server.ts:27-33`:
+
+```typescript
+export const getCachedUser = cache(async () => {
+  const supabase = await createServerSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+  return user;  // ← returns user only, NOT { supabase, user }
+});
+```
+
+The plan's destructuring `const { supabase, user } = await getCachedUser()` will fail at runtime — `user` would resolve to the user object, and `supabase` would be undefined. The plan flags this in an "Important:" callout but reads as conditional ("If the current implementation only returns user, extend it…"). It's not conditional — the extension is required.
+
+**Fix:** Make Step 1 of Task 4 explicit:
+```typescript
+export const getCachedUser = cache(async () => {
+  const supabase = await createServerSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+  return { supabase, user };
+});
+```
+
+Then update the 2 existing callers (whatever currently uses `const user = await getCachedUser()`) to `const { user } = await getCachedUser()`. Run grep to find them; the plan's "Currently only used by 2 files" claim should be verified by the implementer before changing the signature.
+
+**Finding 3 — [IMPORTANT] Task 5's 0ms fetch minimum creates flicker for fast fetches**
+
+Current LoadingProvider patches `window.fetch`:
+```typescript
+start();
+try { return await orig(...args); }
+finally { setTimeout(() => stop(), 200); }  // ← 200ms artificial extension
+```
+
+The 200ms is an extension AFTER the fetch resolves, not a startup delay. So a 50ms fetch shows the spinner for 250ms total — long enough to register visually.
+
+The aurora itself uses CSS `transition: opacity 420ms ease` (globals.css:320). With 0ms minimum, a 50ms fetch:
+- t=0: `start` → count=1 → `active=true` → CSS opacity transition begins
+- t=50: fetch resolves → `setTimeout(stop, 0)` scheduled
+- t=~54: `stop` → count=0 → `active=false` → opacity transitions back
+
+The spinner gets ~50ms into a 420ms ramp-up, then immediately fades back. Net visible: a soft flicker. For fetches in the 100-300ms band the user flagged, this gets worse — spinner reaches mid-opacity then cuts off. **More jarring than no spinner at all.**
+
+**Suggested fix — pick one:**
+- **Option A (simplest):** Reduce min to **100ms** instead of 0ms. Spinner visible for `actualFetchTime + 100ms`, smooths transition without adding meaningful delay.
+- **Option B (cleaner UX):** Keep 0ms STOP min but add a **start delay** — only show spinner if the fetch is still pending after ~150ms. Sub-150ms fetches show no spinner at all; longer fetches get the full smooth transition. ~10 lines.
+
+Option B is the standard "loading indicator delay" pattern. Either resolves the flicker; the plan should pick one.
+
+### Other observations
+
+**Nit 1 — Task 4 misses layouts.** Plan modifies 8 page files but none of the layout files. If `src/app/(dashboard)/layout.tsx` (or any layout) calls `supabase.auth.getUser()` directly, those calls share the same request and would benefit from `getCachedUser()` too. Implementer should `grep -rn "supabase.auth.getUser" src/app/` and apply the same fix to layouts. Plan's exit criteria acknowledges this implicitly ("returns only API route files") — just make the layout sweep explicit.
+
+**Nit 2 — Task 3 font-stack literals are redundant after next/font.** After the `var(--font-inter)` swap, the literal `'Inter'` in the body's font-family stack can be removed — next/font's variable already includes Inter and adjusted fallbacks. Optional cleanup; plan can mention it as a follow-on or skip it.
+
+**Nit 3 — Task 2 dispatch semantics.** Dispatching from DoplerShell / dashboard layout / app/page on mount signals "client wrapper mounted," not "content loaded." For pages with heavy server data fetches that suspend, the dispatch fires AFTER the suspense resolves (because the wrapper renders below the suspense boundary). Acceptable for splash-dismiss UX, but worth being honest about in the plan's framing.
+
+### Sprint Containment Check
+
+5 independent perf tasks, no new features, no DB/API/schema changes. Cleanly scoped. ✓
+
+### Verdict: NEEDS REVISION
+
+- **3 important findings**, all small fixes:
+  1. Task 2: add the `__doplContentReady` global flag for race-safety (3 lines per dispatcher + 3 lines in splash).
+  2. Task 4: make `getCachedUser()` signature extension a required Step 1, not a "verify if needed."
+  3. Task 5: replace 0ms with either a 100ms min OR a 150ms start-delay; 0ms causes flicker.
+- **3 nits:** layout sweep in Task 4, font-stack cleanup in Task 3, splash event-semantics framing.
+
+All resolvable with plan edits — no task restructuring needed. Re-review after Architect addresses the 3 important findings.

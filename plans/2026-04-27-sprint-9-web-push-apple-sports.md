@@ -1219,3 +1219,109 @@ All 5 Round 1 issues resolved correctly. No new critical or important issues fou
 Ready for implementation on a feature branch.
 
 >>> REPORT FOR ARCHITECT >>> Plan review Round 2 complete. All 5 findings verified fixed. Status set to `approved`. 4 non-blocking minor notes carried forward for implementer awareness. Ready for Instance 3.
+
+---
+
+## Implementation Review (Instance 2)
+
+**Date:** 2026-04-28
+**Branch:** `feat/sprint-9-web-push-apple-sports`
+**Commits:** 13
+**Tests:** 27 files, 145 tests — all passing
+**Build:** Clean (`npm run build` exits 0)
+**Verdict:** APPROVED
+
+---
+
+### Verification checklist
+
+| Check | Result |
+|-------|--------|
+| `npm test` (vitest) | 27 suites, 145 tests pass |
+| `npm run build` | Clean, no errors or warnings |
+| PUSH_NAV symmetric | SW sends `{ type: "PUSH_NAV", url }` (sw.js:134), shell listens for `event.data?.type === "PUSH_NAV"` (dopler-shell.tsx:81) — matched |
+| `sendPushToUser` import chain | `notification-fanout.ts:2` and `api/push/send/route.ts:3` both import from `@/lib/push`. No HTTP self-request in fanout |
+| `timingSafeEqual` | `api/push/send/route.ts:10` — `Buffer.from` both sides, length pre-check before `crypto.timingSafeEqual`. Correct |
+| `timeAgo` deduplication | `src/lib/time-ago.ts` exports single terse format. Imported by bell, popup, notifications-client. Zero local copies in those 3 files |
+| Two remaining local `timeAgo` copies | `fm-notification-bell.tsx:25` and `activity-client.tsx:18` — these are FM-side components, NOT in scope for Sprint 9's dopler redesign. Acceptable |
+| `setAppBadge` contained | Only in `dopler-shell.tsx:100-111`. Local type assertion `as Navigator & { setAppBadge?:...; clearAppBadge?:... }` — doesn't pollute global `Navigator` type |
+
+---
+
+### File-by-file verification
+
+**Push infrastructure (Tasks 1–7):**
+
+- `supabase/migrations/20260427_push_subscriptions.sql` — table with `id, user_id, endpoint, p256dh, auth, created_at`. `UNIQUE(user_id, endpoint)` for upsert. RLS with `FOR ALL` policy on `auth.uid() = user_id`. Matches plan exactly ✓
+- `.env.example` — `NEXT_PUBLIC_VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` added with generation instructions ✓
+- `package.json` — `web-push` in dependencies, `@types/web-push` in devDependencies ✓
+- `src/app/api/push/subscribe/route.ts` — auth via `getUser()`, validates endpoint + keys, upserts with `onConflict: "user_id,endpoint"` ✓
+- `src/app/api/push/unsubscribe/route.ts` — auth via `getUser()`, validates endpoint, deletes by `user_id + endpoint` ✓
+- `src/lib/push.ts` — `ensureVapid()` with module-level flag, `sendPushToUser()` reads subs from admin client, sequential `webpush.sendNotification`, prunes 410/404 expired endpoints ✓
+- `src/app/api/push/send/route.ts` — `crypto.timingSafeEqual` auth with length pre-check, delegates to `sendPushToUser`, returns `{ sent, expired }` ✓
+- `public/sw.js` — `CACHE_NAME` bumped to `"dopl-shell-v22"`. Push handler: `event.data.json()` → `showNotification`. Notificationclick: `matchAll` → `postMessage({ type: "PUSH_NAV", url })` + `focus()`, fallback to `openWindow(url)`. Comment explains iOS Safari rationale ✓
+- `src/components/pwa/push-prompt.tsx` — guards: `typeof window`, `Notification` in window, `serviceWorker` in navigator, `permission === "default"`, localStorage dismiss. 3s timer. Subscribe: `requestPermission` → `pushManager.subscribe` → POST `/api/push/subscribe`. Dismiss persists to localStorage. `relative` added to inner div (plan's container had `absolute` positioned close button — implementer correctly noticed it needed `relative` context) ✓
+- `src/components/dopler-shell.tsx` lines 76-88 — `PUSH_NAV` listener: checks `event.data?.type === "PUSH_NAV" && event.data.url`, navigates via `window.location.href`. Cleanup on unmount. Positioned before badge effect for logical grouping ✓
+- `src/lib/notification-fanout.ts` lines 1-2 — imports `sendPushToUser` from `@/lib/push`. Lines 181-197 — after `notifications.insert()`, collects `uniqueUserIds` via `Set`, calls `Promise.allSettled(uniqueUserIds.map(uid => sendPushToUser(...)))`. Type assertions on `row?.title` and `row?.body` for the notifRows shape. Correct ✓
+
+**Apple Sports redesign (Tasks 8–11):**
+
+- `src/lib/time-ago.ts` — 7-line shared utility. Terse format: `5s`, `5m`, `2h`, `3d`. No " ago" suffix ✓
+- `src/components/ui/notification-popup.tsx` — local `timeAgo` function removed. Import from `@/lib/time-ago` at line 15. Ticker card: `glass-card-light` replaced with `bg-[color:var(--dopl-sage)]/15`. Ticker is `text-3xl font-bold`. Label shows "sold" for sell, "added" for other. Amber for sell, lime for buy. Time-ago in `text-[10px]`. All Sprint 8 functionality preserved: stale-actionable guard (line 80-83), "Other" broker exclusion (line 192), copy ticker (line 232-249), view portfolio (line 221-230), dismiss (line 253-258) ✓
+- `src/components/ui/notification-bell.tsx` — local `timeAgo` definition removed. Import from `@/lib/time-ago` at line 13. Bell dropdown rows: `max-h-[70vh] overflow-y-auto space-y-1` wrapper preserved (line 136). Inner map redesigned: `rounded-xl` cards, bold `text-lg font-mono` ticker in lime/amber, `text-[10px]` time-ago, fallback `n.title` for non-ticker notifications, body `line-clamp-1`, unread `border-l-2 border-[color:var(--dopl-lime)]`. All existing functionality preserved: `setPopup` with ticker/change_type passthrough (lines 145-154), `setOpen(false)` on click ✓
+- `src/app/notifications/notifications-client.tsx` — local `timeAgo` function removed. Import from `@/lib/time-ago` at line 14. Cards: `bg-[color:var(--dopl-sage)]/10 hover:bg-[color:var(--dopl-sage)]/20`, bold `text-2xl font-mono` ticker in lime/amber, manual badge preserved (line 117-121), `isSell` color logic. All Sprint 8 functionality preserved: `extractTicker` fallback (line 77), `ticker`/`change_type` passthrough to popup (lines 94-98), copy ticker (lines 149-168), broker deep-link CTA with "Other" exclusion (lines 171-195), `stopPropagation` on action buttons (line 147). `activeSubscribedPortfolioIds` passed to NotificationPopup (line 208) ✓
+
+**Badge (Task 12):**
+
+- `src/components/dopler-shell.tsx` lines 97-111 — local type assertion `as Navigator & { setAppBadge?:...; clearAppBadge?:... }`. Guards with `typeof nav.setAppBadge !== "function"`. Sets badge on `unreadCount > 0`, clears on 0. `.catch(() => {})` on both. Only affects `dopler-shell.tsx` — no global type pollution ✓
+
+**CHANGELOG:**
+
+- `docs/CHANGELOG.md` — comprehensive entry covering all 15 modified/created files with accurate descriptions. Mentions VAPID key generation, migration requirement, iOS home-screen-only push limitation, and scaling concern. Accurate ✓
+
+---
+
+### Reviewer notes addressed by implementer
+
+| Round 1/2 Note | How Addressed |
+|----------------|---------------|
+| Critical 1 (iOS `client.navigate()`) | SW uses `postMessage({ type: "PUSH_NAV" })`; shell has matching listener |
+| Important 1 (self-HTTP) | Direct import from `@/lib/push`, no HTTP round-trip |
+| Important 2 (timing-safe) | `crypto.timingSafeEqual` with `Buffer.from` + length pre-check |
+| Important 3 (bell snippet) | `max-h-[70vh]` wrapper preserved, only inner `.map()` replaced |
+| Important 4 (timeAgo) | Extracted to `src/lib/time-ago.ts`, 3 consumers import it, zero local copies in scope |
+| Minor 2 (git add path) | Committed `src/lib/notification-fanout.ts` correctly |
+| Minor 4 (setAppBadge TS) | Local type assertion, no global pollution |
+
+---
+
+### Issues found
+
+None.
+
+---
+
+### Notes
+
+1. Two FM-side files (`fm-notification-bell.tsx:25` and `activity-client.tsx:18`) still have local `timeAgo` copies. These are out of Sprint 9's scope (dopler-side redesign only) and use the same terse format. Could be migrated to the shared utility in a future cleanup sprint.
+
+2. The `push-prompt.tsx` implementer added `relative` to the inner container div (plan's snippet had the close button `absolute` positioned without a `relative` parent). Good catch — without it the X button would escape the card boundary.
+
+3. The `pb-32` on `dopler-shell.tsx` line 115 (changed from `pb-24`) gives more clearance for the push prompt floating above the mobile nav. Sensible adjustment not in the plan but consistent with the prompt's `bottom-32` positioning.
+
+---
+
+>>> REPORT FOR ARCHITECT >>>
+
+**Implementation review: APPROVED.**
+
+13 commits, 145 tests pass, build clean. All 13 tasks verified file-by-file against the approved plan. PUSH_NAV message type symmetric across SW and shell. sendPushToUser direct-import chain verified (no HTTP self-request). timingSafeEqual correct. timeAgo consolidated to shared utility, all 3 dopler-side consumers import it. setAppBadge type assertion contained to single file. All Sprint 8 functionality preserved in redesigned components (stale-actionable guard, "Other" broker exclusion, copy ticker, manual badge).
+
+**Manual checks** (for Surfer on `dopl-app.vercel.app` after merge):
+1. Run `supabase/migrations/20260427_push_subscriptions.sql` in Supabase SQL editor
+2. Generate VAPID keys (`npx web-push generate-vapid-keys`), add to `.env.local` + Vercel env vars
+3. iPhone PWA: add to home screen → open → push prompt at 3s → enable → trigger position change → push lands → tap → opens to portfolio → badge on icon
+4. Bell dropdown: bold mono tickers, lime/amber accents, terse time
+5. Popup: 3xl bold ticker, sage bg, "sold"/"added" label
+6. /notifications: 2xl bold ticker rows, color-coded direction
+7. Edge cases: dismiss prompt (localStorage persists), deny permission (no re-prompt), push while app open (toast still fires)

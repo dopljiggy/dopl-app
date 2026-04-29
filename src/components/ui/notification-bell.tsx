@@ -210,12 +210,19 @@ export default function NotificationBell({
           document.body
         )}
 
-      <NotificationPopup
-        notification={popup}
-        brokerPreference={brokerPreference}
-        activeSubscribedPortfolioIds={activeSubscribedPortfolioIds}
-        onClose={() => setPopup(null)}
-      />
+      {/* Portal to body — the nav bar's backdrop-filter creates a
+         containing block that traps position:fixed children, so the
+         popup's inset-0 fills the nav (~56px) instead of viewport. */}
+      {mounted &&
+        createPortal(
+          <NotificationPopup
+            notification={popup}
+            brokerPreference={brokerPreference}
+            activeSubscribedPortfolioIds={activeSubscribedPortfolioIds}
+            onClose={() => setPopup(null)}
+          />,
+          document.body
+        )}
     </>
   );
 }
