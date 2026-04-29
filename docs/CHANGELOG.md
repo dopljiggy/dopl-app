@@ -5,6 +5,43 @@ Format: date, description, files, why, impact, testing, risks.
 
 ---
 
+## [2026-04-29] — Sprint 10 Hotfix R1: Trading Terminal Polish + Rebalance Fanout + Feed Fixes
+
+**Files changed:**
+- `src/app/(dashboard)/dashboard/portfolios/expandable-portfolio-card.tsx` — H1 (overflow fix via framer `transitionEnd`), H2 (`useEffect` to sync draft on positions change after `router.refresh()`), H3 (per-row Pencil adjust + Trash2 delete buttons with inline confirmation rows + thesis input), H7 (pie chart color legend, replaced illustrative `LineChart` with a "performance tracking coming soon" placeholder, dropped `LineChart`/`Line`/`XAxis`/`YAxis` imports + `perfData` useMemo).
+- `src/app/api/positions/manual/route.ts` — H4 step 2: upsert path now fires a rebalance fanout when shares actually changed. `Number(existing.shares) || 0` handles null shares; `prevShares !== newShares` guard prevents notification spam on no-op updates and price-only refreshes. Manual Holdings (no `portfolio_id`) still skips fanout.
+- `src/lib/notification-fanout.ts` — H4 step 1 (rebalance variant of `FanoutChange` gains optional `price?: number`), H5 (`describeOneChange` widened from `FanoutChange & {buy|sell}` to `FanoutChange` with new rebalance branch composing `"rebalanced AMPX · 42 → 60 shares · $189.50"` + optional thesis tail; fanout loop split — `rebalances.length === 1` routes per-ticker through `describeOneChange` with `change_type: "rebalance"`, `> 1` keeps the summary path with `change_type: "summary"` to avoid spam during snaptrade-sync diffs).
+- `src/lib/__tests__/notification-fanout.test.ts` — 2 new test cases locking the rebalance body format (shares + price body, shares + thesis body).
+- `src/app/api/positions/manual/__tests__/route.test.ts` — split the legacy "upsert does not fire fanout" test into two: (1) shares changed → rebalance fanout asserted (prevShares, shares, price, thesis); (2) shares unchanged → no fanout.
+- `src/app/feed/feed-sections.tsx` — H6a (table header `g/l` → `p/l`, locals renamed to `pl`/`plPositive`), H6b (per-portfolio total computed from `positions` prop; allocation column falls back to `(market_value / total) * 100` when `allocation_pct` is null; shows "—" only when both are missing).
+- `src/app/feed/[portfolioId]/page.tsx` — H6c: switched portfolio + positions + updates reads from the cookie-bound client to the admin client, mirroring `/feed/page.tsx`. The user-session client respects the `is_active = true` RLS filter on portfolios; combined with admin-listed subscriptions on `/feed`, doplers could see a deactivated portfolio in their feed but get bounced to `/feed` when clicking. Visibility still gated by `canView` (`isOwner || isFree || subscribed`).
+- `src/components/ui/notification-bell.tsx` — H8a: bell-dropdown notification click defers `setPopup` by one frame via `requestAnimationFrame` so the dropdown's exit animation can start; without this, layout measurement on mobile produced a top-anchored popup instead of centered. Reviewer flagged `onExitComplete` on the dropdown's `AnimatePresence` as the escalation path if rAF proves insufficient.
+- `src/components/dopler-shell.tsx` — H8b: new `useEffect` calls `ServiceWorkerRegistration.getNotifications()` and closes each delivered push notification on initial mount AND on `visibilitychange` to "visible". Initial-mount call covers "user opened the app directly" (visibilitychange doesn't fire on first load). Optional chain on `navigator.serviceWorker` covers older Safari/iOS that don't support web push.
+
+**Why:** Surfer's smoke tests after Sprint 10's merge surfaced 11 issues across the trading terminal, feed, notifications, and portfolio card. All bugs or small UX polish from the Sprint 10 feature set — no new scope. The most material fixes: (1) the autocomplete dropdown was getting clipped inside the expanded card so FMs couldn't see suggestions; (2) "your %" rendered 0 immediately after adding a position because draft state wasn't syncing on `router.refresh()`; (3) the upsert path was deliberately silent on share changes — Surfer wants doplers notified when an FM rebalances; (4) the dopler "view full portfolio" link bounced to `/feed` because of an admin/RLS asymmetry between the listing page and the detail page.
+
+**Impact:**
+- FM trading-terminal autocomplete now floats above the card's footer buttons. Adding a new position via the terminal updates the "your %" column immediately without a manual refresh.
+- Each row in the FM portfolio table has Pencil + Trash2 buttons that toggle inline adjust and delete confirmation rows with a thesis input. The adjust flow re-uses the existing manual-route upsert path; the delete flow re-uses the manual-route DELETE.
+- Doplers receive a notification when an FM changes the share count of an existing position. Lock screen shows "Portfolio Name / rebalanced AMPX · 42 → 60 shares · $189.50" with optional thesis tail. Multi-ticker rebalances (e.g. snaptrade-sync diffs covering multiple positions in one call) still produce a summary notification to avoid spam.
+- Feed table header reads "p/l" instead of the engineer-jargon "g/l". Allocation column shows computed percentages for positions with market_value, eliminating the "—" cluster.
+- "View full portfolio →" link now reaches the detail page even for portfolios the FM has deactivated, as long as the dopler still holds the subscription. Visibility gates unchanged.
+- Pie chart now shows ticker labels via a color-swatch legend underneath. The fake "30-day performance" sin-wave chart is replaced with an honest "performance tracking coming soon" placeholder.
+- Bell-dropdown notifications open the centered popup correctly on mobile; opening the app directly clears any lingering OS-tray push notifications.
+
+**Testing:**
+- `npm test` — 152/152 passing across 27 files (was 149/149; +2 rebalance body cases, +1 split of the upsert-fanout test into changed vs unchanged sub-cases).
+- `npm run build` — clean.
+- Manual smoke (Surfer, post-merge): see Sprint 10 plan's Manual Smoke section under "Hotfix Round 1." Trading terminal flow, inline adjust/delete, rebalance push delivery, feed allocation values, view-full-portfolio link, pie legend, popup centering, and push-tray clear.
+
+**Risks:**
+- Switching `/feed/[portfolioId]/page.tsx` to the admin client means RLS no longer guards the portfolio read. The visibility gate (`canView`) still enforces access, but a regression in `canView` would now leak more data than before. Coverage by automated tests is gap — flagged as future test work.
+- `requestAnimationFrame` for the bell popup is a one-frame deferral. If mobile Safari still anchors the popup at the top after this, escalate to `onExitComplete` on the dropdown's `AnimatePresence` per the reviewer's note.
+- `getNotifications()` on the service-worker registration is supported on Chrome/Firefox/Edge + Safari 16+. Older Safari/iOS don't have web push at all so the optional chain handles them; users on those builds won't get tray clearing but also wouldn't have notifications to clear.
+- The new H3 inline adjust flow hits the manual upsert path which now fires fanout — the no-op guard prevents spam from accidental re-submits, but a price-only update (e.g. quote refresh while editing) won't notify either. Acceptable for now; a future "price update" change_type could lift this.
+
+---
+
 ## [2026-04-29] — Sprint 10: FM Trading Terminal + Feed Redesign + Thesis Notes + Richer Notifications
 
 **Files changed:**
