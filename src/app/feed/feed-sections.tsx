@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { type PositionLike } from "@/components/ui/position-card";
@@ -55,7 +55,6 @@ function PortfolioCard({
   section: Section;
   onUndopl: () => void;
 }) {
-  const router = useRouter();
   const [expanded, setExpanded] = useState(true);
 
   const toggle = () => setExpanded((v) => !v);
@@ -189,16 +188,13 @@ function PortfolioCard({
               <div className="border-t border-[color:var(--glass-border)]">
                 <PositionTable positions={s.positions} />
                 <div className="px-5 py-3 border-t border-[color:var(--glass-border)] flex justify-end">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      router.push(`/feed/${s.portfolio_id}`);
-                    }}
+                  <a
+                    href={`/feed/${s.portfolio_id}`}
+                    onClick={(e) => e.stopPropagation()}
                     className="text-xs text-[color:var(--dopl-lime)] hover:underline inline-flex items-center gap-1"
                   >
                     view full portfolio →
-                  </button>
+                  </a>
                 </div>
               </div>
             )}
