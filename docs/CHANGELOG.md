@@ -5,6 +5,48 @@ Format: date, description, files, why, impact, testing, risks.
 
 ---
 
+## [2026-04-29] — Sprint 11: Perceived Load Speed (skeletons, fonts, splash, auth dedup, loader)
+
+**Files changed:**
+- `src/app/(dashboard)/dashboard/loading.tsx` (NEW) — shimmer skeleton matching the dashboard layout (title + checklist + 3 stat cards).
+- `src/app/(dashboard)/dashboard/portfolios/loading.tsx` (NEW) — shimmer matching the portfolios list (title + new-portfolio button + 2 cards).
+- `src/app/feed/loading.tsx` (NEW) — shimmer matching the feed (header + 2 collapsible portfolio cards with table rows).
+- `src/app/notifications/loading.tsx` (NEW) — shimmer matching the notifications page (header + tab bar + 4 row skeletons).
+- `src/app/settings/loading.tsx` (NEW) — shimmer matching settings (header + 3 label/input pairs).
+- `src/app/layout.tsx` — replaced 3 Google Fonts `<link>` tags with `next/font/google` imports for `Fraunces`, `Inter`, `JetBrains_Mono`. Each font's CSS variable lands on `<html>`; the manual `<link rel="preconnect">` lines for `fonts.googleapis.com` / `fonts.gstatic.com` are gone.
+- `src/app/globals.css` — `font-family` stacks now reference `var(--font-inter)`, `var(--font-fraunces)`, `var(--font-jetbrains-mono)` instead of the literal font names.
+- `src/lib/supabase-server.ts` — `getCachedUser()` extended to return `{ supabase, user }` so callers re-use the cached client without paying for a second `createServerSupabase()` round-trip. `cache()` from React already deduplicates within a single server request.
+- `src/app/(dashboard)/layout.tsx` + `src/app/(dashboard)/dashboard/page.tsx` — fixed the 2 existing callers of `getCachedUser()` to destructure `{ supabase, user }`. Same commit as the signature change so the type swap doesn't strand the codebase mid-build.
+- 17 page files migrated from `createServerSupabase()` + `supabase.auth.getUser()` to `getCachedUser()`: `src/app/page.tsx`, `src/app/[handle]/page.tsx`, `src/app/feed/page.tsx`, `src/app/feed/[portfolioId]/page.tsx`, `src/app/settings/page.tsx`, `src/app/welcome/page.tsx`, `src/app/me/page.tsx`, `src/app/(public)/leaderboard/page.tsx`, `src/app/notifications/page.tsx`, `src/app/onboarding/page.tsx`, `src/app/(dashboard)/dashboard/portfolios/page.tsx`, `src/app/(dashboard)/dashboard/profile/page.tsx`, `src/app/(dashboard)/dashboard/positions/page.tsx`, `src/app/(dashboard)/dashboard/connect/page.tsx`, `src/app/(dashboard)/dashboard/billing/page.tsx`, `src/app/(dashboard)/dashboard/share/page.tsx`, `src/app/(dashboard)/fund-manager/activity/page.tsx`. API routes intentionally untouched — they handle independent requests and should each create their own auth context.
+- `src/components/ui/aurora-loader.tsx` — route-change minimum dropped from 420ms → 150ms (loading.tsx skeletons now cover the heavy initial-render case). Fetch patch switched from a 200ms post-resolve extension to a 150ms start-delay: a setTimeout flips a flag and calls `start()` only if the request is still pending after 150ms; if the fetch resolves first, the timer is cleared and no spinner ever shows.
+- `src/components/pwa/standalone-splash.tsx` — replaced the hardcoded 1500ms timer with a `dopl:content-ready` event listener (400ms minimum, 2000ms maximum fallback). Race-safe via a `window.__doplContentReady` global flag — dispatchers set the flag BEFORE dispatching; the splash checks the flag synchronously on mount so it dismisses correctly even if content's effects ran first.
+- `src/components/dopler-shell.tsx` — added a `useEffect` that sets the `__doplContentReady` flag and dispatches `dopl:content-ready` after the shell mounts. Covers `/feed`, `/notifications`, `/settings`, `/leaderboard`, `/me`, `/[handle]`.
+- `src/app/(dashboard)/dashboard-chrome.tsx` — same dispatcher pattern. Covers all `/dashboard/*` routes (the `(dashboard)` layout always wraps in DashboardChrome).
+- `src/app/marketing-landing.tsx` — same dispatcher pattern. Covers the homepage (`/app/page.tsx` renders MarketingLanding).
+- `plans/2026-04-29-sprint-11-performance.md` — Files Summary header corrected from "Modify (23)" → "Modify (25)" to match the actual count.
+
+**Why:** Post-Sprint-10 smoke testing surfaced a slow PWA launch sequence — black screen → white screen → dopl logo splash → content. Investigation identified five additive layers stacking 2-4 seconds of perceived delay on a cold launch. All five fixes are independent: skeleton `loading.tsx` files replace the white-screen-during-server-render gap, splash dismissal is event-driven instead of timer-based, fonts are bundled in the app instead of downloaded from Google's CDN, the 17-page auth-call duplication is replaced with a single cached call, and the aurora loader stops flickering on fast fetches.
+
+**Impact:**
+- Cold launch: splash shows for ~400-600ms (until first client wrapper mounts) instead of the full 1500ms hardcoded duration. Maximum 2000ms if no dispatcher fires.
+- Server-rendered routes show a shimmer skeleton during the SSR resolve instead of a blank white screen.
+- Fonts ship from the same origin as the app — no DNS lookup, no preconnect, no FOIT flash on first paint.
+- Pages sharing a layout (e.g., `/dashboard/*`) make one `getUser()` call per request instead of two — `(dashboard)/layout.tsx` and the destination page now share the cached call.
+- Sub-150ms fetches show no spinner at all. Slower fetches still get the smooth aurora.
+- No more flicker on fast fetches (CSS opacity ramp barely starting then immediately reversing).
+
+**Testing:**
+- `npm test` — 152/152 passing across 27 files (no test changes; Sprint 11 is purely runtime perf).
+- `npm run build` — clean, no font warnings, no missing module warnings, all 5 new `loading.tsx` routes register.
+
+**Risks:**
+- `next/font/google` downloads the font binaries at build time. If the build environment can't reach Google's CDN, the build fails — Vercel's build infrastructure has been reliable here, so this is low-risk in practice.
+- The splash event-dispatch pattern relies on at least one of the three dispatchers firing. Edge entry points (`/onboarding`, `/welcome`, the auth callback) don't have dispatchers and fall back to the 2000ms MAX. Acceptable for now; could be extended later if real usage shows long fallbacks on those paths.
+- The `getCachedUser()` signature change is a one-shot migration — any future page that imports the old shape would break at compile time, which is the correct outcome.
+- The aurora loader's 150ms start-delay relies on `setTimeout`/`clearTimeout` precision. On heavily-throttled devices this could shift by a few ms; not enough to matter for the spinner-vs-no-spinner threshold.
+
+---
+
 ## [2026-04-29] — Sprint 10 Hotfix R1: Trading Terminal Polish + Rebalance Fanout + Feed Fixes
 
 **Files changed:**
