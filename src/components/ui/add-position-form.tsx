@@ -1,90 +1,139 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Loader2, X } from "lucide-react";
+import {
+  Loader2,
+  X,
+  Pencil,
+  TrendingUp,
+  TrendingDown,
+} from "lucide-react";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { InlineError } from "@/components/ui/inline-error";
+import {
+  TickerSearch,
+  type TickerSearchSelection,
+} from "@/components/ui/ticker-search";
 
 interface AddPositionFormProps {
   portfolioId: string;
   onDone: () => void;
 }
 
+type Quote = {
+  price: number | null;
+  change: number | null;
+  changePercent: number | null;
+  name?: string | null;
+};
+
+const THESIS_MAX = 280;
+
 /**
- * Inline "add position" form that mounts on a portfolio card. Writes the
- * row via POST /api/positions/manual with the portfolio_id set — the
- * route's Sprint 6 path fires fanOutPortfolioUpdate, so every active
- * dopler gets a buy notification on success. Auto-fetches current price
- * from /api/positions/price if the FM didn't enter one. Uses the Sprint
- * 4 <SubmitButton> + <InlineError> primitives for pending + error
- * surfaces.
+ * FM trading terminal. Replaces the legacy 4-column grid with a vertical
+ * flow: ticker search → live quote card → buy-mode toggle (shares vs.
+ * dollars) → thesis note → submit. Submits POST /api/positions/manual
+ * with the same shape as before plus `thesis_note`.
+ *
+ * Graceful degradation: if Finnhub + Yahoo both fail, the quote route
+ * returns `price: null` (200, not 502) — we surface a manual-price input
+ * so the FM can still add the position with their own pricing.
  */
 export function AddPositionForm({ portfolioId, onDone }: AddPositionFormProps) {
   const router = useRouter();
-  const [ticker, setTicker] = useState("");
+  const [selected, setSelected] = useState<TickerSearchSelection | null>(null);
+  const [quote, setQuote] = useState<Quote | null>(null);
+  const [quoteLoading, setQuoteLoading] = useState(false);
+  const [marketOpen, setMarketOpen] = useState<boolean | null>(null);
+  const [buyMode, setBuyMode] = useState<"shares" | "amount">("shares");
   const [shares, setShares] = useState("");
-  const [price, setPrice] = useState("");
-  const [priceLoading, setPriceLoading] = useState(false);
+  const [amount, setAmount] = useState("");
+  const [manualPrice, setManualPrice] = useState("");
+  const [thesis, setThesis] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  const lookupPrice = async () => {
-    const t = ticker.trim();
-    if (!t) return;
-    setPriceLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(
-        `/api/positions/price?ticker=${encodeURIComponent(t)}`
-      );
-      const data = (await res.json()) as { price?: number; error?: string };
-      if (!res.ok) {
-        setError(data.error ?? "price lookup failed");
-        return;
-      }
-      if (data.price != null) setPrice(String(data.price));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "price lookup failed");
-    } finally {
-      setPriceLoading(false);
+  // Fetch quote + market status in parallel on selection.
+  useEffect(() => {
+    if (!selected) {
+      setQuote(null);
+      setMarketOpen(null);
+      return;
     }
+    let cancelled = false;
+    setQuoteLoading(true);
+    Promise.all([
+      fetch(`/api/market/quote?ticker=${encodeURIComponent(selected.symbol)}`)
+        .then((r) => r.json())
+        .catch(() => ({
+          price: null,
+          change: null,
+          changePercent: null,
+        })),
+      fetch("/api/market/status")
+        .then((r) => r.json())
+        .catch(() => ({ isOpen: false })),
+    ]).then(([q, s]) => {
+      if (cancelled) return;
+      setQuote({
+        price: q?.price ?? null,
+        change: q?.change ?? null,
+        changePercent: q?.changePercent ?? null,
+        name: q?.name ?? null,
+      });
+      setMarketOpen(!!s?.isOpen);
+      setQuoteLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [selected]);
+
+  const reset = () => {
+    setSelected(null);
+    setQuote(null);
+    setMarketOpen(null);
+    setShares("");
+    setAmount("");
+    setManualPrice("");
+    setThesis("");
+    setError(null);
   };
 
+  const effectivePrice = (() => {
+    if (quote?.price != null) return quote.price;
+    const m = Number(manualPrice);
+    return Number.isFinite(m) && m > 0 ? m : null;
+  })();
+
+  const computedShares =
+    buyMode === "shares"
+      ? Number(shares) || 0
+      : effectivePrice && Number(amount)
+        ? Number(amount) / effectivePrice
+        : 0;
+  const computedTotal =
+    buyMode === "shares"
+      ? (Number(shares) || 0) * (effectivePrice ?? 0)
+      : Number(amount) || 0;
+
   const submit = async () => {
-    const t = ticker.trim().toUpperCase();
-    if (!t) return;
-    setError(null);
-
-    // Auto-fetch current price + name if the FM didn't set one manually.
-    // Same pattern as src/components/connect/manual-entry.tsx.
-    let currentPrice: number | null = price.trim()
-      ? Number(price)
-      : null;
-    let fetchedName: string | null = null;
-    if (currentPrice == null) {
-      try {
-        const p = await fetch(
-          `/api/positions/price?ticker=${encodeURIComponent(t)}`
-        );
-        if (p.ok) {
-          const j = (await p.json()) as { price?: number; name?: string };
-          currentPrice = j.price ?? null;
-          fetchedName = j.name ?? null;
-        }
-      } catch {
-        /* price lookup is optional; ignore */
-      }
+    if (!selected) return;
+    if (computedShares <= 0) {
+      setError("enter shares or amount");
+      return;
     }
-
+    setError(null);
     const res = await fetch("/api/positions/manual", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         portfolio_id: portfolioId,
-        ticker: t,
-        shares: shares ? Number(shares) : null,
-        current_price: currentPrice,
-        name: fetchedName,
+        ticker: selected.symbol,
+        shares: computedShares,
+        current_price: effectivePrice,
+        name: quote?.name ?? selected.description,
+        thesis_note: thesis.trim() || null,
       }),
     });
     const json = (await res.json().catch(() => ({}))) as { error?: string };
@@ -92,16 +141,16 @@ export function AddPositionForm({ portfolioId, onDone }: AddPositionFormProps) {
       setError(json.error ?? "could not add position");
       return;
     }
-    setTicker("");
-    setShares("");
-    setPrice("");
+    reset();
     router.refresh();
     onDone();
   };
 
+  const submitDisabled = !selected || computedShares <= 0 || !effectivePrice;
+
   return (
-    <div className="glass-card-light p-4 rounded-xl">
-      <div className="flex items-center justify-between mb-3">
+    <div className="glass-card-light p-4 rounded-xl space-y-4">
+      <div className="flex items-center justify-between">
         <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[color:var(--dopl-cream)]/50">
           add position
         </p>
@@ -113,59 +162,178 @@ export function AddPositionForm({ portfolioId, onDone }: AddPositionFormProps) {
           <X size={14} />
         </button>
       </div>
-      <div className="grid grid-cols-[1fr_80px_110px_auto] gap-2 items-center">
-        <input
-          type="text"
-          value={ticker}
-          onChange={(e) => setTicker(e.target.value.toUpperCase())}
-          placeholder="ticker"
-          className="bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/30 rounded-lg px-3 py-2 text-sm font-mono uppercase tracking-wider"
-        />
-        <input
-          type="number"
-          step="any"
-          value={shares}
-          onChange={(e) => setShares(e.target.value)}
-          placeholder="shares"
-          className="bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/30 rounded-lg px-3 py-2 text-sm font-mono"
-        />
-        <input
-          type="number"
-          step="any"
-          value={price}
-          onChange={(e) => setPrice(e.target.value)}
-          placeholder="price $"
-          className="bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/30 rounded-lg px-3 py-2 text-sm font-mono"
-        />
-        <button
-          onClick={lookupPrice}
-          disabled={!ticker.trim() || priceLoading}
-          title="look up current price"
-          className="p-2 rounded-lg glass-card-light hover:bg-[color:var(--dopl-sage)]/40 text-[color:var(--dopl-cream)]/70 disabled:opacity-40"
-          aria-label="look up current price"
-        >
-          {priceLoading ? (
-            <Loader2 size={14} className="animate-spin" />
+
+      {!selected ? (
+        <TickerSearch onSelect={setSelected} autoFocus />
+      ) : (
+        <>
+          {/* Selected ticker header — change link sends back to search */}
+          <div className="flex items-baseline justify-between">
+            <div className="min-w-0">
+              <p className="font-mono text-2xl font-bold tracking-tight text-[color:var(--dopl-lime)]">
+                {selected.symbol}
+              </p>
+              <p className="text-xs text-[color:var(--dopl-cream)]/50 truncate">
+                {quote?.name ?? selected.description}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={reset}
+              className="text-xs text-[color:var(--dopl-cream)]/50 hover:text-[color:var(--dopl-cream)] inline-flex items-center gap-1"
+              aria-label="change ticker"
+            >
+              <Pencil size={11} />
+              change
+            </button>
+          </div>
+
+          {/* Quote card OR manual-price fallback */}
+          {quoteLoading ? (
+            <div className="flex items-center gap-2 text-xs text-[color:var(--dopl-cream)]/40 py-2">
+              <Loader2 size={12} className="animate-spin" />
+              fetching live quote…
+            </div>
+          ) : quote?.price != null ? (
+            <div className="rounded-xl p-3 bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/25 flex items-center justify-between">
+              <div>
+                <p className="font-mono text-2xl font-bold tabular-nums">
+                  ${quote.price.toFixed(2)}
+                </p>
+                {quote.change != null && quote.changePercent != null && (
+                  <p
+                    className={`text-xs font-mono inline-flex items-center gap-1 mt-0.5 ${
+                      quote.change >= 0
+                        ? "text-[color:var(--dopl-lime)]"
+                        : "text-red-400"
+                    }`}
+                  >
+                    {quote.change >= 0 ? (
+                      <TrendingUp size={11} />
+                    ) : (
+                      <TrendingDown size={11} />
+                    )}
+                    {quote.change >= 0 ? "+" : ""}
+                    {quote.change.toFixed(2)} (
+                    {quote.changePercent >= 0 ? "+" : ""}
+                    {quote.changePercent.toFixed(2)}%)
+                  </p>
+                )}
+              </div>
+              <span
+                className={`text-[10px] font-mono uppercase tracking-[0.18em] px-2 py-1 rounded ${
+                  marketOpen
+                    ? "bg-[color:var(--dopl-lime)]/15 text-[color:var(--dopl-lime)]"
+                    : "bg-[color:var(--dopl-sage)]/40 text-[color:var(--dopl-cream)]/60"
+                }`}
+              >
+                {marketOpen ? "open" : "closed"}
+              </span>
+            </div>
           ) : (
-            <Search size={14} />
+            <div className="rounded-xl p-3 bg-[color:var(--dopl-deep)] border border-amber-500/25 space-y-2">
+              <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-amber-300/80">
+                price unavailable — enter manually
+              </p>
+              <input
+                type="number"
+                step="any"
+                value={manualPrice}
+                onChange={(e) => setManualPrice(e.target.value)}
+                placeholder="price per share $"
+                className="w-full bg-[color:var(--dopl-deep-2)] border border-[color:var(--dopl-sage)]/30 rounded-lg px-3 py-2 text-sm font-mono"
+              />
+            </div>
           )}
-        </button>
-      </div>
-      <div className="flex items-center justify-end mt-3">
-        <SubmitButton
-          onClick={submit}
-          disabled={!ticker.trim()}
-          pendingLabel="adding..."
-          className="text-xs px-4 py-2"
-          data-testid="add-position-submit"
-        >
-          add
-        </SubmitButton>
-      </div>
+
+          {/* Buy mode pills */}
+          <div className="flex items-center gap-2">
+            {(["shares", "amount"] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setBuyMode(mode)}
+                className={`text-xs px-3 py-1.5 rounded-full font-mono uppercase tracking-wider transition-colors ${
+                  buyMode === mode
+                    ? "bg-[color:var(--dopl-lime)]/15 text-[color:var(--dopl-lime)] border border-[color:var(--dopl-lime)]/30"
+                    : "text-[color:var(--dopl-cream)]/50 border border-[color:var(--dopl-sage)]/30 hover:text-[color:var(--dopl-cream)]"
+                }`}
+              >
+                {mode}
+              </button>
+            ))}
+          </div>
+
+          {/* Quantity input + computed counterpart */}
+          {buyMode === "shares" ? (
+            <div>
+              <input
+                type="number"
+                step="any"
+                value={shares}
+                onChange={(e) => setShares(e.target.value)}
+                placeholder="shares"
+                className="w-full bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/30 rounded-lg px-3 py-2.5 text-sm font-mono"
+              />
+              {Number(shares) > 0 && effectivePrice && (
+                <p className="text-[11px] font-mono text-[color:var(--dopl-cream)]/40 mt-1.5">
+                  {Number(shares)} sh × ${effectivePrice.toFixed(2)} = $
+                  {computedTotal.toFixed(2)}
+                </p>
+              )}
+            </div>
+          ) : (
+            <div>
+              <input
+                type="number"
+                step="any"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="$ amount"
+                className="w-full bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/30 rounded-lg px-3 py-2.5 text-sm font-mono"
+              />
+              {Number(amount) > 0 && effectivePrice && (
+                <p className="text-[11px] font-mono text-[color:var(--dopl-cream)]/40 mt-1.5">
+                  ${Number(amount).toFixed(2)} / ${effectivePrice.toFixed(2)} ≈{" "}
+                  {computedShares.toFixed(2)} sh
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Thesis note */}
+          <div>
+            <input
+              type="text"
+              value={thesis}
+              onChange={(e) =>
+                setThesis(e.target.value.slice(0, THESIS_MAX))
+              }
+              placeholder="why this trade? (optional)"
+              maxLength={THESIS_MAX}
+              className="w-full bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/30 rounded-lg px-3 py-2.5 text-sm placeholder:text-[color:var(--dopl-cream)]/30"
+            />
+            <p className="text-[10px] font-mono text-[color:var(--dopl-cream)]/30 mt-1 text-right">
+              {thesis.length}/{THESIS_MAX}
+            </p>
+          </div>
+
+          <div className="flex items-center justify-end pt-1">
+            <SubmitButton
+              onClick={submit}
+              disabled={submitDisabled}
+              pendingLabel="adding..."
+              className="text-xs px-5 py-2.5"
+              data-testid="add-position-submit"
+            >
+              add to portfolio
+            </SubmitButton>
+          </div>
+        </>
+      )}
+
       {error && (
-        <div className="mt-3">
-          <InlineError message={error} onDismiss={() => setError(null)} />
-        </div>
+        <InlineError message={error} onDismiss={() => setError(null)} />
       )}
     </div>
   );
