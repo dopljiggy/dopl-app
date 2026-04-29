@@ -1,4 +1,4 @@
-**Status:** revised — ready for round 2
+**Status:** implemented
 
 # Sprint 11: Performance — Perceived Load Speed
 
@@ -297,7 +297,7 @@ All 5 tasks are independent. Execute in any order. Recommended: 3, 4, 5 first (s
 - `src/app/notifications/loading.tsx`
 - `src/app/settings/loading.tsx`
 
-**Modify (23):**
+**Modify (25):**
 - `src/lib/supabase-server.ts` — extend getCachedUser() to return `{ supabase, user }` (Task 4 Step 1)
 - `src/app/layout.tsx` — replace Google Fonts link with next/font imports; optionally clean up literal font names from font-family stacks after CSS variable swap
 - `src/app/globals.css` — update font-family references to use `var(--font-inter)`, `var(--font-fraunces)`, `var(--font-jetbrains-mono)`
@@ -499,3 +499,50 @@ All resolvable with plan edits — no task restructuring needed. Re-review after
 **Nit 1 addressed:** Task 4 file list expanded to include layouts and all dashboard sub-pages.
 **Nit 2 addressed:** Task 3 files summary mentions optional font-stack literal cleanup.
 **Nit 3 addressed:** Task 2 adds explicit note about dispatch semantics.
+
+---
+
+## Plan Review — Round 2 (Instance 2)
+
+**Reviewed:** 2026-04-29
+**Round 1 findings:** 3 important, 3 nits
+
+### Round 1 Fix Verification
+
+1. **[IMPORTANT] Task 2 race — RESOLVED.** Defensive flag pattern is complete:
+   - Splash useEffect (lines 86-114) checks `(window as any).__doplContentReady` BEFORE adding the listener; dismisses immediately if true.
+   - Dispatcher pattern (lines 116-122) sets the flag BEFORE `dispatchEvent` — guaranteeing that even if the event fires before the splash mounts, the splash sees the flag on its first run.
+   - Three dispatch sites listed (lines 124-127): DoplerShell, dashboard layout, app/page.
+   - Eliminates dependency on React's sibling effect ordering, Suspense streaming, or future scheduler changes. The "set flag THEN dispatch" order is correct.
+
+2. **[IMPORTANT] Task 4 signature — RESOLVED.** Three explicit steps (lines 189-247):
+   - Step 1: signature change with full before/after diff. Required, not conditional.
+   - Step 2: lists the 2 existing callers (`(dashboard)/layout.tsx:11` and `(dashboard)/dashboard/page.tsx:12`) — verified directly via grep against the codebase, both files do exist and currently destructure the bare user.
+   - Step 3: 17-file migration list — **verified exhaustive** via `grep -rln "supabase.auth.getUser" src/app --include="*.tsx"`. Returns exactly 18 files; the 17 in the plan plus `auth/callback/route.ts` which is correctly excluded as a route handler. No missing files.
+
+3. **[IMPORTANT] Task 5 fetch flicker — RESOLVED.** Plan adopts Option B (start delay) over Option A (small min). Lines 265-269 specify: 150ms timeout before `start()` fires; cancel timeout if fetch resolves early; immediate `stop()` after fetch completes if `start()` already fired. The implementation pattern is clear enough — implementer can write it with one boolean flag and one timer. Eliminates the flicker by never starting the animation for fast fetches, rather than starting and immediately reversing it.
+
+### Nits Resolution
+
+- **Nit 1 (layouts in Task 4):** Resolved — list now includes layouts plus all dashboard sub-pages. Verified count matches grep.
+- **Nit 2 (font-stack literals):** Resolved — Files Summary line 302 mentions optional cleanup; globals.css explicitly listed as a modify target on line 303.
+- **Nit 3 (event semantics):** Resolved — line 84 honestly notes the dispatch fires when the client wrapper mounts, which is "page content is visible" not "data loaded."
+
+### New Issues Check
+
+No critical new issues. Two minor observations (no action needed):
+
+**Observation 1 — Files Summary count off-by-2.** Header says "Modify (23)" but the bullet list contains 25 items (lines 301-325). Trivial counting error; no functional impact. Implementer can fix in passing.
+
+**Observation 2 — Edge-case entry points without dispatchers.** Pages that don't render through DoplerShell, dashboard layout, or app/page (e.g., `/onboarding`, `/welcome`) won't fire the content-ready event. The splash will fall back to the MAX 2000ms timeout for those rare cold-launch entry paths. Acceptable: most users land on `/feed` (dopler) or `/dashboard` (FM); the defensive flag pattern still works for the common path. Could be improved later by adding dispatchers to those routes if it shows up in real usage.
+
+### Verdict: APPROVED
+
+All 3 Round 1 important findings resolved correctly. All 3 nits addressed. Plan is ready for Instance 3.
+
+**Implementer notes:**
+- Task 4 Step 1 (signature change) MUST land in the same commit as Step 2 (existing-caller fixes) — separating them produces a TypeScript error in the existing 2 callers between commits.
+- Task 4 Step 3 (17-file migration) can be a separate commit after Steps 1+2.
+- Task 5 implementation needs: `let pending = false; let timer: ReturnType<typeof setTimeout> | null = setTimeout(() => { pending = true; start(); }, 150);` then in finally: `if (timer) clearTimeout(timer); if (pending) stop();`.
+- Task 2 set the global flag BEFORE `dispatchEvent` (order matters — splash checks the flag synchronously before adding its listener).
+- Files Summary count is off by 2 (says 23, actually 25) — fix in passing.

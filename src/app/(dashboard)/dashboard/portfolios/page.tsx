@@ -1,12 +1,9 @@
-import { createServerSupabase } from "@/lib/supabase-server";
+import { getCachedUser } from "@/lib/supabase-server";
 import { redirect } from "next/navigation";
 import PortfoliosClient from "./portfolios-client";
 
 export default async function PortfoliosPage() {
-  const supabase = await createServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { supabase, user } = await getCachedUser();
   if (!user) redirect("/login");
 
   const { data: portfolios } = await supabase

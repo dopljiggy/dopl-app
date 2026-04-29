@@ -1,11 +1,8 @@
-import { createServerSupabase } from "@/lib/supabase-server";
+import { getCachedUser } from "@/lib/supabase-server";
 import MarketingLanding, { type Viewer } from "./marketing-landing";
 
 export default async function LandingPage() {
-  const supabase = await createServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { supabase, user } = await getCachedUser();
 
   let viewer: Viewer = null;
   if (user) {

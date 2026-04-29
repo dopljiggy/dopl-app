@@ -1,20 +1,16 @@
-import { createServerSupabase } from "@/lib/supabase-server";
+import { getCachedUser } from "@/lib/supabase-server";
 import Link from "next/link";
 import LeaderboardList from "./leaderboard-list";
 import DoplerShell from "@/components/dopler-shell";
 
 export default async function LeaderboardPage() {
-  const supabase = await createServerSupabase();
+  const { supabase, user } = await getCachedUser();
 
   const { data: managers } = await supabase
     .from("fund_managers")
     .select("*")
     .order("subscriber_count", { ascending: false })
     .limit(50);
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
   // Decide chrome: authed users get the DoplerShell (consistent nav);
   // visitors get a minimal public header.

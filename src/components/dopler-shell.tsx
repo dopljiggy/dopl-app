@@ -87,6 +87,16 @@ export default function DoplerShell({
       navigator.serviceWorker?.removeEventListener("message", onMessage);
   }, []);
 
+  // Signal the StandaloneSplash that page content has mounted. Set the
+  // global flag BEFORE dispatching so the splash can check it
+  // synchronously when its own effect runs, even if that's after this
+  // effect (concurrent mode, Suspense streaming).
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as Window & typeof globalThis & { __doplContentReady?: boolean }).__doplContentReady = true;
+    window.dispatchEvent(new Event("dopl:content-ready"));
+  }, []);
+
   // Clear any delivered push notifications still in the OS notification
   // tray when the app becomes visible. Two trigger points:
   //   1. Initial mount — covers "user opened the app directly", which

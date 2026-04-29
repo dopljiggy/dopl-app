@@ -1,12 +1,9 @@
-import { createServerSupabase } from "@/lib/supabase-server";
+import { getCachedUser } from "@/lib/supabase-server";
 import { redirect } from "next/navigation";
 import ProfileClient from "./profile-client";
 
 export default async function ProfilePage() {
-  const supabase = await createServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { supabase, user } = await getCachedUser();
   if (!user) redirect("/login");
 
   const { data: fm } = await supabase

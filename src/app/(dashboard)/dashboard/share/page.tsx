@@ -1,18 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
-import { createServerClient } from "@supabase/ssr";
+import { getCachedUser } from "@/lib/supabase-server";
 import ShareClient from "./share-client";
 
 export default async function SharePage() {
-  // Get current user via cookie-based auth
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll() { return cookieStore.getAll(); }, setAll() {} } }
-  );
-  const { data: { user } } = await supabase.auth.getUser();
-
+  const { user } = await getCachedUser();
   if (!user) return <div>not logged in</div>;
 
   // Use service role to bypass RLS and guarantee we get the data

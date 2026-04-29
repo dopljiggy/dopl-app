@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { createServerSupabase } from "@/lib/supabase-server";
+import { getCachedUser } from "@/lib/supabase-server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import PortfolioDetailClient from "./portfolio-detail-client";
@@ -18,10 +18,7 @@ export default async function PortfolioDetail({
   // gated below by canView (isOwner || isFree || subscribed), so admin
   // here just removes the redirect-to-/feed dead-end the dopler hit when
   // the inactive-filter zeroed the row out.
-  const supabase = await createServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { supabase, user } = await getCachedUser();
   if (!user) redirect("/login");
 
   const admin = createClient(

@@ -1,6 +1,4 @@
 import { createClient } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
-import { createServerClient } from "@supabase/ssr";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import DoplerShell from "@/components/dopler-shell";
@@ -8,6 +6,7 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { type PositionLike } from "@/components/ui/position-card";
 import FeedSections from "./feed-sections";
 import { resolveFm } from "@/lib/fm-resolver";
+import { getCachedUser } from "@/lib/supabase-server";
 
 type FundManagerRow = {
   id: string;
@@ -36,23 +35,7 @@ type SubscriptionRow = {
 };
 
 export default async function FeedPage() {
-  // Auth via cookie-based client.
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll() {},
-      },
-    }
-  );
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user } = await getCachedUser();
   if (!user) redirect("/login");
 
   // Service role: bypass RLS so joins on fund_managers always resolve.

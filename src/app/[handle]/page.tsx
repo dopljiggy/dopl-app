@@ -1,4 +1,4 @@
-import { createServerSupabase } from "@/lib/supabase-server";
+import { getCachedUser } from "@/lib/supabase-server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import ProfileHero from "./profile-hero";
@@ -30,7 +30,7 @@ export default async function FundManagerProfile({
 
   if (RESERVED.has(handle)) return notFound();
 
-  const supabase = await createServerSupabase();
+  const { supabase, user } = await getCachedUser();
 
   // Case-insensitive lookup so /Kai and /kai both resolve. Wrap in try/catch
   // so a transient Supabase error doesn't look like a 404 — show a graceful
@@ -75,9 +75,6 @@ export default async function FundManagerProfile({
   if (!fm) return notFound();
 
   // Current user (used to check subscriptions for live gating).
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
   const isOwner = user?.id === fm.id;
 
   // Doplers browsing a public profile get the dopler shell wrapper so their

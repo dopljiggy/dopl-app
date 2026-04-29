@@ -1,12 +1,9 @@
-import { createServerSupabase } from "@/lib/supabase-server";
+import { getCachedUser } from "@/lib/supabase-server";
 import { redirect } from "next/navigation";
 import OnboardingClient from "./onboarding-client";
 
 export default async function OnboardingPage() {
-  const supabase = await createServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { supabase, user } = await getCachedUser();
   if (!user) redirect("/login");
 
   const { data: profile } = await supabase

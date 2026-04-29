@@ -51,29 +51,39 @@ export function LoadingProvider({ children }: { children: React.ReactNode }) {
     setCount((c) => Math.max(0, c - 1));
   }, []);
 
-  // Trigger a brief aurora on every route change.
+  // Trigger a brief aurora on every route change. Skeleton loading.tsx
+  // files cover the meaty initial-render case, so this is just a tail
+  // shimmer for fast in-app navigations.
   useEffect(() => {
     start("nav");
     if (pathTimer.current) clearTimeout(pathTimer.current);
-    pathTimer.current = setTimeout(() => stop("nav"), 420);
+    pathTimer.current = setTimeout(() => stop("nav"), 150);
     return () => {
       if (pathTimer.current) clearTimeout(pathTimer.current);
     };
   }, [pathname, start, stop]);
 
-  // Patch window.fetch once so every API call pulses the aurora.
+  // Patch window.fetch with a start-delay pattern: only show the aurora
+  // if the request is still pending after 150ms. Sub-150ms requests
+  // (the bulk of API calls in normal usage) show no spinner at all,
+  // which avoids the flicker the previous 200ms post-extension caused
+  // (CSS opacity 420ms ramp would barely begin then immediately reverse).
   useEffect(() => {
     if (typeof window === "undefined") return;
     const orig = window.fetch;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (window as any).__origFetch ??= orig;
     window.fetch = async (...args) => {
-      start();
+      let started = false;
+      const timer = setTimeout(() => {
+        started = true;
+        start();
+      }, 150);
       try {
         return await orig(...args);
       } finally {
-        // small min-duration so quick calls still register visually
-        setTimeout(() => stop(), 200);
+        clearTimeout(timer);
+        if (started) stop();
       }
     };
     return () => {
