@@ -20,10 +20,6 @@ import {
   Cell,
   ResponsiveContainer,
   Tooltip,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
 } from "recharts";
 import { useRouter } from "next/navigation";
 import { GlassCard } from "@/components/ui/glass-card";
@@ -262,18 +258,6 @@ export default function ExpandablePortfolioCard({
     }))
     .filter((d) => d.value > 0);
 
-  // Placeholder performance series — real historical snapshots would plug in here.
-  const perfData = useMemo(() => {
-    const seed = positions.length || 1;
-    const out = [];
-    let v = 100;
-    for (let i = 0; i < 30; i++) {
-      v += Math.sin(i * 0.6 + seed) * 1.4 + (i / 30) * 1.5;
-      out.push({ day: i, value: Number(v.toFixed(2)) });
-    }
-    return out;
-  }, [positions.length]);
-
   const isFree = portfolio.tier === "free" || portfolio.price_cents === 0;
 
   return (
@@ -364,83 +348,73 @@ export default function ExpandablePortfolioCard({
                       no positions yet
                     </div>
                   ) : (
-                    <div className="h-[180px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={donutData}
-                            innerRadius={45}
-                            outerRadius={80}
-                            paddingAngle={2}
-                            dataKey="value"
-                            stroke="none"
+                    <>
+                      <div className="h-[180px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={donutData}
+                              innerRadius={45}
+                              outerRadius={80}
+                              paddingAngle={2}
+                              dataKey="value"
+                              stroke="none"
+                            >
+                              {donutData.map((_, i) => (
+                                <Cell
+                                  key={i}
+                                  fill={PIE_COLORS[i % PIE_COLORS.length]}
+                                />
+                              ))}
+                            </Pie>
+                            <Tooltip
+                              contentStyle={{
+                                background: "rgba(13, 38, 31, 0.9)",
+                                border: "1px solid rgba(197, 214, 52, 0.22)",
+                                borderRadius: 10,
+                                fontSize: 12,
+                                color: "#F3EFE8",
+                              }}
+                              formatter={(v) => `${Number(v).toFixed(1)}%`}
+                            />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3">
+                        {donutData.map((d, i) => (
+                          <div
+                            key={d.name}
+                            className="flex items-center gap-1.5 text-[10px] font-mono text-[color:var(--dopl-cream)]/60"
                           >
-                            {donutData.map((_, i) => (
-                              <Cell
-                                key={i}
-                                fill={PIE_COLORS[i % PIE_COLORS.length]}
-                              />
-                            ))}
-                          </Pie>
-                          <Tooltip
-                            contentStyle={{
-                              background: "rgba(13, 38, 31, 0.9)",
-                              border: "1px solid rgba(197, 214, 52, 0.22)",
-                              borderRadius: 10,
-                              fontSize: 12,
-                              color: "#F3EFE8",
-                            }}
-                            formatter={(v) => `${Number(v).toFixed(1)}%`}
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
+                            <span
+                              className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
+                              style={{
+                                backgroundColor:
+                                  PIE_COLORS[i % PIE_COLORS.length],
+                              }}
+                            />
+                            {d.name}
+                          </div>
+                        ))}
+                      </div>
+                    </>
                   )}
                 </div>
 
-                {/* Line chart (placeholder trend) */}
-                <div className="lg:col-span-3 glass-card-light p-5 rounded-2xl">
-                  <div className="flex items-baseline justify-between mb-3">
-                    <p className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/50">
-                      30-day performance
-                    </p>
-                    <p className="text-[10px] font-mono text-[color:var(--dopl-cream)]/30">
-                      illustrative
-                    </p>
-                  </div>
-                  <div className="h-[180px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={perfData}>
-                        <defs>
-                          <linearGradient id="perfLine" x1="0" x2="1" y1="0" y2="0">
-                            <stop offset="0%" stopColor="#2D4A3E" />
-                            <stop offset="100%" stopColor="#C5D634" />
-                          </linearGradient>
-                        </defs>
-                        <XAxis dataKey="day" hide />
-                        <YAxis hide domain={["dataMin - 2", "dataMax + 2"]} />
-                        <Tooltip
-                          contentStyle={{
-                            background: "rgba(13, 38, 31, 0.9)",
-                            border: "1px solid rgba(197, 214, 52, 0.22)",
-                            borderRadius: 10,
-                            fontSize: 12,
-                            color: "#F3EFE8",
-                          }}
-                          formatter={(v) => Number(v).toFixed(2)}
-                          labelFormatter={(d) => `day ${d}`}
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="value"
-                          stroke="url(#perfLine)"
-                          strokeWidth={2.2}
-                          dot={false}
-                          isAnimationActive
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
+                {/* 30-day performance — placeholder until historical
+                    snapshots are wired up. The previous LineChart drew
+                    a sin-based fake series which read as real data. */}
+                <div className="lg:col-span-3 glass-card-light p-5 rounded-2xl flex flex-col items-center justify-center text-center">
+                  <TrendingUp
+                    size={24}
+                    className="text-[color:var(--dopl-cream)]/15 mb-2"
+                  />
+                  <p className="text-xs text-[color:var(--dopl-cream)]/40">
+                    performance tracking coming soon
+                  </p>
+                  <p className="text-[10px] text-[color:var(--dopl-cream)]/25 mt-1">
+                    historical portfolio returns will appear here
+                  </p>
                 </div>
               </div>
 
