@@ -641,67 +641,150 @@ useEffect(() => {
 
 ## Task H4: Upsert Fanout (Rebalance Notification)
 
-**File:** `src/app/api/positions/manual/route.ts`
+**Files:** `src/lib/notification-fanout.ts`, `src/app/api/positions/manual/route.ts`
 
 **Root cause:** The upsert path (lines 192-208) explicitly skips `fanOutPortfolioUpdate`. Comment: "ticker already exists means the FM is editing shares/price, not adding a new holding, so no fanout." Surfer wants doplers notified when the FM increases or decreases an existing position.
 
 **Changes:**
 
+### Step 1: Extend FanoutChange rebalance variant (notification-fanout.ts)
+
+Line 21: add `price?: number` to the rebalance variant (currently missing — Sprint 10 Task 5a only added `price` to buy/sell):
+
+```ts
+// Before:
+| { type: "rebalance"; ticker: string; prevShares: number; shares: number };
+// After:
+| { type: "rebalance"; ticker: string; prevShares: number; shares: number; price?: number };
+```
+
+This MUST happen before the route change below, otherwise TypeScript rejects `price` on rebalance objects. Separate commit.
+
+### Step 2: Fire fanout on upsert (manual/route.ts)
+
 1. Line ~196: change `.select("id")` → `.select("id, shares")` on the existing-position lookup.
 
-2. After the successful update (line ~206), when `isExplicitPortfolio`, fire fanout:
+2. After the successful update (line ~206), when `isExplicitPortfolio` **and shares actually changed**, fire fanout:
    ```ts
    if (isExplicitPortfolio) {
      const prevShares = Number(existing.shares) || 0;
-     await fanOutPortfolioUpdate(createAdminClient(), {
-       portfolio_id: portfolioId,
-       fund_manager_id: user.id,
-       changes: [{
-         type: "rebalance",
-         ticker,
-         prevShares,
-         shares: shares ?? 0,
-         price: price ?? undefined,
-       }],
-       description: `rebalanced ${ticker}`,
-       thesis_note: body.thesis_note ?? null,
-     });
+     const newShares = shares ?? 0;
+     if (prevShares !== newShares) {
+       await fanOutPortfolioUpdate(createAdminClient(), {
+         portfolio_id: portfolioId,
+         fund_manager_id: user.id,
+         changes: [{
+           type: "rebalance",
+           ticker,
+           prevShares,
+           shares: newShares,
+           price: price ?? undefined,
+         }],
+         description: `rebalanced ${ticker}`,
+         thesis_note: body.thesis_note ?? null,
+       });
+     }
    }
    ```
 
 3. Remove or update the comment at line ~191 to reflect the new behavior.
 
-**Exit criteria:** When FM buys more of an existing ticker (upsert), every active dopler on the portfolio receives a notification. When FM reduces shares, same. When using the Manual Holdings path (no portfolio_id), no fanout fires (unchanged).
+**Guard:** `prevShares !== newShares` prevents notification spam on no-op updates (re-submitting unchanged shares would otherwise produce "rebalanced AMPX · 42 → 42 shares").
+
+**Exit criteria:** When FM changes shares on an existing ticker (upsert), every active dopler on the portfolio receives a notification. No notification fires when shares are unchanged. When using the Manual Holdings path (no portfolio_id), no fanout fires (unchanged).
 
 **Depends on:** None (can run in parallel with H1-H3, but logically H3 is what triggers this path from the UI)
 
 ---
 
-## Task H5: Rebalance Notification Body
+## Task H5: Rebalance Notification Body + Routing Fix
 
 **File:** `src/lib/notification-fanout.ts`
 
-**Current state:** `describeOneChange` handles the `rebalance` variant with `"rebalanced {ticker}"` only. No price, no share detail, no thesis.
+**Two problems:**
+1. `describeOneChange` signature is `(change: FanoutChange & { type: "buy" | "sell" })` — doesn't accept rebalance.
+2. The notification loop (lines 124-172) routes ALL rebalances through a summary path: `"rebalanced — N positions"`. Single-ticker rebalances (from H4) need per-ticker enriched bodies. Multi-ticker rebalances (SnapTrade sync diffs) should keep the summary path to avoid notification spam.
 
-**Changes to `describeOneChange(change, thesisNote?)`:**
+**Changes:**
 
-For the `rebalance` variant:
-- With price + shares: `"rebalanced AMPX · 42 → 60 shares · $189.50"`
-- With thesis: `"rebalanced AMPX · 42 → 60 shares — 'doubling down on infrastructure'"`
-- With price only (no share change visible): `"rebalanced AMPX · $189.50"`
-- Fallback: `"rebalanced AMPX"` (backward compat)
+### Step 1: Widen `describeOneChange` signature
 
-The `rebalance` variant in `FanoutChange` already has `prevShares` and `shares`. It gained `price?: number` in Task 5a. No type changes needed.
+```ts
+// Before:
+function describeOneChange(
+  change: FanoutChange & { type: "buy" | "sell" },
+  thesisNote?: string | null
+): string {
+
+// After:
+function describeOneChange(
+  change: FanoutChange,
+  thesisNote?: string | null
+): string {
+```
+
+Add the rebalance case inside the function:
+```ts
+if (change.type === "rebalance") {
+  const parts: string[] = [`rebalanced ${change.ticker}`];
+  if (change.prevShares != null && change.shares != null) {
+    parts.push(`${change.prevShares} → ${change.shares} shares`);
+  }
+  if (change.price != null) parts.push(`$${change.price.toFixed(2)}`);
+  let body = parts.join(" · ");
+  const thesis = thesisNote?.trim();
+  if (thesis) body += ` — '${thesis}'`;
+  return body;
+}
+```
+
+### Step 2: Route single-ticker rebalances individually
+
+In the notification loop, split the rebalance handling:
+
+```ts
+// Before (lines 157-172): all rebalances → one summary row
+if (rebalances.length > 0) {
+  notifRows.push({ ... body: `rebalanced — ${rebalances.length} position${...}` ... });
+}
+
+// After: single rebalance → per-ticker enriched row, multi → summary
+if (rebalances.length === 1) {
+  notifRows.push({
+    user_id: userId,
+    portfolio_update_id: updateId,
+    title: portfolio.name,
+    body: describeOneChange(rebalances[0], input.thesis_note),
+    actionable: true,
+    change_type: "rebalance",
+    ticker: rebalances[0].ticker,
+    meta: {
+      shares: rebalances[0].shares,
+      prev_shares: rebalances[0].prevShares,
+      price: rebalances[0].price,
+      portfolio_id: input.portfolio_id,
+      ...(input.meta_extend ?? {}),
+    },
+  });
+} else if (rebalances.length > 1) {
+  // Multi-ticker rebalance (SnapTrade sync) — summary to avoid spam
+  notifRows.push({ ... body: `rebalanced — ${rebalances.length} positions` ... });
+}
+```
+
+The `individuals` filter (line 124-127) stays unchanged — it still only collects buy/sell. The type-narrowing cast `as Extract<FanoutChange, { type: "buy" | "sell" }>` is no longer needed since `describeOneChange` now accepts all variants, but keeping it is harmless.
+
+### Step 3: Tests
 
 **File:** `src/lib/__tests__/notification-fanout.test.ts`
 
 Add 2 test cases:
-1. Rebalance with price + shares → `"rebalanced AMPX · 42 → 60 shares · $189.50"`
-2. Rebalance with thesis → body includes thesis quote
+1. Single rebalance with price + shares → notification body: `"rebalanced AMPX · 42 → 60 shares · $189.50"`
+2. Single rebalance with thesis → body includes thesis quote
 
-**Exit criteria:** Lock screen shows "Portfolio Name / rebalanced AMPX · 42 → 60 shares · $189.50" or with thesis appended.
+**Exit criteria:** Lock screen shows "Portfolio Name / rebalanced AMPX · 42 → 60 shares · $189.50" or with thesis appended. Multi-ticker rebalances (SnapTrade sync) still produce summary notifications.
 
-**Depends on:** H4 (the upsert path now sends rebalance changes)
+**Depends on:** H4 (rebalance type extension + upsert path)
 
 ---
 
@@ -717,17 +800,17 @@ Line 218: change `g/l` → `p/l` in the table header. Rename the `gl` / `glPosit
 
 **File:** `src/app/feed/feed-sections.tsx`
 
-When `allocation_pct` is null (older positions, FM hasn't saved allocations), compute it client-side from `market_value` — same logic the FM portfolio card uses:
+When `allocation_pct` is null (older positions, FM hasn't saved allocations), compute it client-side from `market_value` — same logic the FM portfolio card uses.
 
-In `PositionTable`, compute the total market value across all positions, then for each row: `alloc = (pos.market_value / total) * 100`. Fall back to "—" only when `market_value` is also null.
+In `PositionTable`, compute the total market value across the positions passed to the component (already scoped to one portfolio — `PositionTable` receives `s.positions` per `PortfolioCard`). For each row: `alloc = (pos.market_value / total) * 100`. Use DB `allocation_pct` when present; fall back to computed; show "—" only when both `allocation_pct` and `market_value` are null.
 
 ### H6c: Debug "View Full Portfolio" Link
 
 **File:** `src/app/feed/[portfolioId]/page.tsx`
 
-The route exists and `s.portfolio_id` is always defined in the data flow. Surfer reports clicking the link "takes me nowhere." Investigate: check for runtime errors (missing data, auth issues, empty render). The link itself at `feed-sections.tsx:192-197` uses `<Link href={/feed/${s.portfolio_id}}>` which is correct. Likely a bug in the detail page — could be a data fetch that returns empty and renders nothing, or a redirect condition that bounces the user.
+The route exists and `s.portfolio_id` is always defined in the data flow. Surfer reports clicking the link "takes me nowhere." Investigate: check for runtime errors (missing data, auth issues, empty render). The link itself at `feed-sections.tsx:192-197` uses `<Link href={/feed/${s.portfolio_id}}>` which is correct. Likely a bug in the detail page — could be a data fetch that returns empty and renders nothing, or a redirect condition that bounces the user. **Ship as a documented finding if the root cause isn't immediately clear** — don't block the hotfix round on this.
 
-**Exit criteria:** Feed table header shows "p/l". Allocation column shows computed percentages instead of "—" for positions with market_value. "View full portfolio →" navigates to the detail page successfully.
+**Exit criteria:** Feed table header shows "p/l". Allocation column shows computed percentages instead of "—" for positions with market_value. H6c: either fix confirmed or root cause documented for follow-up.
 
 **Depends on:** None
 
@@ -787,14 +870,17 @@ Remove the `perfData` useMemo, the `LineChart`/`Line`/`XAxis`/`YAxis` imports (i
 
 **Root cause:** When clicking a notification from the bell dropdown, `setPopup(...)` and `setOpen(false)` fire in the same handler. The dropdown's exit animation (portal teardown) races with the popup mount, causing a layout shift on mobile — the popup appears at the top of the screen instead of centered.
 
-**Fix:** Wrap the popup open in `requestAnimationFrame` so it fires after the dropdown's exit:
+**Fix:** Use the dropdown's `AnimatePresence` `onExitComplete` callback or `requestAnimationFrame` to delay popup mount until after the dropdown portal tears down. Try `requestAnimationFrame` first; if the layout shift persists on mobile, escalate to `onExitComplete` on the dropdown's `AnimatePresence`:
 
 ```tsx
-// In the notification click handler:
+// Option A (try first): rAF delay
 setOpen(false);
 requestAnimationFrame(() => {
   setPopup(notification);
 });
+
+// Option B (if A insufficient): onExitComplete on dropdown AnimatePresence
+// Move setPopup into the onExitComplete callback
 ```
 
 ### H8b: Clear Push Notifications on App Open
@@ -813,12 +899,14 @@ useEffect(() => {
       reg.getNotifications().then((ns) => ns.forEach((n) => n.close()))
     );
   };
+  // Clear on initial mount (app opened directly, not via push tap).
+  clearPush();
   document.addEventListener("visibilitychange", clearPush);
   return () => document.removeEventListener("visibilitychange", clearPush);
 }, []);
 ```
 
-Note: `ServiceWorkerRegistration.getNotifications()` is supported in Chrome, Firefox, Edge, and Safari 16+. On older Safari/iOS where it's unavailable, the optional chaining on `navigator.serviceWorker` handles it gracefully.
+Note: `ServiceWorkerRegistration.getNotifications()` is supported in Chrome, Firefox, Edge, and Safari 16+. On older Safari/iOS where it's unavailable, the optional chaining on `navigator.serviceWorker` handles it gracefully. The initial `clearPush()` call covers the case where `visibilitychange` doesn't fire on first load.
 
 **Exit criteria:** Clicking a notification from the bell opens the detail popup centered on screen, not at the top. Opening the app clears any pending push notifications from the notification tray.
 
@@ -832,14 +920,23 @@ Note: `ServiceWorkerRegistration.getNotifications()` is supported in Chrome, Fir
 H1 (overflow fix) ──┐
 H2 (draft sync)  ───┤
                      ├── H3 (inline adjust/delete)
-H4 (upsert fanout) ─── H5 (rebalance body)
+H4 step 1 (rebalance type ext) ─── H4 step 2 (route change) ─── H5 (rebalance body + routing)
 
 H6 (feed fixes)      — independent
 H7 (pie + chart)      — independent
 H8 (notification)     — independent
 ```
 
-**Recommended execution:** H1, H2, H4 in parallel → H3, H5 → H6, H7, H8 (independent, any order)
+**Recommended execution:** H1, H2, H4-step-1 in parallel → H3, H4-step-2 → H5 → H6, H7, H8 (independent, any order)
+
+**Implementer notes from reviewer:**
+1. H4 step 1 (FanoutChange type extension) must be a separate commit before H4 step 2 (route change) — same pattern as Sprint 10 Task 5a/5b.
+2. H4 step 2 must guard `prevShares !== newShares` to prevent notification spam on no-op updates.
+3. H5: the `individuals` filter on line 124-127 stays buy/sell only. Single rebalances route individually; multi-rebalance keeps the summary path.
+4. H6b: total market value is per-portfolio (already scoped by `PositionTable` props).
+5. H6c: ship as documented finding if root cause isn't immediately clear.
+6. H8a: try rAF first, escalate to `onExitComplete` if layout shift persists.
+7. H8b: fire `clearPush()` on initial mount AND on visibilitychange.
 
 ---
 
@@ -888,3 +985,126 @@ H8 (notification)     — independent
 **Portfolio Card:**
 13. Pie chart has color legend showing ticker names
 14. 30-day section shows "performance tracking coming soon" placeholder
+
+---
+
+## Hotfix R1 Plan Review (Instance 2)
+
+**Reviewed:** 2026-04-29
+**Reviewer focus:** H3 body shape, H4 + H5 fanout typing, H6b architecture, H8b cross-browser
+
+### Verified ✓
+
+1. **H1 — overflow fix is the canonical pattern.** framer-motion's `transitionEnd: { overflow: "visible" }` after expand and `overflow: "hidden"` on exit is the established workaround for absolute-positioned children inside an animated `height: auto` container. Move from className to inline style as the plan describes.
+
+2. **H2 — draft sync is correct.** The `useEffect` on `[positions, brokerPcts]` runs whenever positions arrive via `router.refresh()`, additively populating draft entries that don't exist and pruning entries for removed positions. The `(prev) => ({...prev, ...})` shape preserves any in-flight FM edits.
+
+3. **H3 — manual route body shape supports the inline-adjust flow.** Verified directly against `src/app/api/positions/manual/route.ts` lines 119-128: POST body type already accepts `{portfolio_id, ticker, name, shares, current_price, thesis_note}` (and ignores `id` when not provided). The upsert path at lines 191-209 matches: ticker exists → update via `.update(row)`. **No API changes required.** Plan's claim is accurate.
+
+4. **H6a, H6b — client-side allocation is architecturally fine for a hotfix.** Per-portfolio compute mirrors `expandable-portfolio-card.tsx` lines 75-86 (`brokerPcts` useMemo). No server changes, no schema changes, ~8 lines added in feed-sections. The duplication with the FM card is acceptable because both views compute the same percentage from the same source. Long-term, a DB-trigger or server-side compute on insert would centralize the logic, but that's out of scope.
+
+5. **H7a, H7b — pie legend + chart removal are mechanical.** No risk. Verify the `Tooltip` import stays (still used by PieChart) when removing `LineChart`/`Line`/`XAxis`/`YAxis`.
+
+6. **H8b — `getNotifications()` works on iOS Safari 16.4+ PWA.** Web Push and `ServiceWorkerRegistration.getNotifications()` ship together on iOS 16.4. Earlier iOS versions don't support Web Push at all, so there's nothing to clear and the optional chain on `navigator.serviceWorker?.ready` covers them. The MDN compatibility table confirms support across Chrome, Firefox, Edge, and Safari 16+ for the SW registration path.
+
+### Findings
+
+**Finding 1 — [CRITICAL] H5's rebalance type claim is wrong**
+
+H5 says: *"The `rebalance` variant in `FanoutChange` already has `prevShares` and `shares`. It gained `price?: number` in Task 5a. No type changes needed."*
+
+This is **factually incorrect**. Verified against the current `src/lib/notification-fanout.ts` line 21:
+
+```typescript
+| { type: "rebalance"; ticker: string; prevShares: number; shares: number };
+```
+
+Sprint 10's Task 5a only added `price?: number` to the buy and sell variants. The rebalance variant was intentionally left unchanged (documented in Round 2 plan review notes: "rebalance variant of FanoutChange left unchanged"). H4's snippet writes `price: price ?? undefined` onto a rebalance change, which TypeScript will reject:
+
+```
+Object literal may only specify known properties, and 'price' does not exist in type
+'{ type: "rebalance"; ticker: string; prevShares: number; shares: number; }'
+```
+
+**Fix:** Move the rebalance-variant extension into H4 (or a new tiny H4-prereq sub-task):
+```typescript
+| {
+    type: "rebalance";
+    ticker: string;
+    prevShares: number;
+    shares: number;
+    price?: number;
+  };
+```
+Additive, backward-compatible (callers in `snaptrade/sync` don't supply price, which is fine since it's optional). Update H5's note that says "no type changes needed."
+
+**Finding 2 — [CRITICAL] H5 doesn't address how rebalance changes get routed through `describeOneChange`**
+
+The current fanout loop (notification-fanout.ts lines 124-188) splits changes into two paths:
+- `individuals = changes.filter(c => c.type === "buy" || c.type === "sell")` — routed through `describeOneChange()` per-ticker
+- `rebalances = changes.filter(c => c.type === "rebalance")` — combined into ONE summary notification per sub: `"rebalanced — N positions"`
+
+`describeOneChange`'s signature explicitly excludes rebalance:
+```typescript
+function describeOneChange(
+  change: FanoutChange & { type: "buy" | "sell" },
+  thesisNote?: string | null
+): string
+```
+
+H5 wants the rebalance variant to produce bodies like `"rebalanced AMPX · 42 → 60 shares · $189.50"` via `describeOneChange`. That requires:
+
+1. **Widen the signature** from `change: FanoutChange & { type: "buy" | "sell" }` to `change: FanoutChange` (and add a `case "rebalance"` to the body composition).
+2. **Change the call site** so single-ticker rebalances are routed per-ticker through `describeOneChange` instead of the summary path. The simplest split: when `rebalances.length === 1`, treat the single rebalance as an individual (per-ticker, enriched body); when `> 1`, keep the existing summary (avoids notification spam during snaptrade-sync rebalances which can produce many changes at once).
+
+H5 should make both of these explicit. As written, the plan reads as a function-body change only, which is insufficient — implementer would either widen the signature ad-hoc (no spec), or hit a compile error and ask.
+
+**Fix to H5:** Add two sub-bullets:
+- Widen `describeOneChange` signature to accept `FanoutChange` (all variants); add a `case "rebalance"` block.
+- In the fanout loop: when `rebalances.length === 1`, push the rebalance through the individuals branch; when `>= 2`, keep the summary notification.
+
+**Finding 3 — [IMPORTANT] H4 will fire fanout on no-op updates**
+
+The upsert path at line 200-208 calls `.update(row)` regardless of whether `shares` or `price` actually changed. With H4's new fanout, an FM who hits "confirm" on the inline-adjust flow with the SAME share count (or accidentally re-submits) will produce a notification like `"rebalanced AMPX · 42 → 42 shares · $189.50"` — the body literally states "no change happened."
+
+**Fix:** Guard the fanout in H4 with a no-op detector:
+```typescript
+const prevShares = Number(existing.shares) || 0;
+const newShares = shares ?? 0;
+if (prevShares !== newShares) {
+  await fanOutPortfolioUpdate(...);
+}
+```
+Price-only updates without share change still skip fanout — quote refreshes shouldn't notify. If price-only changes need to notify in the future, that's a different change type ("price update") not a rebalance.
+
+**Finding 4 — [IMPORTANT] H6b ambiguity: "total market value across all positions"**
+
+H6b says *"compute the total market value across all positions, then for each row: `alloc = (pos.market_value / total) * 100`."* In feed-sections, the dopler may have multiple subscribed portfolios visible simultaneously. The implementer might naively sum across all sections — that would produce wrong percentages.
+
+**Fix:** Make explicit: "compute total within each portfolio's `PositionTable` instance, not across the entire feed page." Since `PositionTable` already takes `positions: PositionLike[]` scoped to one portfolio, the fix is per-component natural — but the plan should say so to prevent misinterpretation.
+
+**Finding 5 — [NIT] H8b should also fire on initial mount**
+
+`visibilitychange` doesn't fire on first page load — only on subsequent visibility transitions. If the dopler taps a push, the SW posts PUSH_NAV and navigates them in, but the lingering notification stays in the tray until they switch away and back. **Fix:** Call `clearPush()` once at the end of the useEffect body (in addition to the listener registration), so the very first mount also clears.
+
+**Finding 6 — [NIT] H8a's `requestAnimationFrame` may be insufficient**
+
+The dropdown's exit animation is `duration: 0.18` (180ms) but rAF is one frame (~16ms). The fix defers popup mount by ~16ms — enough to escape React's same-render batching, but not enough to wait for the dropdown's exit-animation completion. If the layout shift is caused by simultaneous render (most likely), rAF works. If it's caused by the popup measuring layout while the dropdown is still in the DOM mid-exit, rAF won't fully resolve it.
+
+**Suggested:** Implementer should test the rAF fix first (cheap). If the shift persists, escalate to AnimatePresence's `onExitComplete` callback on the dropdown — set popup only after the dropdown finishes exiting. Don't redesign the plan for the harder case until verified.
+
+**Finding 7 — [NIT] H6c is an investigation task with no fallback exit criteria**
+
+H6's exit criteria mixes H6a/b/c. If H6c's root cause turns out to need a migration or RLS rework, it can't ship in this hotfix. **Suggested:** Allow H6c to land as a documented finding (e.g., "viewing detail of non-subscribed portfolio bounces back to /feed because RLS blocks the read — separate fix"). H6's exit criteria should split per sub-task so H6a/b can ship even if H6c is parked.
+
+### Sprint Containment Check
+
+This is a post-merge hotfix branch off `main`, which is allowed under `feedback_no_auto_push.md` ("Hotfix iteration rounds … Claude auto-merges + pushes once tests + build are green"). New scope (inline adjust UI in H3, allocation compute in H6b, push-clear in H8b) is justifiable as direct response to smoke findings, not feature creep. ✓
+
+### Verdict: NEEDS REVISION
+
+- **2 critical:** H5's incorrect type claim (Finding 1) and missing routing change (Finding 2) will block implementation. Both fix in H5 with small additions.
+- **2 important:** H4 no-op fanout (Finding 3) and H6b scope ambiguity (Finding 4) — small specifications.
+- **3 nits:** H8b initial mount, H8a fallback, H6c partial-block exit criteria.
+
+All resolvable with plan edits — no need to restructure tasks or rethink scope. Re-review after Architect revises H4 + H5 + H6b clarification + H8 polish.
