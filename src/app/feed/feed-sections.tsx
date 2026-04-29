@@ -58,15 +58,27 @@ function PortfolioCard({
   // the feed glanceable; click the header to collapse.
   const [expanded, setExpanded] = useState(true);
 
+  const toggle = () => setExpanded((v) => !v);
+
   return (
     <GlassCard className="overflow-hidden p-0">
-      {/* Header — click toggles, but inner buttons/links stop propagation */}
-      <button
-        type="button"
-        onClick={() => setExpanded((v) => !v)}
+      {/* Header — click toggles, but inner buttons/links stop propagation.
+          role=button (not <button>) because the header contains a <Link>
+          and an UndoplButton — nesting interactive elements inside a real
+          <button> is invalid HTML5 and trips React's validateDOMNesting. */}
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={toggle}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            toggle();
+          }
+        }}
         aria-expanded={expanded}
         aria-controls={`positions-${s.portfolio_id}`}
-        className="w-full text-left px-5 py-4 flex items-center gap-4 hover:bg-[color:var(--dopl-sage)]/10 transition-colors"
+        className="w-full text-left px-5 py-4 flex items-center gap-4 hover:bg-[color:var(--dopl-sage)]/10 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--dopl-lime)]/40"
       >
         <div
           onClick={(e) => e.stopPropagation()}
@@ -141,7 +153,7 @@ function PortfolioCard({
         >
           {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
         </span>
-      </button>
+      </div>
 
       {/* Mobile-only portfolio name row — sm+ shows it inline in the header */}
       <div className="sm:hidden px-5 pb-3 -mt-1">
