@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { CreditCard, CheckCircle, ExternalLink } from "lucide-react";
+import { DOPL_FEE_PERCENT } from "@/lib/constants";
+
+const FM_CUT_FRACTION = (100 - DOPL_FEE_PERCENT) / 100;
 
 export default function BillingClient({
   onboarded,
@@ -46,7 +49,7 @@ export default function BillingClient({
           <div className="glass-card p-5">
             <p className="text-xs text-dopl-cream/40 mb-1">your cut</p>
             <p className="font-mono text-2xl font-bold">
-              ${((mrrCents * 0.9) / 100).toFixed(0)}
+              ${((mrrCents * FM_CUT_FRACTION) / 100).toFixed(0)}
             </p>
           </div>
         </div>
@@ -65,7 +68,8 @@ export default function BillingClient({
               connect your bank account to receive subscription payments.
             </p>
             <p className="text-xs text-dopl-cream/30 mb-6">
-              dopl takes 10% of each subscription. you keep 90%.
+              dopl takes {DOPL_FEE_PERCENT}% of each subscription. you keep{" "}
+              {100 - DOPL_FEE_PERCENT}%.
             </p>
             <button
               onClick={handleSetupStripe}

@@ -10,6 +10,7 @@ import SlideToDopl from "@/components/ui/slide-to-dopl";
 import { GlassCard } from "@/components/ui/glass-card";
 import { fireToast } from "@/components/ui/toast";
 import { resolveFm } from "@/lib/fm-resolver";
+import { DOPL_FEE_PERCENT } from "@/lib/constants";
 import type { Portfolio, PortfolioUpdate } from "@/types/database";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -208,11 +209,18 @@ function Inner({
             >
               {portfolio.tier}
             </span>
-            <span className="font-mono text-2xl font-bold text-[color:var(--dopl-lime)]">
-              {portfolio.price_cents === 0
-                ? "free"
-                : `$${(portfolio.price_cents / 100).toFixed(0)}/mo`}
-            </span>
+            <div className="flex flex-col items-start">
+              <span className="font-mono text-2xl font-bold text-[color:var(--dopl-lime)]">
+                {portfolio.price_cents === 0
+                  ? "free"
+                  : `$${(portfolio.price_cents / 100).toFixed(0)}/mo`}
+              </span>
+              {portfolio.price_cents > 0 && (
+                <p className="text-[10px] text-[color:var(--dopl-cream)]/30 font-mono mt-1">
+                  includes {DOPL_FEE_PERCENT}% platform fee
+                </p>
+              )}
+            </div>
           </div>
         </div>
         <h1 className="font-display text-3xl md:text-4xl font-semibold mt-6 tracking-tight">
