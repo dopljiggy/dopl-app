@@ -1,12 +1,9 @@
-import { createServerSupabase } from "@/lib/supabase-server";
+import { getCachedUser } from "@/lib/supabase-server";
 import { redirect } from "next/navigation";
 import PositionsClient from "./positions-client";
 
 export default async function PositionsPage() {
-  const supabase = await createServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { supabase, user } = await getCachedUser();
   if (!user) redirect("/login");
 
   const [{ data: portfolios }, { data: fm }] = await Promise.all([

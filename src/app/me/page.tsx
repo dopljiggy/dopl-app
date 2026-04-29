@@ -1,4 +1,4 @@
-import { createServerSupabase } from "@/lib/supabase-server";
+import { getCachedUser } from "@/lib/supabase-server";
 import { redirect } from "next/navigation";
 import DoplerShell from "@/components/dopler-shell";
 import MeClient, { type MeSubscription } from "./me-client";
@@ -19,10 +19,7 @@ type PortfolioRow = {
 type FmRow = { id: string; handle: string; display_name: string };
 
 export default async function MePage() {
-  const supabase = await createServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { supabase, user } = await getCachedUser();
   if (!user) redirect("/login");
 
   const { data: rawSubs } = await supabase

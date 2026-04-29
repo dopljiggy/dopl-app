@@ -1,4 +1,4 @@
-import { createServerSupabase } from "@/lib/supabase-server";
+import { getCachedUser } from "@/lib/supabase-server";
 import { redirect } from "next/navigation";
 import DoplerShell from "@/components/dopler-shell";
 import { GlassCard } from "@/components/ui/glass-card";
@@ -14,10 +14,7 @@ type ProfileRow = {
 };
 
 export default async function SettingsPage() {
-  const supabase = await createServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { supabase, user } = await getCachedUser();
   if (!user) redirect("/login");
 
   const [{ data: profileData }, { count: activeSubs }] = await Promise.all([
