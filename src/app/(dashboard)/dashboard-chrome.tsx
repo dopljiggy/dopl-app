@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -152,6 +153,15 @@ export default function DashboardChrome({
   children: React.ReactNode;
 }) {
   const fmNotificationsValue = useFmNotifications(userId);
+
+  // Signal the StandaloneSplash that dashboard content has mounted.
+  // Set the global flag BEFORE dispatching so the splash can check it
+  // synchronously even if its effect runs after this one.
+  useEffect(() => {
+    (window as Window & typeof globalThis & { __doplContentReady?: boolean }).__doplContentReady = true;
+    window.dispatchEvent(new Event("dopl:content-ready"));
+  }, []);
+
   return (
     <FmNotificationsProvider value={fmNotificationsValue}>
       <div className="min-h-screen flex">

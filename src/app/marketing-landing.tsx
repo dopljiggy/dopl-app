@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase";
 import { UserChip } from "@/components/ui/user-chip";
@@ -11,6 +12,14 @@ export type Viewer = {
 } | null;
 
 export default function MarketingLanding({ viewer }: { viewer: Viewer }) {
+  // Signal the StandaloneSplash that the marketing landing has mounted.
+  // Same pattern as DoplerShell + DashboardChrome — set global flag
+  // BEFORE dispatching so the splash can check synchronously.
+  useEffect(() => {
+    (window as Window & typeof globalThis & { __doplContentReady?: boolean }).__doplContentReady = true;
+    window.dispatchEvent(new Event("dopl:content-ready"));
+  }, []);
+
   const onSignOut = async () => {
     const supabase = createClient();
     await supabase.auth.signOut();
