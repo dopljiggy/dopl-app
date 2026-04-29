@@ -9,6 +9,8 @@ import { PositionCard, type PositionLike } from "@/components/ui/position-card";
 import SlideToDopl from "@/components/ui/slide-to-dopl";
 import { GlassCard } from "@/components/ui/glass-card";
 import { fireToast } from "@/components/ui/toast";
+import { resolveFm } from "@/lib/fm-resolver";
+import { DOPL_FEE_PERCENT } from "@/lib/constants";
 import type { Portfolio, PortfolioUpdate } from "@/types/database";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -46,7 +48,14 @@ function Inner({
 }) {
   const router = useRouter();
   const params = useSearchParams();
-  const fm = portfolio.fund_manager;
+  // resolveFm gives a guaranteed display_name (falls back to "unknown" or
+  // an id-stub handle), nullable handle/avatar_url. Necessary now that
+  // the page query uses a LEFT JOIN — fund_manager can be null.
+  const fm = resolveFm(
+    portfolio.fund_manager,
+    null,
+    portfolio.fund_manager_id
+  );
 
   // Show a success toast when returning from Stripe checkout.
   useEffect(() => {
@@ -144,33 +153,50 @@ function Inner({
     <div className="max-w-5xl mx-auto px-6 pb-20">
       <GlassCard className="p-6 md:p-8 mb-6">
         <div className="flex flex-col md:flex-row md:items-center gap-6">
-          <Link
-            href={`/${fm.handle}`}
-            className="flex items-center gap-4 group"
-          >
-            <div className="relative w-14 h-14 rounded-2xl overflow-hidden bg-[color:var(--dopl-sage)] flex-shrink-0">
-              {fm.avatar_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={fm.avatar_url}
-                  alt=""
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center font-display text-xl text-[color:var(--dopl-lime)]">
-                  {fm.display_name?.[0]}
+          {(() => {
+            const inner = (
+              <>
+                <div className="relative w-14 h-14 rounded-2xl overflow-hidden bg-[color:var(--dopl-sage)] flex-shrink-0">
+                  {fm.avatar_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={fm.avatar_url}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center font-display text-xl text-[color:var(--dopl-lime)]">
+                      {fm.display_name?.[0]}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-            <div>
-              <p className="text-sm font-semibold group-hover:text-[color:var(--dopl-lime)] transition-colors">
-                {fm.display_name}
-              </p>
-              <p className="text-xs text-[color:var(--dopl-cream)]/40 font-mono">
-                @{fm.handle}
-              </p>
-            </div>
-          </Link>
+                <div>
+                  <p className="text-sm font-semibold group-hover:text-[color:var(--dopl-lime)] transition-colors">
+                    {fm.display_name}
+                  </p>
+                  {fm.handle && (
+                    <p className="text-xs text-[color:var(--dopl-cream)]/40 font-mono">
+                      @{fm.handle}
+                    </p>
+                  )}
+                </div>
+              </>
+            );
+            // Link to the FM profile only when we have a handle. With
+            // the LEFT JOIN, an orphaned portfolio gets the resolveFm
+            // id-stub handle (e.g. fm_abc123), which doesn't route to a
+            // real /[handle] page — render the chrome but not as a link.
+            return fm.handle ? (
+              <Link
+                href={`/${fm.handle}`}
+                className="flex items-center gap-4 group"
+              >
+                {inner}
+              </Link>
+            ) : (
+              <div className="flex items-center gap-4 group">{inner}</div>
+            );
+          })()}
           <div className="md:ml-auto flex items-baseline gap-3">
             <span
               className={`text-[10px] font-mono font-semibold px-2 py-1 rounded tracking-wider uppercase ${
@@ -183,11 +209,18 @@ function Inner({
             >
               {portfolio.tier}
             </span>
-            <span className="font-mono text-2xl font-bold text-[color:var(--dopl-lime)]">
-              {portfolio.price_cents === 0
-                ? "free"
-                : `$${(portfolio.price_cents / 100).toFixed(0)}/mo`}
-            </span>
+            <div className="flex flex-col items-start">
+              <span className="font-mono text-2xl font-bold text-[color:var(--dopl-lime)]">
+                {portfolio.price_cents === 0
+                  ? "free"
+                  : `$${(portfolio.price_cents / 100).toFixed(0)}/mo`}
+              </span>
+              {portfolio.price_cents > 0 && (
+                <p className="text-[10px] text-[color:var(--dopl-cream)]/30 font-mono mt-1">
+                  includes {DOPL_FEE_PERCENT}% platform fee
+                </p>
+              )}
+            </div>
           </div>
         </div>
         <h1 className="font-display text-3xl md:text-4xl font-semibold mt-6 tracking-tight">

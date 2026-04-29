@@ -5,6 +5,36 @@ Format: date, description, files, why, impact, testing, risks.
 
 ---
 
+## [2026-04-29] — Sprint 12: Portfolio Detail Fix + Fee Transparency
+
+**Files changed:**
+- `src/app/feed/[portfolioId]/page.tsx` — dropped `!inner` from the `fund_managers` embed (PostgREST defaults to LEFT JOIN, so the portfolio row now returns even when the join can't resolve), and added `console.error` on the `error` field so future query breakage surfaces in logs instead of silently bouncing to /feed.
+- `src/app/feed/[portfolioId]/portfolio-detail-client.tsx` — fund_manager now flows through `resolveFm()` so `display_name` is always populated and `handle`/`avatar_url` are explicitly nullable. The FM avatar/name block renders as a `<Link href={`/${fm.handle}`}>` only when a handle exists; otherwise renders the same chrome as a plain `<div>` (id-stub handles like `fm_abc123` don't route to a real /[handle] page). The `@{fm.handle}` text is wrapped in `{fm.handle && ...}` per reviewer note. Imports `DOPL_FEE_PERCENT` from `@/lib/constants` and adds an "includes 10% platform fee" disclosure under the `$X/mo` price (paid portfolios only).
+- `src/lib/constants.ts` (NEW) — `DOPL_FEE_PERCENT = 10` as the single source of truth.
+- `src/lib/stripe.ts` — re-exports `DOPL_FEE_PERCENT` from `./constants`. Existing imports of `{ DOPL_FEE_PERCENT } from "@/lib/stripe"` keep working (transparent — the stripe test passes unchanged).
+- `src/app/[handle]/profile-tiers.tsx` — paid tier cards now show "includes 10% platform fee" under `/month`. The new `<p>` lands inside the existing `{!isFree && (...)}` block, wrapped in a fragment alongside the existing `/month` `<p>`.
+- `src/app/(dashboard)/dashboard/billing/billing-client.tsx` — replaced hardcoded `0.9` with `FM_CUT_FRACTION = (100 - DOPL_FEE_PERCENT) / 100` for the "your cut" math, and substituted the constant into the "dopl takes X% / you keep Y%" prose.
+- `plans/2026-04-29-sprint-12-detail-fix-fee-transparency.md` — status `under-review` → `implemented`.
+
+**Why:** Two items deferred from Sprint 10/11 smoke. The "view full portfolio →" link bounced doplers back to /feed because the detail page used `fund_managers!inner` (INNER JOIN) — when the FM join returned nothing for any reason, the entire portfolio row collapsed to null and the redirect-to-/feed fired silently with no error logging. Doplers also had zero visibility into the 10% platform fee dopl takes via Stripe Connect; FMs see "you keep 90%" in their billing dashboard, but nothing surfaced to the dopler at any point in the subscription flow.
+
+**Impact:**
+- Clicking "view full portfolio →" on the feed now reaches the detail page even when the fund_manager join can't resolve. Orphaned FMs render with `resolveFm`'s graceful fallbacks (`display_name: "unknown"`, `handle: fm_<id-stub>`) instead of redirecting.
+- Errors on the portfolio query now log to the server console with the PostgREST error object, so future query breakage is visible.
+- Doplers see "includes 10% platform fee" under the price on both the portfolio detail page and the public /[handle] tier cards. Free portfolios show no disclosure. Subscribe CTA stays clean (no fee text at the conversion point).
+- FM billing dashboard math and prose both reference `DOPL_FEE_PERCENT` — flipping the constant updates the Stripe webhook config (already wired via `application_fee_percent`) and every user-facing copy in one place.
+
+**Testing:**
+- `npm test` — 152/152 passing across 27 files (the stripe test is transparent through the re-export).
+- `npm run build` — clean.
+
+**Risks:**
+- The LEFT JOIN now allows portfolios with broken FM rows to render. The visibility gates (`canView`) are unchanged and still enforce `isOwner || isFree || subscribed`, so this doesn't open up data leaks; the worst case is a portfolio rendering with `display_name: "unknown"` and a non-clickable FM block, which is preferable to the previous silent redirect.
+- The fee disclosure assumes the value is final. If dopl ever changes the platform fee, the constant flip cascades to all four sites automatically.
+- `resolveFm` is now called from a client component for the first time (it was server-side only). Pure function, no side effects, no platform APIs — safe.
+
+---
+
 ## [2026-04-29] — Sprint 11: Perceived Load Speed (skeletons, fonts, splash, auth dedup, loader)
 
 **Files changed:**

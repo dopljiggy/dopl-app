@@ -9,6 +9,7 @@ import UndoplButton from "@/components/ui/undopl-button";
 import { SyncBadge } from "@/components/ui/sync-badge";
 import { fireToast } from "@/components/ui/toast";
 import { Lock, Users, TrendingUp, TrendingDown, Sparkles } from "lucide-react";
+import { DOPL_FEE_PERCENT } from "@/lib/constants";
 import type { Portfolio } from "@/types/database";
 
 type TierPortfolio = Portfolio & {
@@ -261,9 +262,14 @@ export default function ProfileTiers({
                       {isFree ? "free" : `$${(p.price_cents / 100).toFixed(0)}`}
                     </p>
                     {!isFree && (
-                      <p className="text-[10px] text-[color:var(--dopl-cream)]/40 font-mono mt-0.5">
-                        /month
-                      </p>
+                      <>
+                        <p className="text-[10px] text-[color:var(--dopl-cream)]/40 font-mono mt-0.5">
+                          /month
+                        </p>
+                        <p className="text-[10px] text-[color:var(--dopl-cream)]/25 font-mono mt-0.5">
+                          includes {DOPL_FEE_PERCENT}% platform fee
+                        </p>
+                      </>
                     )}
                   </div>
                 </div>

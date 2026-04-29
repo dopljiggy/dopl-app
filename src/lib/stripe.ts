@@ -14,4 +14,7 @@ export function getStripe(): Stripe {
   return _stripe;
 }
 
-export const DOPL_FEE_PERCENT = 10; // 10% platform fee
+// Re-exported from constants.ts (the single source of truth) so client
+// components — which can't pull from this server-only module — can also
+// reference the same value.
+export { DOPL_FEE_PERCENT } from "./constants";
