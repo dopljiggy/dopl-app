@@ -5,6 +5,46 @@ Format: date, description, files, why, impact, testing, risks.
 
 ---
 
+## [2026-04-29] — Sprint 10: FM Trading Terminal + Feed Redesign + Thesis Notes + Richer Notifications
+
+**Files changed:**
+- `.env.example` — added `FINNHUB_API_KEY` placeholder.
+- `src/lib/finnhub.ts` — new shared module wrapping Finnhub REST (`/search`, `/quote`, `/stock/market-status`) with module-scope TTL cache (5 min / 30 s / 60 s) and `AbortSignal.timeout(5000)` on every fetch.
+- `src/app/api/market/search/route.ts` — new authed GET that returns Common-Stock autocomplete suggestions for the FM trading terminal.
+- `src/app/api/market/quote/route.ts` — new authed GET. Finnhub primary, Yahoo Finance (`query1.finance.yahoo.com`) fallback. Both providers down → returns `{ price: null }` (200, not 502) so the FM can still add positions with manual pricing.
+- `src/app/api/market/status/route.ts` — new authed GET that returns US market open/closed status.
+- `src/components/ui/ticker-search.tsx` — new client component. 300ms debounce, full keyboard nav (arrow up/down/enter/escape), outside-click close, WAI-ARIA combobox pattern (role=combobox / role=listbox / role=option, aria-activedescendant tracks keyboard focus).
+- `src/components/ui/add-position-form.tsx` — major rewrite. Vertical flow replaces the legacy 4-column grid: TickerSearch → live quote card (price + daily change + open/closed badge) → buy-mode pills (shares vs. dollars) → thesis note (max 280) → submit. Graceful fallback when quote returns `price: null` swaps the card for an amber-bordered manual-price input.
+- `src/lib/notification-fanout.ts` — `FanoutChange` extended: buy gains optional `price?` and `allocation_pct?`; sell gains optional `price?`. `describeOneChange` rewritten to compose richer bodies from those fields plus `input.thesis_note`. Examples: `"bought AAPL · $189.50 · 40% allocation"`, `"bought AAPL · $189.50 — 'AI infra play'"`, `"sold AAPL · $189.50"`. Web push body upgrades automatically because `sendPushToUser` already reads `row.body`. `meta` now carries `price` and `allocation_pct` for client-side use.
+- `src/app/api/positions/manual/route.ts` — POST accepts `thesis_note` in body and threads `price` onto the buy change; DELETE accepts `thesis_note` for the sell fanout.
+- `src/app/api/positions/assign/route.ts` — DELETE accepts `thesis_note` and threads it into the sell fanout (POST already wired thesis_note from a prior sprint).
+- `src/app/(dashboard)/dashboard/positions/positions-client.tsx` — trash icon no longer fires DELETE immediately. Click opens an inline amber-bordered confirmation row with a "why are you selling?" thesis input plus cancel/remove buttons; confirmed remove POSTs the thesis to the assign DELETE endpoint.
+- `src/app/feed/feed-sections.tsx` — major rewrite. Replaces the per-position `PositionCard` grid (max 6, missing data showed as `"—"`) with a collapsible portfolio card per subscription. Body is a dense `TICKER | SHARES | PRICE | ALLOC | G/L` table with no row cap. Header click toggles expand/collapse via AnimatePresence height tween; UndoplButton + FM-avatar link work via `stopPropagation`. PositionCard file remains for the public `/[handle]` profile page.
+- `src/lib/__tests__/notification-fanout.test.ts` — 4 new test cases covering enriched body formats (buy + price + allocation, buy + price + thesis, sell + price, backward-compat fallback).
+
+**Why:** User testing after Sprint 9 surfaced six pain points. The FM position-management surface was bare-bones (plain text input, no market data, no context); the dopler feed showed each position as a separate large card with `"—"` allocation/price; push notifications were minimal (`"bought AMPX"`); and `thesis_note` already existed in the DB but was never surfaced in the UI. This sprint addresses the four highest-impact items. The two deferred items — dopler investment-amount calculator and dopler-personal-data in feed — have regulatory implications (personalized advice vs. transparency) that legal needs to clear before scoping into Sprint 11.
+
+**Impact:**
+- FMs typing into "add position" now see live ticker autocomplete with company names; on selection, the price + daily change + market-open badge render immediately.
+- FMs can choose to enter shares or a dollar amount and the form computes the counterpart live (`42 sh × $12.45 = $523.90` or `$500 / $12.45 ≈ 40.2 sh`).
+- Optional thesis note (max 280 chars) is saved on `portfolio_updates` AND included in the dopler-facing notification body, so lock-screen pushes carry the FM's reason for the trade.
+- Doplers' feed becomes a glanceable portfolio overview: every position's ticker, shares, price, allocation %, and gain/loss % is visible without expanding anything; collapsing a portfolio still shows the FM strip + tier + undopl.
+- Removing a position requires a one-click confirmation step with a thesis input, preventing accidental DELETEs and giving doplers context on the sell.
+- Notification bodies upgrade automatically across web push (lock screen), in-app notifications (bell + alerts page), and the popup — they all read `notification.body`.
+
+**Testing:**
+- `npm test` — 149/149 passing across 27 files (was 145/145 before; 4 new fanout cases).
+- `npm run build` — clean. New routes in build output: `/api/market/search`, `/api/market/quote`, `/api/market/status`.
+- Manual smoke (Surfer, post-merge): see Sprint 10 plan's Manual Smoke section. Includes FM trading terminal flow (search/select/quote/submit), feed redesign expand/collapse, removal confirmation, and notification body delivery (push + in-app).
+
+**Risks:**
+- `FINNHUB_API_KEY` must be set in `.env.local` AND Vercel (Production + Preview). Without it, autocomplete returns `[]` and quotes 500-then-fall-through to Yahoo. The /api/market/quote graceful-degradation path keeps the form usable even with no key, but the live-quote UX disappears.
+- Finnhub free tier is 60 calls/min globally (not per-user). Multiple FMs typing simultaneously could exhaust the limit; the 5-min search cache + 30s quote cache mitigate this for typical usage. Flag as a future scaling concern.
+- Yahoo Finance's chart endpoint is unofficial and intermittently rate-limits with 429s. The dual-fallback is best-effort; the null-price branch is the actual safety net.
+- `PositionCard` is no longer used by the feed but remains imported by `/[handle]`. Removing the file would break that route — flagged in the plan and intentionally kept.
+
+---
+
 ## [2026-04-28] — Sprint 9: Web Push + Apple Sports Design
 
 **Files changed:**

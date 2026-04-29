@@ -1,4 +1,4 @@
-**Status:** approved
+**Status:** implemented
 
 # Sprint 10: FM Trading Terminal + Feed Redesign + Thesis Notes + Richer Notifications
 
