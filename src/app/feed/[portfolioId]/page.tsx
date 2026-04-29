@@ -1,3 +1,4 @@
+import { createClient } from "@supabase/supabase-js";
 import { createServerSupabase } from "@/lib/supabase-server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -10,13 +11,25 @@ export default async function PortfolioDetail({
   params: Promise<{ portfolioId: string }>;
 }) {
   const { portfolioId } = await params;
+  // Auth + subscription check uses the cookie-bound client. The portfolio +
+  // positions reads use admin to mirror /feed/page.tsx — RLS on portfolios
+  // filters `is_active = true`, but a dopler may legitimately still hold a
+  // subscription to a portfolio the FM later deactivated. Visibility is
+  // gated below by canView (isOwner || isFree || subscribed), so admin
+  // here just removes the redirect-to-/feed dead-end the dopler hit when
+  // the inactive-filter zeroed the row out.
   const supabase = await createServerSupabase();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: portfolio } = await supabase
+  const admin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+
+  const { data: portfolio } = await admin
     .from("portfolios")
     .select(
       "*, fund_manager:fund_managers!inner(handle, display_name, avatar_url, bio, subscriber_count, stripe_onboarded)"
@@ -42,12 +55,12 @@ export default async function PortfolioDetail({
           .eq("status", "active")
           .maybeSingle()
       : Promise.resolve({ data: null }),
-    supabase
+    admin
       .from("positions")
       .select("*")
       .eq("portfolio_id", portfolioId)
       .order("market_value", { ascending: false }),
-    supabase
+    admin
       .from("portfolio_updates")
       .select("*")
       .eq("portfolio_id", portfolioId)
