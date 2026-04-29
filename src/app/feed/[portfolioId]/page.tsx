@@ -26,13 +26,22 @@ export default async function PortfolioDetail({
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
-  const { data: portfolio } = await admin
+  // Removed `!inner` — PostgREST defaults to LEFT JOIN, so the portfolio
+  // row returns even when the fund_managers join can't resolve (orphaned
+  // row, missing FK, broken column). The previous INNER JOIN silently
+  // collapsed the whole row to null and bounced the dopler back to /feed
+  // with no telemetry. The client now uses resolveFm() for graceful
+  // fallback display when fund_manager is null.
+  const { data: portfolio, error: portfolioErr } = await admin
     .from("portfolios")
     .select(
-      "*, fund_manager:fund_managers!inner(handle, display_name, avatar_url, bio, subscriber_count, stripe_onboarded)"
+      "*, fund_manager:fund_managers(handle, display_name, avatar_url, bio, subscriber_count, stripe_onboarded)"
     )
     .eq("id", portfolioId)
     .maybeSingle();
+  if (portfolioErr) {
+    console.error("[portfolio-detail] lookup failed:", portfolioErr);
+  }
 
   // Portfolio may have been deleted, or the id in the URL is stale. Bounce
   // back to /feed instead of a dead-end 404 — the dopler sees their full
