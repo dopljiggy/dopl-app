@@ -1,5 +1,5 @@
 /* dopl service worker — cache-first for static assets, network-first for everything else. */
-const CACHE_NAME = "dopl-shell-v22";
+const CACHE_NAME = "dopl-shell-v23";
 const SHELL = [
   "/manifest.json",
   "/dopl-logo.svg",
@@ -73,6 +73,12 @@ self.addEventListener("fetch", (event) => {
         caches.match("/").then((r) => r || Response.error())
       )
     );
+    return;
+  }
+
+  // RSC payload requests (router.refresh()) — always network.
+  if (sameOrigin && req.headers.get("RSC") === "1") {
+    event.respondWith(fetch(req));
     return;
   }
 
