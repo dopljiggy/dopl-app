@@ -210,14 +210,53 @@ describe('/api/positions/manual Sprint 6 portfolio_id + fanout', () => {
     expect(fanOutPortfolioUpdate).not.toHaveBeenCalled()
   })
 
-  it('POST upsert (existing ticker) does not fire fanout', async () => {
+  it('POST upsert (existing ticker, shares changed) fires a rebalance fanout', async () => {
     tableResponses = {
       portfolios: {
         maybeSingle: { id: 'pf-named-1', fund_manager_id: 'fm-uuid-1' },
       },
-      // positions.maybeSingle → a pre-existing row, so the route takes
-      // the update branch and skips the insert+fanout path.
-      positions: { maybeSingle: { id: 'pos-existing' } },
+      // Hotfix R1 H4: upsert path now fires a rebalance fanout when
+      // shares actually changed (no-op guard prevents spam).
+      positions: { maybeSingle: { id: 'pos-existing', shares: 10 } },
+      fund_managers: { maybeSingle: { handle: 'alice' } },
+    }
+    const { POST } = await importRoute()
+    const res = await POST(
+      makePostRequest({
+        portfolio_id: 'pf-named-1',
+        ticker: 'AAPL',
+        shares: 25,
+        current_price: 189.5,
+        thesis_note: 'doubling down',
+      })
+    )
+    expect(res.status).toBe(200)
+    expect(fanOutPortfolioUpdate).toHaveBeenCalledTimes(1)
+    const [, input] = fanOutPortfolioUpdate.mock.calls[0]
+    expect(input).toMatchObject({
+      portfolio_id: 'pf-named-1',
+      fund_manager_id: 'fm-uuid-1',
+      changes: [
+        {
+          type: 'rebalance',
+          ticker: 'AAPL',
+          prevShares: 10,
+          shares: 25,
+          price: 189.5,
+        },
+      ],
+      thesis_note: 'doubling down',
+    })
+  })
+
+  it('POST upsert (existing ticker, shares unchanged) does NOT fire fanout', async () => {
+    tableResponses = {
+      portfolios: {
+        maybeSingle: { id: 'pf-named-1', fund_manager_id: 'fm-uuid-1' },
+      },
+      // No-op guard: re-submitting the same share count (or refreshing
+      // current_price without changing shares) shouldn't notify doplers.
+      positions: { maybeSingle: { id: 'pos-existing', shares: 10 } },
       fund_managers: { maybeSingle: { handle: 'alice' } },
     }
     const { POST } = await importRoute()
@@ -226,6 +265,7 @@ describe('/api/positions/manual Sprint 6 portfolio_id + fanout', () => {
         portfolio_id: 'pf-named-1',
         ticker: 'AAPL',
         shares: 10,
+        current_price: 200,
       })
     )
     expect(res.status).toBe(200)

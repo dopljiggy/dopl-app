@@ -206,6 +206,14 @@ function PortfolioCard({
 }
 
 function PositionTable({ positions }: { positions: PositionLike[] }) {
+  // Per-portfolio total. positions is already scoped to one portfolio
+  // (PortfolioCard passes s.positions), so summing here doesn't mix
+  // values across the dopler's other subscribed portfolios.
+  const totalMarketValue = positions.reduce(
+    (a, p) => a + (Number(p.market_value) || 0),
+    0
+  );
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-xs">
@@ -215,13 +223,26 @@ function PositionTable({ positions }: { positions: PositionLike[] }) {
             <th className="text-right px-3 py-2 font-normal">shares</th>
             <th className="text-right px-3 py-2 font-normal">price</th>
             <th className="text-right px-3 py-2 font-normal">alloc</th>
-            <th className="text-right px-5 py-2 font-normal">g/l</th>
+            <th className="text-right px-5 py-2 font-normal">p/l</th>
           </tr>
         </thead>
         <tbody>
           {positions.map((p) => {
-            const gl = p.gain_loss_pct;
-            const glPositive = gl != null && gl >= 0;
+            const pl = p.gain_loss_pct;
+            const plPositive = pl != null && pl >= 0;
+            // Prefer the FM-saved allocation_pct, then fall back to a
+            // computed slice from market_value (older positions, FM
+            // hasn't yet saved). Show '—' only when both are missing.
+            const computedAlloc =
+              p.market_value != null && totalMarketValue > 0
+                ? (Number(p.market_value) / totalMarketValue) * 100
+                : null;
+            const allocDisplay =
+              p.allocation_pct != null
+                ? `${p.allocation_pct.toFixed(1)}%`
+                : computedAlloc != null
+                  ? `${computedAlloc.toFixed(1)}%`
+                  : "—";
             return (
               <tr
                 key={p.id}
@@ -246,21 +267,19 @@ function PositionTable({ positions }: { positions: PositionLike[] }) {
                     : "—"}
                 </td>
                 <td className="text-right px-3 py-2.5 font-mono tabular-nums text-[color:var(--dopl-cream)]/80">
-                  {p.allocation_pct != null
-                    ? `${p.allocation_pct.toFixed(1)}%`
-                    : "—"}
+                  {allocDisplay}
                 </td>
                 <td
                   className={`text-right px-5 py-2.5 font-mono tabular-nums font-semibold ${
-                    gl == null
+                    pl == null
                       ? "text-[color:var(--dopl-cream)]/40"
-                      : glPositive
+                      : plPositive
                         ? "text-[color:var(--dopl-lime)]"
                         : "text-red-400"
                   }`}
                 >
-                  {gl != null
-                    ? `${glPositive ? "+" : ""}${gl.toFixed(1)}%`
+                  {pl != null
+                    ? `${plPositive ? "+" : ""}${pl.toFixed(1)}%`
                     : "—"}
                 </td>
               </tr>

@@ -142,7 +142,15 @@ export default function NotificationBell({
                           key={n.id}
                           type="button"
                           onClick={() => {
-                            setPopup({
+                            // Defer popup mount by one frame so the
+                            // dropdown's exit animation starts and
+                            // doesn't share the same render commit as
+                            // the popup mount — without this on mobile
+                            // the popup appears at the top of the
+                            // viewport instead of centered, since
+                            // layout measures while the dropdown is
+                            // still in the DOM.
+                            const next = {
                               id: n.id,
                               title: n.title,
                               body: n.body,
@@ -151,8 +159,9 @@ export default function NotificationBell({
                               meta: n.meta,
                               ticker: n.ticker,
                               change_type: n.change_type,
-                            });
+                            };
                             setOpen(false);
+                            requestAnimationFrame(() => setPopup(next));
                           }}
                           className={`w-full text-left p-3 rounded-xl hover:bg-[color:var(--dopl-sage)]/25 transition-colors ${
                             !n.read

@@ -189,10 +189,13 @@ export async function POST(request: Request) {
   }
 
   // Upsert by ticker within this portfolio — ticker already exists means
-  // the FM is editing shares/price, not adding a new holding, so no fanout.
+  // the FM is editing shares/price on an existing holding. We fan out a
+  // rebalance notification when the share count actually changed (the
+  // no-op guard prevents notification spam on accidental re-submits or
+  // price-only refreshes).
   const { data: existing } = await supabase
     .from("positions")
-    .select("id")
+    .select("id, shares")
     .eq("portfolio_id", portfolioId)
     .eq("ticker", ticker)
     .maybeSingle();
@@ -205,6 +208,32 @@ export async function POST(request: Request) {
     if (error)
       return NextResponse.json({ error: error.message }, { status: 500 });
     await revalidatePositionSurfaces(supabase, portfolioId, user.id);
+
+    if (isExplicitPortfolio) {
+      const prevShares = Number(existing.shares) || 0;
+      const newShares = shares ?? 0;
+      // No-op guard: re-submitting unchanged shares (or refreshing
+      // current_price without changing shares) shouldn't notify doplers.
+      // A future "price update" change_type could lift this if needed.
+      if (prevShares !== newShares) {
+        await fanOutPortfolioUpdate(createAdminClient(), {
+          portfolio_id: portfolioId,
+          fund_manager_id: user.id,
+          changes: [
+            {
+              type: "rebalance",
+              ticker,
+              prevShares,
+              shares: newShares,
+              price: price ?? undefined,
+            },
+          ],
+          description: `rebalanced ${ticker}`,
+          thesis_note: body.thesis_note ?? null,
+        });
+      }
+    }
+
     return NextResponse.json({ ok: true, id: existing.id });
   }
 

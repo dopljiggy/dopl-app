@@ -1,4 +1,4 @@
-**Status:** under-review (hotfix round 1)
+**Status:** implemented (hotfix round 1)
 
 # Sprint 10: FM Trading Terminal + Feed Redesign + Thesis Notes + Richer Notifications
 
@@ -1108,3 +1108,55 @@ This is a post-merge hotfix branch off `main`, which is allowed under `feedback_
 - **3 nits:** H8b initial mount, H8a fallback, H6c partial-block exit criteria.
 
 All resolvable with plan edits — no need to restructure tasks or rethink scope. Re-review after Architect revises H4 + H5 + H6b clarification + H8 polish.
+
+---
+
+## Hotfix R1 Plan Review — Round 2 (Instance 2)
+
+**Reviewed:** 2026-04-29
+**Round 1 findings:** 2 critical, 2 important, 3 nits
+
+### Round 1 Fix Verification
+
+1. **[CRITICAL] H5 rebalance type claim — RESOLVED.** Type extension promoted to H4 Step 1 (lines 650-661) with explicit before/after diff and "MUST happen before the route change below, otherwise TypeScript rejects `price` on rebalance objects. Separate commit." This mirrors the Sprint 10 Task 5a/5b pattern. The implementer notes (line 933) reinforce it.
+
+2. **[CRITICAL] describeOneChange routing — RESOLVED.** H5 now has three explicit steps:
+   - Step 1 (lines 710-739): widens signature from `FanoutChange & { type: "buy" | "sell" }` to `FanoutChange`, with the new rebalance case body composition shown inline (price + share-delta + thesis tail).
+   - Step 2 (lines 741-773): splits the loop — `rebalances.length === 1` produces a per-ticker enriched row via `describeOneChange`; `rebalances.length > 1` keeps the summary path. The single-rebalance branch shows the full notification row construction (user_id, portfolio_update_id, title, body, change_type, ticker, meta).
+   - Step 3 (lines 777-783): adds 2 test cases.
+   
+   The `individuals` filter staying buy/sell only is correctly noted, with the right explanation that the predicate `(c): c is Extract<...>` becomes redundant but harmless.
+
+3. **[IMPORTANT] H4 no-op fanout guard — RESOLVED.** H4 Step 2 wraps the fanout in `if (prevShares !== newShares)` (lines 670-687). Comment on line 692 explains the spam prevention. Exit criteria explicitly says "No notification fires when shares are unchanged." The `Number(existing.shares) || 0` fallback handles null shares.
+
+4. **[IMPORTANT] H6b scope — RESOLVED.** Line 805 now reads "compute the total market value across the positions passed to the component (already scoped to one portfolio — `PositionTable` receives `s.positions` per `PortfolioCard`)." Implementer notes line 936 reinforces it. Eliminates the cross-portfolio summing risk.
+
+5. **[NIT] H8b initial mount — RESOLVED.** Line 903 calls `clearPush()` once before adding the listener. Comment on line 902 explains why: "Clear on initial mount (app opened directly, not via push tap)." Closing note at line 909 documents the rationale.
+
+6. **[NIT] H8a fallback escalation — RESOLVED.** Lines 873-884 specify "Try `requestAnimationFrame` first; if the layout shift persists on mobile, escalate to `onExitComplete` on the dropdown's `AnimatePresence`." Both options shown as code snippets.
+
+7. **[NIT] H6c partial-block — RESOLVED.** Line 811 adds: "**Ship as a documented finding if the root cause isn't immediately clear** — don't block the hotfix round on this." H6's exit criteria split per sub-task (line 813): "H6c: either fix confirmed or root cause documented for follow-up."
+
+### New Issues Check
+
+No new issues introduced. Verified:
+- The dependency graph (lines 920-928) correctly reflects the new H4 step 1 / step 2 split.
+- The recommended execution order accounts for the H4 split: "H1, H2, H4-step-1 in parallel → H3, H4-step-2 → H5".
+- Files Summary still lists 7 modify + 1 investigate — accurate.
+- The implementer notes block (lines 932-939) consolidates all 7 review findings as actionable bullets.
+- The H5 multi-rebalance summary body (`"rebalanced — ${rebalances.length} positions"`) is correctly plural-only because the `> 1` branch only runs when length is 2+.
+
+### Minor stylistic observations (no action)
+
+- H5 Step 2 calls the existing predicate a "type-narrowing cast" — technically it's a type-guard predicate, not a cast. The conclusion (keeping it is harmless) is correct, just a small terminology nit.
+- The H5 multi-rebalance branch uses `... body: \`rebalanced — ${rebalances.length} positions\` ...` shorthand. Implementer fills in the rest of the row from the existing pattern (lines 158-171 of notification-fanout.ts) — clear from context.
+
+### Verdict: APPROVED
+
+All 7 Round 1 findings resolved correctly. Plan is ready for Instance 3 implementation.
+
+**Implementation summary for Instance 3:**
+- 8 tasks → expected ~10-12 commits (H4 split into 2, H5 split into 3, others mostly single-commit)
+- Test count: 149 → 151 (2 new rebalance body cases)
+- All risks pre-identified and either fixed in plan or documented as implementer escalation paths (H8a rAF→onExitComplete, H6c documented finding)
+- This is a hotfix branch off `main`, not a sprint branch — Claude auto-merges + pushes once tests + build pass per the merge policy
