@@ -1,4 +1,4 @@
-**Status:** approved
+**Status:** implemented
 
 # Sprint 10: FM Trading Terminal + Feed Redesign + Thesis Notes + Richer Notifications
 
@@ -361,3 +361,176 @@ All 3 Round 1 findings resolved correctly. Plan is ready for Instance 3 implemen
 - Task 5 is now the heaviest task — type extension + 2 route files. Commit the type extension first, then the route changes, to keep commits logical.
 - The `rebalance` variant of FanoutChange is intentionally NOT extended with `price?` — only buy and sell need it.
 - Quote route's `price: null` fallback means Task 4's AddPositionForm must handle null price gracefully (hide quote card, show manual shares input only).
+
+---
+
+## Implementation Review (Instance 2)
+
+**Reviewed:** 2026-04-29
+**Branch:** `feat/sprint-10-fm-terminal-feed-redesign` (10 commits)
+**Tests:** 149/149 across 27 files (was 145 — 4 new fanout cases)
+**Build:** clean, all three new market routes (`/api/market/{search,quote,status}`) present in route table
+
+### Focus Area Verification
+
+**1. TickerSearch combobox semantics — PASS ✓**
+
+`src/components/ui/ticker-search.tsx` implements the full WAI-ARIA combobox pattern:
+- Input (lines 148-152): `role="combobox"`, `aria-expanded` bound to `open`, `aria-autocomplete="list"`, `aria-controls={listboxId}`, `aria-activedescendant={activeOptionId}` (resolves to undefined when no active option, removing the attribute from DOM correctly)
+- Listbox (line 166): `role="listbox"` with `id={listboxId}` matching `aria-controls`
+- Options (lines 186-187): `role="option"`, `aria-selected={i === activeIndex}`, unique `id={`${optionIdPrefix}-${i}`}`
+- Empty state (lines 170-177): `role="option"` + `aria-disabled` so screen readers announce "no matches" rather than getting stuck
+- Two separate `useId()` calls (lines 38-39) for listbox vs option-prefix prevents collision when multiple TickerSearch instances mount
+- Keyboard nav: ArrowDown/Up wrap top-to-bottom, Enter selects, Escape closes — all via `e.preventDefault()` to avoid form submission
+- Outside-click handler scoped via `containerRef` (lines 82-91)
+
+**2. Fanout body enrichment — PASS ✓**
+
+`describeOneChange` in `src/lib/notification-fanout.ts` (lines 252-266) produces all 4 plan formats. Verified by 4 new test cases (lines 310-389):
+- `"bought AAPL · $189.50 · 40% allocation"` (buy + price + allocation, line 332) ✓
+- `"bought AAPL · $189.50 — 'AI infrastructure play'"` (buy + price + thesis, line 350-352) ✓
+- `"sold AAPL · $189.50"` (sell + price, line 371) ✓
+- `"bought AAPL"` (no price fallback, line 388) ✓
+
+`thesis_note` is correctly threaded via the second parameter — `describeOneChange(change, input.thesis_note)` (line 142). `meta` field now also carries `price` and `allocation_pct` (lines 149-151) for client-side reuse.
+
+**3. Quote-route null-price fallback — PASS ✓**
+
+`src/app/api/market/quote/route.ts` graceful-degradation chain:
+- Finnhub primary: `getQuote(ticker)` in try block (line 81). Both `null` returns (e.g., empty quote for unknown ticker) AND thrown errors (timeouts, 4xx/5xx) fall through.
+- Yahoo fallback: `fetchYahooQuote(ticker)` returns `null` on any failure mode — non-OK response, missing `regularMarketPrice`, JSON parse error, AbortSignal timeout (lines 20-58).
+- Final fallback: explicit 200 response with `{price: null, error: "price unavailable"}` (lines 97-103).
+
+The form (`src/components/ui/add-position-form.tsx`) handles null price end-to-end:
+- Line 197 conditional: shows live quote card only when `quote.price != null`, otherwise renders amber-bordered manual-price input (lines 233-247).
+- `effectivePrice` computation (lines 103-107) prefers `quote.price` then falls back to `Number(manualPrice)` — so the form accepts the FM's own pricing when both providers are down.
+- Submit disabled (line 149) until `effectivePrice > 0` AND `computedShares > 0`, preventing zero-price inserts.
+
+**4. Feed redesign collapse/expand animation — animation works, but introduces an HTML-validity issue (see Finding 1 below)**
+
+Animation mechanics are correct: outer `AnimatePresence mode="popLayout"` with `motion.section layout` for portfolio enter/exit, inner `AnimatePresence initial={false}` with height-from-0-to-auto + opacity tween + `style={{overflow: "hidden"}}` for body expand/collapse. `initial={false}` prevents a flash on initial mount. Chevron icon swap (Down ↔ Right) uses two same-sized 16px icons so the header doesn't reflow. No layout shift observed in the structure.
+
+**5. thesis_note threading — PASS ✓**
+
+Both manual and assign DELETE paths now accept and thread `thesis_note`:
+- `src/app/api/positions/manual/route.ts`: POST body type at line 127 (`thesis_note?: string | null`), threaded to fanout at line 235 with `body.thesis_note ?? null`. DELETE body type at lines 264-267, threaded at line 319.
+- `src/app/api/positions/assign/route.ts`: POST already wired (line 93, pre-Sprint 10). DELETE body type at lines 108-111, threaded at line 138.
+
+Form sends correctly:
+- Trading terminal (`add-position-form.tsx` line 136): `thesis_note: thesis.trim() || null`
+- Removal flow (`positions-client.tsx` line 124): `thesis_note: thesisNote.trim() || null`
+
+### Findings
+
+**Finding 1 — [IMPORTANT] Nested interactive elements in `feed-sections.tsx` PortfolioCard**
+
+`src/app/feed/feed-sections.tsx` lines 64-144: the PortfolioCard header is wrapped in a `<button>` that contains an `<a>` (line 75 — Link to `/{fm_handle}`) AND another `<button>` (line 130 — `<UndoplButton>`). This is **invalid HTML** — the HTML5 `<button>` content model excludes interactive content descendants. The previous (pre–Sprint 10) implementation used a plain `<div>` wrapper; this regression was introduced by the rewrite.
+
+**Symptoms in production:**
+- React's `validateDOMNesting` warning fires in dev mode: `<a> cannot appear as a descendant of <button>`.
+- Screen readers announce the entire header as one button label, so VoiceOver/NVDA users won't hear "view {fm_name}'s profile" as a distinct link.
+- Tab key behavior inside the inner Link/UndoplButton is browser-dependent — Safari and Firefox handle it differently from Chromium.
+- `e.stopPropagation()` (lines 72, 116) prevents the toggle from firing on inner clicks but doesn't fix the validity issue.
+
+**Suggested fix:** Replace the outer `<button>` with `<div role="button" tabIndex={0} aria-expanded={...} onKeyDown={...}>` where `onKeyDown` handles Enter/Space to toggle. The visual styling, click-to-toggle behavior, and the inner Link/UndoplButton all keep working correctly. ~10-line change.
+
+**Finding 2 — [NIT] `allocation_pct` plumbed but never populated by any route**
+
+The FanoutChange type's optional `allocation_pct?: number` field (line 18 of `notification-fanout.ts`) is exercised by the `describeOneChange` test (line 332) producing `"bought AAPL · $189.50 · 40% allocation"`. But neither `manual/route.ts` POST nor `assign/route.ts` POST actually sets it on the buy change. `manual/route.ts` line 226-232 only passes `type, ticker, shares, price` — no allocation.
+
+In production, real FM buys via the trading terminal will produce bodies like `"bought AAPL · $189.50"` (price only), never `"...· 40% allocation"`. The plan's spec (Task 6 example) sets an expectation that won't materialize without a follow-up that either (a) recomputes allocation post-insert and re-emits, or (b) accepts allocation from the form (which has no allocation input).
+
+This is a **partial implementation, not a regression**. Infrastructure is in place; just no caller exercises it. Worth flagging because the post-merge smoke test specifies "bought AAPL · $189.50 · 40% allocation" on the lock screen (Verification step 12) — that won't appear. Surfer will see `"bought AAPL · $189.50"` and may flag it as a bug.
+
+### Other observations (no action)
+
+- CHANGELOG entry comprehensive and accurate (date 2026-04-29, full files-changed + risks).
+- `PositionCard` correctly preserved for `/[handle]` profile — only the `PositionLike` type is imported by `feed-sections.tsx` (line 8), the component itself stays unused there.
+- Manual DELETE thesis_note path is plumbed but not exercised by the new UI — `positions-client.tsx` calls `assign` DELETE for removals. Intentional plumbing for parity.
+- `as any` casts in `manual/route.ts` DELETE (lines 285-318) are pre-existing patterns continued for the nested portfolios join shape.
+- `npm run build` produced one warning (turbopack lockfile detection) — pre-existing, not Sprint 10.
+- The sub-five-second `AbortSignal.timeout(5000)` on Finnhub fetches is shorter than Vercel's 10s default, leaving headroom for the Yahoo fallback to also complete inside one serverless invocation.
+
+### Verdict: APPROVED WITH ONE ITEM TO ADDRESS
+
+- **1 important:** Finding 1 (nested interactive elements) should be fixed before merge — small change, real accessibility regression for a major rewrite. Suggest a follow-up commit on the same branch.
+- **1 nit:** Finding 2 (allocation_pct) is a partial-implementation gap, not a bug. Could ship as-is; a later commit can wire allocation if/when the FM trading terminal grows an allocation input or a post-insert recompute path.
+
+If the nested-button fix lands as a follow-up commit (e.g., `fix(feed): replace nested button with div role=button for valid HTML`), this branch is good to merge. Tests + build are both green; the rest of the implementation matches the plan precisely.
+
+---
+
+## Final Review (Instance 2) — after follow-up commits
+
+**Reviewed:** 2026-04-29
+**Branch state:** 12 commits, 149/149 tests, build clean
+**Commits added since prior review:** `9b472ba` (Finding 1 fix), `620c243` (Finding 2 fix)
+
+### Finding 1 follow-up: `9b472ba` — div role=button
+
+The outer `<button>` swap to `<div role="button" tabIndex={0}>` is the right call. The original HTML5 invalidity is gone — `<div>` allows interactive descendants. `aria-expanded` and `aria-controls` are preserved so the relationship to the position-table region survives. The new `focus-visible:ring-2 focus-visible:ring-[color:var(--dopl-lime)]/40` is a thoughtful addition — keyboard users now see a clear focus indicator that the original `<button>` didn't have. `cursor-pointer` re-adds the affordance that `<div>` lost from `<button>`'s implicit pointer.
+
+**However — one new keyboard-only regression introduced by the fix.** ❗
+
+The `onKeyDown` handler (lines 73-78) fires on any Enter/Space keydown that bubbles up to the outer div, regardless of where focus actually is. When a keyboard user tabs onto the inner `<Link>` (FM avatar/handle) and presses Enter, the sequence is:
+
+1. KeyDown fires on the Link, bubbles to outer div
+2. Outer div's handler calls `e.preventDefault()` → cancels the browser's default Enter-on-link → no synthetic click → no navigation
+3. `toggle()` runs → portfolio expands/collapses instead of navigating to the FM profile
+
+Same issue when focus is on `<UndoplButton>` — Enter/Space toggles the portfolio instead of opening the undopl confirmation.
+
+The `onClick={(e) => e.stopPropagation()}` on the wrapper divs (lines 84, 128) prevents *click* bubbling but doesn't cover *keydown* — keydown still bubbles from the inner element through those wrappers up to the outer div. Mouse/touch users are unaffected (because `onClick` propagation is properly stopped); only keyboard users hit this.
+
+**One-line fix:**
+```tsx
+onKeyDown={(e) => {
+  if (e.target !== e.currentTarget) return;  // ← add this
+  if (e.key === "Enter" || e.key === " ") {
+    e.preventDefault();
+    toggle();
+  }
+}}
+```
+
+The early return ensures the toggle only fires when the outer div itself is the keyboard-focused element (not when the keydown is bubbling up from an inner Link/Button). All other behaviors stay identical.
+
+### Finding 2 follow-up: `620c243` — allocation_pct computation — APPROVED ✓
+
+Clean, correct implementation in `src/app/api/positions/manual/route.ts` (16 lines added):
+
+- Computes `allocationPct` only when the new position has `market_value > 0` — gracefully skipped when price unavailable.
+- The post-insert `SELECT market_value WHERE portfolio_id=...` query correctly includes the just-inserted row, so `total` is the up-to-date portfolio total.
+- Math: `(market_value / total) * 100` produces the right percentage for both edge cases (single position → 100%, multi-position → fractional).
+- Passed onto the buy change as `allocation_pct: allocationPct`. `describeOneChange` already knows how to render it via `change.allocation_pct.toFixed(0)`.
+- Uses the user's `supabase` (not admin) for the SELECT — RLS-safe since ownership was already verified upstream.
+- Defensive `if (total > 0)` guard against division by zero.
+
+Production smoke step 12 (`"...· 40% allocation"` on lock screen) will now match what the FM trading terminal emits. Resolves the original NIT cleanly.
+
+### Verdict: APPROVED — one keyboard-only follow-up suggested, not blocking
+
+- **Finding 1 (original HTML validity):** RESOLVED by `9b472ba`. Branch is no longer invalid HTML5, no longer trips React's validateDOMNesting, and screen readers will announce the role correctly.
+- **Finding 2 (allocation_pct):** RESOLVED by `620c243`.
+- **New issue:** keyboard activation of inner `<Link>` / `<UndoplButton>` is intercepted by the outer toggle handler. One-line fix (`if (e.target !== e.currentTarget) return;`) restores the original keyboard behavior. Suggest a 13th follow-up commit before merge — it's a one-token change.
+
+Tests + build remain green. The rest of the implementation matches the plan and the review-round fixes precisely. Ship the keyboard fix and this branch is fully ready for merge.
+
+---
+
+## Sign-off — after `d265fa4`
+
+**Reviewed:** 2026-04-29
+**Branch:** 13 commits, 149/149 tests, build clean.
+
+The keydown-filter commit (`d265fa4`) is exactly the suggested fix: `if (e.target !== e.currentTarget) return;` as the first line of the outer div's `onKeyDown` handler, with an inline comment naming the inner Link / UndoplButton case. Mouse/touch behavior is unchanged. Keyboard users on the inner elements now activate them as expected; only header-direct keypresses toggle.
+
+All Sprint 10 findings (plan rounds + implementation rounds) are now resolved:
+- Plan Round 1 critical (Task 5/6 type ordering) ✓
+- Plan Round 1 important (dual-fallback failure) ✓
+- Plan Round 1 important (ARIA combobox spec) ✓
+- Implementation important (HTML validity / nested interactive) ✓
+- Implementation nit (allocation_pct never populated) ✓
+- Final review nit (keyboard regression from the validity fix) ✓
+
+**Branch is fully cleared for merge** under the "first-merge of a new sprint" policy — Surfer merges + pushes manually, then smokes on `dopl-app.vercel.app`.

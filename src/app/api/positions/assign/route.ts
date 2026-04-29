@@ -105,7 +105,11 @@ export async function DELETE(request: Request) {
   if (!user)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { id } = await request.json();
+  const body = (await request.json()) as {
+    id: string;
+    thesis_note?: string | null;
+  };
+  const { id } = body;
   const { data: pos } = await supabase
     .from("positions")
     .select("id, ticker, shares, portfolio_id, portfolios!inner(fund_manager_id)")
@@ -131,7 +135,7 @@ export async function DELETE(request: Request) {
       },
     ],
     description: `removed ${pos.ticker}`,
-    thesis_note: null,
+    thesis_note: body.thesis_note ?? null,
   });
 
   return NextResponse.json({ ok: true });

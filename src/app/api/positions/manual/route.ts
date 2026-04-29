@@ -124,6 +124,7 @@ export async function POST(request: Request) {
     shares?: number | null;
     entry_price?: number | null;
     current_price?: number | null;
+    thesis_note?: string | null;
   };
 
   const ticker = (body.ticker ?? "").trim().toUpperCase();
@@ -219,12 +220,35 @@ export async function POST(request: Request) {
     // Subscribable portfolio — fan out a buy event to every active dopler
     // on the portfolio. Admin client bypasses RLS for the read-subscribers
     // traversal; ownership was already verified above.
+    //
+    // Compute allocation_pct fresh from the just-updated portfolio total
+    // so the notification body can surface "X% allocation". Skipped when
+    // the new position has no market_value (price unavailable on add).
+    let allocationPct: number | undefined;
+    if (market_value != null && market_value > 0) {
+      const { data: allPositions } = await supabase
+        .from("positions")
+        .select("market_value")
+        .eq("portfolio_id", portfolioId);
+      const total = ((allPositions ?? []) as { market_value: number | null }[])
+        .reduce((a, p) => a + (Number(p.market_value) || 0), 0);
+      if (total > 0) allocationPct = (market_value / total) * 100;
+    }
+
     await fanOutPortfolioUpdate(createAdminClient(), {
       portfolio_id: portfolioId,
       fund_manager_id: user.id,
-      changes: [{ type: "buy", ticker, shares: shares ?? 0 }],
+      changes: [
+        {
+          type: "buy",
+          ticker,
+          shares: shares ?? 0,
+          price: price ?? undefined,
+          allocation_pct: allocationPct,
+        },
+      ],
       description: `added ${ticker}`,
-      thesis_note: null,
+      thesis_note: body.thesis_note ?? null,
     });
   } else {
     // Manual Holdings path — treat manual entry as the FM's broker so
@@ -253,7 +277,11 @@ export async function DELETE(request: Request) {
   if (!user)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { id } = (await request.json()) as { id: string };
+  const body = (await request.json()) as {
+    id: string;
+    thesis_note?: string | null;
+  };
+  const { id } = body;
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
   // Look up the position + its portfolio in one shot: gives us the
@@ -304,7 +332,7 @@ export async function DELETE(request: Request) {
       ],
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       description: `removed ${(pos as any).ticker}`,
-      thesis_note: null,
+      thesis_note: body.thesis_note ?? null,
     });
   }
 

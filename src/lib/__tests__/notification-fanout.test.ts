@@ -307,6 +307,87 @@ describe('fanOutPortfolioUpdate', () => {
     expect(row.meta.source).toBe('test');
   });
 
+  it('enriched body: buy with price + allocation', async () => {
+    const { client, inserted } = makeFakeSupabase({
+      portfolio,
+      subscriptions: [
+        { user_id: 'u1', portfolio_id: 'p-techgrowth', status: 'active' },
+      ],
+      positions: [],
+    });
+    await fanOutPortfolioUpdate(client, {
+      portfolio_id: 'p-techgrowth',
+      fund_manager_id: 'fm-alice',
+      changes: [
+        {
+          type: 'buy',
+          ticker: 'AAPL',
+          shares: 10,
+          price: 189.5,
+          allocation_pct: 40,
+        },
+      ],
+    });
+    const row = inserted.find((i) => i.table === 'notifications')!.rows[0];
+    expect(row.body).toBe('bought AAPL · $189.50 · 40% allocation');
+  });
+
+  it('enriched body: buy with price + thesis_note (single-quoted clause)', async () => {
+    const { client, inserted } = makeFakeSupabase({
+      portfolio,
+      subscriptions: [
+        { user_id: 'u1', portfolio_id: 'p-techgrowth', status: 'active' },
+      ],
+      positions: [],
+    });
+    await fanOutPortfolioUpdate(client, {
+      portfolio_id: 'p-techgrowth',
+      fund_manager_id: 'fm-alice',
+      changes: [{ type: 'buy', ticker: 'AAPL', shares: 10, price: 189.5 }],
+      thesis_note: 'AI infrastructure play',
+    });
+    const row = inserted.find((i) => i.table === 'notifications')!.rows[0];
+    expect(row.body).toBe(
+      "bought AAPL · $189.50 — 'AI infrastructure play'"
+    );
+  });
+
+  it('enriched body: sell with price', async () => {
+    const { client, inserted } = makeFakeSupabase({
+      portfolio,
+      subscriptions: [
+        { user_id: 'u1', portfolio_id: 'p-techgrowth', status: 'active' },
+      ],
+      positions: [],
+    });
+    await fanOutPortfolioUpdate(client, {
+      portfolio_id: 'p-techgrowth',
+      fund_manager_id: 'fm-alice',
+      changes: [
+        { type: 'sell', ticker: 'AAPL', prevShares: 5, price: 189.5 },
+      ],
+    });
+    const row = inserted.find((i) => i.table === 'notifications')!.rows[0];
+    expect(row.body).toBe('sold AAPL · $189.50');
+  });
+
+  it('backward-compat body: buy without price falls back to "bought AAPL"', async () => {
+    const { client, inserted } = makeFakeSupabase({
+      portfolio,
+      subscriptions: [
+        { user_id: 'u1', portfolio_id: 'p-techgrowth', status: 'active' },
+      ],
+      positions: [],
+    });
+    await fanOutPortfolioUpdate(client, {
+      portfolio_id: 'p-techgrowth',
+      fund_manager_id: 'fm-alice',
+      changes: [{ type: 'buy', ticker: 'AAPL', shares: 10 }],
+    });
+    const row = inserted.find((i) => i.table === 'notifications')!.rows[0];
+    expect(row.body).toBe('bought AAPL');
+  });
+
   it('fallback: empty changes array → one "note" notification per sub', async () => {
     const { client, inserted } = makeFakeSupabase({
       portfolio,
