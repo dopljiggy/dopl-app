@@ -235,10 +235,15 @@ export default function ExpandablePortfolioCard({
         {isExpanded && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
+            animate={{
+              height: "auto",
+              opacity: 1,
+              transitionEnd: { overflow: "visible" },
+            }}
+            exit={{ overflow: "hidden", height: 0, opacity: 0 }}
             transition={{ duration: 0.35, ease: [0.2, 0.7, 0.2, 1] }}
-            className="overflow-hidden border-t border-[color:var(--glass-border)]"
+            style={{ overflow: "hidden" }}
+            className="border-t border-[color:var(--glass-border)]"
           >
             <div className="p-5 md:p-6 space-y-6">
               {/* Charts row */}
