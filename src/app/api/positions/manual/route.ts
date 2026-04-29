@@ -124,6 +124,7 @@ export async function POST(request: Request) {
     shares?: number | null;
     entry_price?: number | null;
     current_price?: number | null;
+    thesis_note?: string | null;
   };
 
   const ticker = (body.ticker ?? "").trim().toUpperCase();
@@ -222,9 +223,16 @@ export async function POST(request: Request) {
     await fanOutPortfolioUpdate(createAdminClient(), {
       portfolio_id: portfolioId,
       fund_manager_id: user.id,
-      changes: [{ type: "buy", ticker, shares: shares ?? 0 }],
+      changes: [
+        {
+          type: "buy",
+          ticker,
+          shares: shares ?? 0,
+          price: price ?? undefined,
+        },
+      ],
       description: `added ${ticker}`,
-      thesis_note: null,
+      thesis_note: body.thesis_note ?? null,
     });
   } else {
     // Manual Holdings path — treat manual entry as the FM's broker so
@@ -253,7 +261,11 @@ export async function DELETE(request: Request) {
   if (!user)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { id } = (await request.json()) as { id: string };
+  const body = (await request.json()) as {
+    id: string;
+    thesis_note?: string | null;
+  };
+  const { id } = body;
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
   // Look up the position + its portfolio in one shot: gives us the
@@ -304,7 +316,7 @@ export async function DELETE(request: Request) {
       ],
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       description: `removed ${(pos as any).ticker}`,
-      thesis_note: null,
+      thesis_note: body.thesis_note ?? null,
     });
   }
 
