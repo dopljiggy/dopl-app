@@ -18,7 +18,13 @@ export type FanoutChange =
       allocation_pct?: number;
     }
   | { type: "sell"; ticker: string; prevShares: number; price?: number }
-  | { type: "rebalance"; ticker: string; prevShares: number; shares: number };
+  | {
+      type: "rebalance";
+      ticker: string;
+      prevShares: number;
+      shares: number;
+      price?: number;
+    };
 
 export interface FanoutInput {
   portfolio_id: string;
