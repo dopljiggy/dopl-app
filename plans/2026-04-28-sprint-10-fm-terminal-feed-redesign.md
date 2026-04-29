@@ -1,4 +1,4 @@
-**Status:** implemented
+**Status:** under-review (hotfix round 1)
 
 # Sprint 10: FM Trading Terminal + Feed Redesign + Thesis Notes + Richer Notifications
 
@@ -534,3 +534,357 @@ All Sprint 10 findings (plan rounds + implementation rounds) are now resolved:
 - Final review nit (keyboard regression from the validity fix) ✓
 
 **Branch is fully cleared for merge** under the "first-merge of a new sprint" policy — Surfer merges + pushes manually, then smokes on `dopl-app.vercel.app`.
+
+---
+
+# Sprint 10: Hotfix Round 1
+
+Post-merge smoke testing by Surfer revealed 11 issues across the trading terminal, feed, notifications, and portfolio card. All are bugs or small UX polish from the Sprint 10 feature set — no new scope.
+
+**Branch:** `fix/sprint-10-hotfix-r1`
+
+**Prerequisites:** None (Finnhub key already deployed)
+
+---
+
+## Task H1: Fix Autocomplete Dropdown Clipping
+
+**File:** `src/app/(dashboard)/dashboard/portfolios/expandable-portfolio-card.tsx`
+
+**Root cause:** The `motion.div` wrapping the expanded body (line ~237) uses `overflow-hidden` in its className. This clips all absolutely-positioned children regardless of z-index. The TickerSearch dropdown (`position: absolute`, `z-30`) renders inside this container, so it's cut off at the card boundary instead of floating above sibling elements.
+
+**Fix:** Use framer-motion's `transitionEnd` to switch overflow after the expand animation completes:
+
+```tsx
+animate={{
+  height: "auto",
+  opacity: 1,
+  transitionEnd: { overflow: "visible" },
+}}
+exit={{
+  overflow: "hidden",
+  height: 0,
+  opacity: 0,
+}}
+style={{ overflow: "hidden" }}
+```
+
+Remove `overflow-hidden` from the className (it's now handled via inline style + animation).
+
+**Exit criteria:** TickerSearch dropdown renders above the footer buttons when the portfolio card is expanded. Collapse animation still clips content smoothly.
+
+**Depends on:** None
+
+---
+
+## Task H2: Fix Draft 0% on Newly Added Positions
+
+**File:** `src/app/(dashboard)/dashboard/portfolios/expandable-portfolio-card.tsx`
+
+**Root cause:** The `draft` state is initialized via `useState(() => ...)` which only runs on mount. When `router.refresh()` pushes new positions as props (after adding a position via the trading terminal), the draft state doesn't include the new position — it shows 0%.
+
+**Fix:** Add a `useEffect` that syncs draft when positions change:
+
+```tsx
+useEffect(() => {
+  setDraft((prev) => {
+    const next = { ...prev };
+    for (const p of positions) {
+      if (!(p.id in next)) {
+        next[p.id] = p.allocation_pct != null
+          ? Number(p.allocation_pct)
+          : brokerPcts.get(p.id) ?? 0;
+      }
+    }
+    // Remove draft entries for positions that no longer exist
+    for (const id of Object.keys(next)) {
+      if (!positions.some((p) => p.id === id)) delete next[id];
+    }
+    return next;
+  });
+}, [positions, brokerPcts]);
+```
+
+**Exit criteria:** After adding a position, the "Your %" column shows the computed allocation immediately without requiring a page refresh.
+
+**Depends on:** None
+
+---
+
+## Task H3: Inline Position Management (Add/Reduce/Delete Per Row)
+
+**File:** `src/app/(dashboard)/dashboard/portfolios/expandable-portfolio-card.tsx`
+
+**Problem:** Currently the FM can only add new positions via the trading terminal, and must navigate to "manage positions" to delete. Adjusting shares on existing positions requires manually searching the same ticker again. The FM should be able to add, reduce, or remove shares directly from the position table row.
+
+**Changes to position table:** Add a new column (col-span-1) at the right of each position row with two icon buttons:
+
+1. **Adjust button** (Pencil or PlusMinus icon): toggles an inline expansion below the row.
+   - Shows: current shares (read-only), new share count input, thesis note input ("why? optional"), confirm/cancel buttons.
+   - On confirm: POST to `/api/positions/manual` with `{ portfolio_id, ticker, shares: newShares, current_price: pos.current_price, name: pos.name, thesis_note }`. This hits the existing upsert path (same ticker in same portfolio → update).
+   - State: `adjusting: { id: string; ticker: string } | null`, `adjustShares: string`, `adjustThesis: string`.
+
+2. **Delete button** (Trash2 icon): toggles an inline confirmation row below the position.
+   - Shows: "remove {ticker}?" + thesis note input + cancel/confirm buttons. Same pattern as the Task 7 removal flow in `positions-client.tsx`.
+   - On confirm: DELETE to `/api/positions/manual` with `{ id }`, then `router.refresh()`.
+   - State: `pendingRemove: { id: string; ticker: string } | null`, `removeThesis: string`.
+
+**Grid change:** Existing `grid-cols-12` becomes `grid-cols-[3fr_3fr_2fr_2fr_2fr_auto]` to accommodate the action column. Or keep 12 cols and reduce others by 1 to free up col-span-1 for actions.
+
+**Existing "add position" form stays** — it's for discovering and adding **new** tickers via search. The inline adjust is for **existing** positions only.
+
+**Exit criteria:** FM can click adjust on AMPX row → change shares from 42 to 60 → add optional thesis → confirm. FM can click trash on GOOG row → see confirmation → add thesis → confirm deletion. Both refresh the portfolio card immediately.
+
+**Depends on:** H1 (overflow fix ensures inline expansions aren't clipped), H2 (draft sync so new counts appear correctly)
+
+---
+
+## Task H4: Upsert Fanout (Rebalance Notification)
+
+**File:** `src/app/api/positions/manual/route.ts`
+
+**Root cause:** The upsert path (lines 192-208) explicitly skips `fanOutPortfolioUpdate`. Comment: "ticker already exists means the FM is editing shares/price, not adding a new holding, so no fanout." Surfer wants doplers notified when the FM increases or decreases an existing position.
+
+**Changes:**
+
+1. Line ~196: change `.select("id")` → `.select("id, shares")` on the existing-position lookup.
+
+2. After the successful update (line ~206), when `isExplicitPortfolio`, fire fanout:
+   ```ts
+   if (isExplicitPortfolio) {
+     const prevShares = Number(existing.shares) || 0;
+     await fanOutPortfolioUpdate(createAdminClient(), {
+       portfolio_id: portfolioId,
+       fund_manager_id: user.id,
+       changes: [{
+         type: "rebalance",
+         ticker,
+         prevShares,
+         shares: shares ?? 0,
+         price: price ?? undefined,
+       }],
+       description: `rebalanced ${ticker}`,
+       thesis_note: body.thesis_note ?? null,
+     });
+   }
+   ```
+
+3. Remove or update the comment at line ~191 to reflect the new behavior.
+
+**Exit criteria:** When FM buys more of an existing ticker (upsert), every active dopler on the portfolio receives a notification. When FM reduces shares, same. When using the Manual Holdings path (no portfolio_id), no fanout fires (unchanged).
+
+**Depends on:** None (can run in parallel with H1-H3, but logically H3 is what triggers this path from the UI)
+
+---
+
+## Task H5: Rebalance Notification Body
+
+**File:** `src/lib/notification-fanout.ts`
+
+**Current state:** `describeOneChange` handles the `rebalance` variant with `"rebalanced {ticker}"` only. No price, no share detail, no thesis.
+
+**Changes to `describeOneChange(change, thesisNote?)`:**
+
+For the `rebalance` variant:
+- With price + shares: `"rebalanced AMPX · 42 → 60 shares · $189.50"`
+- With thesis: `"rebalanced AMPX · 42 → 60 shares — 'doubling down on infrastructure'"`
+- With price only (no share change visible): `"rebalanced AMPX · $189.50"`
+- Fallback: `"rebalanced AMPX"` (backward compat)
+
+The `rebalance` variant in `FanoutChange` already has `prevShares` and `shares`. It gained `price?: number` in Task 5a. No type changes needed.
+
+**File:** `src/lib/__tests__/notification-fanout.test.ts`
+
+Add 2 test cases:
+1. Rebalance with price + shares → `"rebalanced AMPX · 42 → 60 shares · $189.50"`
+2. Rebalance with thesis → body includes thesis quote
+
+**Exit criteria:** Lock screen shows "Portfolio Name / rebalanced AMPX · 42 → 60 shares · $189.50" or with thesis appended.
+
+**Depends on:** H4 (the upsert path now sends rebalance changes)
+
+---
+
+## Task H6: Feed Fixes
+
+### H6a: G/L → P/L
+
+**File:** `src/app/feed/feed-sections.tsx`
+
+Line 218: change `g/l` → `p/l` in the table header. Rename the `gl` / `glPositive` variables to `pl` / `plPositive` for consistency.
+
+### H6b: Compute Allocation from Market Value
+
+**File:** `src/app/feed/feed-sections.tsx`
+
+When `allocation_pct` is null (older positions, FM hasn't saved allocations), compute it client-side from `market_value` — same logic the FM portfolio card uses:
+
+In `PositionTable`, compute the total market value across all positions, then for each row: `alloc = (pos.market_value / total) * 100`. Fall back to "—" only when `market_value` is also null.
+
+### H6c: Debug "View Full Portfolio" Link
+
+**File:** `src/app/feed/[portfolioId]/page.tsx`
+
+The route exists and `s.portfolio_id` is always defined in the data flow. Surfer reports clicking the link "takes me nowhere." Investigate: check for runtime errors (missing data, auth issues, empty render). The link itself at `feed-sections.tsx:192-197` uses `<Link href={/feed/${s.portfolio_id}}>` which is correct. Likely a bug in the detail page — could be a data fetch that returns empty and renders nothing, or a redirect condition that bounces the user.
+
+**Exit criteria:** Feed table header shows "p/l". Allocation column shows computed percentages instead of "—" for positions with market_value. "View full portfolio →" navigates to the detail page successfully.
+
+**Depends on:** None
+
+---
+
+## Task H7: Pie Chart Legend + Remove Illustrative Chart
+
+**File:** `src/app/(dashboard)/dashboard/portfolios/expandable-portfolio-card.tsx`
+
+### H7a: Pie Chart Legend
+
+Below the PieChart `ResponsiveContainer`, add a simple legend: a `flex flex-wrap gap-x-4 gap-y-1 mt-3` container with items for each `donutData` entry:
+
+```tsx
+<div className="flex flex-wrap gap-x-4 gap-y-1 mt-3">
+  {donutData.map((d, i) => (
+    <div key={d.name} className="flex items-center gap-1.5 text-[10px] font-mono text-[color:var(--dopl-cream)]/60">
+      <span
+        className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
+        style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }}
+      />
+      {d.name}
+    </div>
+  ))}
+</div>
+```
+
+### H7b: Remove Illustrative 30-Day Chart
+
+Replace the entire LineChart section (the `lg:col-span-3 glass-card-light` div) with a placeholder:
+
+```tsx
+<div className="lg:col-span-3 glass-card-light p-5 rounded-2xl flex flex-col items-center justify-center text-center">
+  <TrendingUp size={24} className="text-[color:var(--dopl-cream)]/15 mb-2" />
+  <p className="text-xs text-[color:var(--dopl-cream)]/40">
+    performance tracking coming soon
+  </p>
+  <p className="text-[10px] text-[color:var(--dopl-cream)]/25 mt-1">
+    historical portfolio returns will appear here
+  </p>
+</div>
+```
+
+Remove the `perfData` useMemo, the `LineChart`/`Line`/`XAxis`/`YAxis` imports (if no longer used elsewhere in the file), and the `linearGradient` def.
+
+**Exit criteria:** Pie chart has visible ticker labels below it. The 30-day section shows "performance tracking coming soon" instead of fake data. No unused Recharts imports remain.
+
+**Depends on:** None
+
+---
+
+## Task H8: Notification Fixes
+
+### H8a: Bell Popup Positioning
+
+**File:** `src/components/ui/notification-bell.tsx`
+
+**Root cause:** When clicking a notification from the bell dropdown, `setPopup(...)` and `setOpen(false)` fire in the same handler. The dropdown's exit animation (portal teardown) races with the popup mount, causing a layout shift on mobile — the popup appears at the top of the screen instead of centered.
+
+**Fix:** Wrap the popup open in `requestAnimationFrame` so it fires after the dropdown's exit:
+
+```tsx
+// In the notification click handler:
+setOpen(false);
+requestAnimationFrame(() => {
+  setPopup(notification);
+});
+```
+
+### H8b: Clear Push Notifications on App Open
+
+**File:** `src/components/dopler-shell.tsx`
+
+When the user opens the app directly (not via push notification tap), delivered push notifications should be cleared from the notification tray.
+
+Add to the existing `visibilitychange` handler or create one:
+
+```tsx
+useEffect(() => {
+  const clearPush = () => {
+    if (document.visibilityState !== "visible") return;
+    navigator.serviceWorker?.ready.then((reg) =>
+      reg.getNotifications().then((ns) => ns.forEach((n) => n.close()))
+    );
+  };
+  document.addEventListener("visibilitychange", clearPush);
+  return () => document.removeEventListener("visibilitychange", clearPush);
+}, []);
+```
+
+Note: `ServiceWorkerRegistration.getNotifications()` is supported in Chrome, Firefox, Edge, and Safari 16+. On older Safari/iOS where it's unavailable, the optional chaining on `navigator.serviceWorker` handles it gracefully.
+
+**Exit criteria:** Clicking a notification from the bell opens the detail popup centered on screen, not at the top. Opening the app clears any pending push notifications from the notification tray.
+
+**Depends on:** None
+
+---
+
+## Task Dependency Graph
+
+```
+H1 (overflow fix) ──┐
+H2 (draft sync)  ───┤
+                     ├── H3 (inline adjust/delete)
+H4 (upsert fanout) ─── H5 (rebalance body)
+
+H6 (feed fixes)      — independent
+H7 (pie + chart)      — independent
+H8 (notification)     — independent
+```
+
+**Recommended execution:** H1, H2, H4 in parallel → H3, H5 → H6, H7, H8 (independent, any order)
+
+---
+
+## Files Summary
+
+**Modify (7):**
+- `src/app/(dashboard)/dashboard/portfolios/expandable-portfolio-card.tsx` — overflow fix, draft sync, inline adjust/delete, pie legend, remove illustrative chart (H1, H2, H3, H7)
+- `src/app/api/positions/manual/route.ts` — upsert fanout with rebalance change (H4)
+- `src/lib/notification-fanout.ts` — rebalance body enrichment (H5)
+- `src/lib/__tests__/notification-fanout.test.ts` — 2 new test cases (H5)
+- `src/app/feed/feed-sections.tsx` — G/L→P/L, compute alloc from market_value (H6)
+- `src/components/ui/notification-bell.tsx` — popup timing fix (H8a)
+- `src/components/dopler-shell.tsx` — clear push on app open (H8b)
+
+**Investigate (1):**
+- `src/app/feed/[portfolioId]/page.tsx` — debug "view full portfolio" link (H6c)
+
+---
+
+## Verification
+
+### Automated
+- `npm test` — all existing tests pass + 2 new rebalance body test cases
+- `npm run build` — clean build
+
+### Manual Smoke (Surfer on prod after merge)
+
+**Trading Terminal:**
+1. Expand a portfolio → autocomplete dropdown renders above footer buttons
+2. Add a new position → "Your %" shows correct value immediately (not 0%)
+3. Click adjust on an existing position → inline row appears → change shares → add thesis → confirm → portfolio updates
+4. Click delete on a position → confirmation + thesis → confirm → position removed
+
+**Notifications:**
+5. FM adjusts shares on existing position (upsert) → dopler receives push notification
+6. Lock screen shows "rebalanced AMPX · 42 → 60 shares · $189.50"
+7. If thesis provided, it appears in notification body
+8. Open app directly (not via push) → push notifications clear from tray
+9. Click notification from bell → detail popup appears centered on screen
+
+**Feed:**
+10. Column header shows "p/l" not "g/l"
+11. Allocation column shows computed percentages for positions with market_value
+12. "View full portfolio →" link navigates successfully
+
+**Portfolio Card:**
+13. Pie chart has color legend showing ticker names
+14. 30-day section shows "performance tracking coming soon" placeholder
