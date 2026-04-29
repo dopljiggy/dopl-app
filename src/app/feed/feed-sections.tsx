@@ -187,20 +187,22 @@ function PortfolioCard({
             ) : (
               <div className="border-t border-[color:var(--glass-border)]">
                 <PositionTable positions={s.positions} />
-                <div className="px-5 py-3 border-t border-[color:var(--glass-border)] flex justify-end">
-                  <a
-                    href={`/feed/${s.portfolio_id}`}
-                    onClick={(e) => e.stopPropagation()}
-                    className="text-xs text-[color:var(--dopl-lime)] hover:underline inline-flex items-center gap-1"
-                  >
-                    view full portfolio →
-                  </a>
-                </div>
               </div>
             )}
           </motion.div>
         )}
       </AnimatePresence>
+
+      {expanded && s.positions.length > 0 && (
+        <div className="px-5 py-3 border-t border-[color:var(--glass-border)] flex justify-end">
+          <a
+            href={`/feed/${s.portfolio_id}`}
+            className="text-xs text-[color:var(--dopl-lime)] hover:underline inline-flex items-center gap-1"
+          >
+            view full portfolio →
+          </a>
+        </div>
+      )}
     </GlassCard>
   );
 }
