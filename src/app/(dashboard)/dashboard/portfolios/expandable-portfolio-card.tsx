@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronDown,
@@ -95,6 +95,31 @@ export default function ExpandablePortfolioCard({
       ])
     )
   );
+
+  // Sync draft when positions change. The useState initializer only runs
+  // on mount — adding a position via the trading terminal triggers
+  // router.refresh(), which pushes new positions as props but leaves the
+  // draft state stale (the new id was never added). This effect adds
+  // entries for new positions and prunes entries for removed ones,
+  // preserving any in-flight edits the FM hasn't saved yet.
+  useEffect(() => {
+    setDraft((prev) => {
+      const next = { ...prev };
+      for (const p of positions) {
+        if (!(p.id in next)) {
+          next[p.id] =
+            p.allocation_pct != null
+              ? Number(p.allocation_pct)
+              : brokerPcts.get(p.id) ?? 0;
+        }
+      }
+      for (const id of Object.keys(next)) {
+        if (!positions.some((p) => p.id === id)) delete next[id];
+      }
+      return next;
+    });
+  }, [positions, brokerPcts]);
+
   const [saving, setSaving] = useState(false);
   const [showManualUpdate, setShowManualUpdate] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
