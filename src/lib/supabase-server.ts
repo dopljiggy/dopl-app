@@ -24,10 +24,17 @@ export async function createServerSupabase() {
   );
 }
 
+/**
+ * Cached server-side auth helper. Returns BOTH the supabase client and the
+ * authenticated user — callers can re-use the client for follow-up reads
+ * without paying for a second `createServerSupabase()` + `getUser()` round
+ * trip. React's `cache()` deduplicates within a single server request, so
+ * a page + its layout share one auth call.
+ */
 export const getCachedUser = cache(async () => {
   const supabase = await createServerSupabase();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  return user;
+  return { supabase, user };
 });

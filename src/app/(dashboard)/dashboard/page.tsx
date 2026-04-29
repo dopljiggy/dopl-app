@@ -1,4 +1,4 @@
-import { createServerSupabase, getCachedUser } from "@/lib/supabase-server";
+import { getCachedUser } from "@/lib/supabase-server";
 import { redirect } from "next/navigation";
 import CountUp from "@/components/ui/count-up";
 import Sparkline from "@/components/ui/sparkline";
@@ -9,10 +9,8 @@ import {
 } from "@/components/ui/finish-setup-checklist";
 
 export default async function DashboardPage() {
-  const user = await getCachedUser();
+  const { supabase, user } = await getCachedUser();
   if (!user) redirect("/login");
-
-  const supabase = await createServerSupabase();
 
   const [{ data: fm }, { data: portfolios }] = await Promise.all([
     supabase
