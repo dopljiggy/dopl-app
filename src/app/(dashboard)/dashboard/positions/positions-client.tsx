@@ -55,6 +55,10 @@ export default function PositionsClient({
     { portfolio_id: string; portfolio_name: string; changes: unknown[] }[]
   >([]);
   const [showNotifyModal, setShowNotifyModal] = useState(false);
+  const [pendingRemove, setPendingRemove] = useState<
+    { id: string; ticker: string } | null
+  >(null);
+  const [removeThesis, setRemoveThesis] = useState("");
 
   // Tickers already assigned to ANY portfolio.
   const assignedTickers = new Set(assignedPositions.map((p) => p.ticker));
@@ -113,12 +117,14 @@ export default function PositionsClient({
     router.refresh();
   };
 
-  const remove = async (id: string) => {
+  const remove = async (id: string, thesisNote: string) => {
     await fetch("/api/positions/assign", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id }),
+      body: JSON.stringify({ id, thesis_note: thesisNote.trim() || null }),
     });
+    setPendingRemove(null);
+    setRemoveThesis("");
     router.refresh();
   };
 
@@ -291,32 +297,79 @@ export default function PositionsClient({
                     ) : (
                       <div className="space-y-1.5">
                         {items.map((it) => (
-                          <div
-                            key={it.id}
-                            className="flex items-center gap-3 text-sm"
-                          >
-                            <TrendingUp
-                              size={12}
-                              className="text-dopl-lime flex-shrink-0"
-                            />
-                            <span className="font-mono font-semibold">
-                              {it.ticker}
-                            </span>
-                            <span className="text-xs text-dopl-cream/40 flex-1 truncate">
-                              {it.name}
-                            </span>
-                            {it.allocation_pct != null && (
-                              <span className="font-mono text-xs text-dopl-cream/60">
-                                {it.allocation_pct.toFixed(1)}%
+                          <div key={it.id}>
+                            <div className="flex items-center gap-3 text-sm">
+                              <TrendingUp
+                                size={12}
+                                className="text-dopl-lime flex-shrink-0"
+                              />
+                              <span className="font-mono font-semibold">
+                                {it.ticker}
                               </span>
+                              <span className="text-xs text-dopl-cream/40 flex-1 truncate">
+                                {it.name}
+                              </span>
+                              {it.allocation_pct != null && (
+                                <span className="font-mono text-xs text-dopl-cream/60">
+                                  {it.allocation_pct.toFixed(1)}%
+                                </span>
+                              )}
+                              <button
+                                onClick={() => {
+                                  setPendingRemove({
+                                    id: it.id,
+                                    ticker: it.ticker,
+                                  });
+                                  setRemoveThesis("");
+                                }}
+                                className="text-dopl-cream/30 hover:text-red-400 transition-colors"
+                                aria-label="remove"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                            {pendingRemove?.id === it.id && (
+                              <div className="mt-2 p-3 rounded-lg bg-dopl-deep border border-amber-500/30 space-y-2">
+                                <p className="text-xs text-dopl-cream/80">
+                                  remove{" "}
+                                  <span className="font-mono font-semibold text-amber-300">
+                                    {it.ticker}
+                                  </span>
+                                  ? doplers will be notified.
+                                </p>
+                                <input
+                                  type="text"
+                                  value={removeThesis}
+                                  onChange={(e) =>
+                                    setRemoveThesis(
+                                      e.target.value.slice(0, 280)
+                                    )
+                                  }
+                                  placeholder="why are you selling? (optional)"
+                                  className="w-full bg-dopl-deep-2 border border-dopl-sage/30 rounded-lg px-3 py-2 text-xs text-dopl-cream placeholder:text-dopl-cream/30 focus:outline-none focus:border-dopl-lime/50"
+                                  autoFocus
+                                />
+                                <div className="flex items-center justify-end gap-2">
+                                  <button
+                                    onClick={() => {
+                                      setPendingRemove(null);
+                                      setRemoveThesis("");
+                                    }}
+                                    className="text-xs px-3 py-1.5 text-dopl-cream/50 hover:text-dopl-cream"
+                                  >
+                                    cancel
+                                  </button>
+                                  <button
+                                    onClick={() =>
+                                      remove(it.id, removeThesis)
+                                    }
+                                    className="text-xs px-3 py-1.5 rounded-lg bg-red-500/20 border border-red-500/40 text-red-200 hover:bg-red-500/30"
+                                  >
+                                    remove
+                                  </button>
+                                </div>
+                              </div>
                             )}
-                            <button
-                              onClick={() => remove(it.id)}
-                              className="text-dopl-cream/30 hover:text-red-400 transition-colors"
-                              aria-label="remove"
-                            >
-                              <Trash2 size={12} />
-                            </button>
                           </div>
                         ))}
                       </div>
