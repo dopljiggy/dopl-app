@@ -139,13 +139,16 @@ export async function fanOutPortfolioUpdate(
         user_id: userId,
         portfolio_update_id: updateId,
         title: (portfolio as { name: string }).name,
-        body: describeOneChange(change),
+        body: describeOneChange(change, input.thesis_note),
         actionable,
         change_type: change.type,
         ticker: change.ticker,
         meta: {
           shares: "shares" in change ? change.shares : undefined,
           prev_shares: "prevShares" in change ? change.prevShares : undefined,
+          price: "price" in change ? change.price : undefined,
+          allocation_pct:
+            "allocation_pct" in change ? change.allocation_pct : undefined,
           portfolio_id: input.portfolio_id,
           ...(input.meta_extend ?? {}),
         },
@@ -234,12 +237,32 @@ function describeChanges(
   return parts.join(", ");
 }
 
+/**
+ * Build the lock-screen / in-app notification body. Format examples:
+ *   - basic buy:                       "bought AAPL"
+ *   - buy + price:                     "bought AAPL · $189.50"
+ *   - buy + price + allocation:        "bought AAPL · $189.50 · 40% allocation"
+ *   - buy + price + thesis:            "bought AAPL · $189.50 — 'AI infra play'"
+ *   - buy + price + alloc + thesis:    "bought AAPL · $189.50 · 40% allocation — 'AI infra play'"
+ *   - sell + price:                    "sold AAPL · $189.50"
+ *
+ * Fields are joined with ` · ` (middle dot) for visual separation; the
+ * thesis tail uses an em-dash so it reads as a clause, not another field.
+ */
 function describeOneChange(
-  change: FanoutChange & { type: "buy" | "sell" }
+  change: FanoutChange & { type: "buy" | "sell" },
+  thesisNote?: string | null
 ): string {
-  return change.type === "buy"
-    ? `bought ${change.ticker}`
-    : `sold ${change.ticker}`;
+  const verb = change.type === "buy" ? "bought" : "sold";
+  const parts: string[] = [`${verb} ${change.ticker}`];
+  if (change.price != null) parts.push(`$${change.price.toFixed(2)}`);
+  if (change.type === "buy" && change.allocation_pct != null) {
+    parts.push(`${change.allocation_pct.toFixed(0)}% allocation`);
+  }
+  let body = parts.join(" · ");
+  const thesis = thesisNote?.trim();
+  if (thesis) body += ` — '${thesis}'`;
+  return body;
 }
 
 export type FmEvent = "subscription_added" | "subscription_cancelled";
