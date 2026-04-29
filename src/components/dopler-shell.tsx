@@ -87,6 +87,29 @@ export default function DoplerShell({
       navigator.serviceWorker?.removeEventListener("message", onMessage);
   }, []);
 
+  // Clear any delivered push notifications still in the OS notification
+  // tray when the app becomes visible. Two trigger points:
+  //   1. Initial mount — covers "user opened the app directly", which
+  //      doesn't fire visibilitychange.
+  //   2. visibilitychange to "visible" — covers backgrounded → foreground
+  //      transitions on PWAs.
+  // SW.getNotifications() ships in Chrome/Firefox/Edge + Safari 16+.
+  // Older Safari/iOS don't support web push at all, so the optional
+  // chain on navigator.serviceWorker handles them gracefully.
+  useEffect(() => {
+    const clearPush = () => {
+      if (document.visibilityState !== "visible") return;
+      navigator.serviceWorker?.ready
+        .then((reg) => reg.getNotifications())
+        .then((ns) => ns.forEach((n) => n.close()))
+        .catch(() => {});
+    };
+    clearPush();
+    document.addEventListener("visibilitychange", clearPush);
+    return () =>
+      document.removeEventListener("visibilitychange", clearPush);
+  }, []);
+
   const baseState = useNotifications(userId);
   const notificationsState = {
     ...baseState,
