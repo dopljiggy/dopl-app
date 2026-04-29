@@ -12,6 +12,7 @@ import {
   AlertTriangle,
   Check,
   Plus,
+  Pencil,
 } from "lucide-react";
 import {
   PieChart,
@@ -123,6 +124,86 @@ export default function ExpandablePortfolioCard({
   const [saving, setSaving] = useState(false);
   const [showManualUpdate, setShowManualUpdate] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
+
+  // Inline-edit state for the per-row Adjust + Delete actions (H3).
+  // Only one row can be in edit mode at a time; opening one closes the
+  // other. The submitting flag covers both flows so the row's confirm
+  // button can show pending state without flicker.
+  const [adjusting, setAdjusting] = useState<
+    { id: string; ticker: string } | null
+  >(null);
+  const [adjustShares, setAdjustShares] = useState("");
+  const [adjustThesis, setAdjustThesis] = useState("");
+  const [pendingRemove, setPendingRemove] = useState<
+    { id: string; ticker: string } | null
+  >(null);
+  const [removeThesis, setRemoveThesis] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const openAdjust = (pos: PositionRow) => {
+    setAdjusting({ id: pos.id, ticker: pos.ticker });
+    setAdjustShares(pos.shares != null ? String(pos.shares) : "");
+    setAdjustThesis("");
+    setPendingRemove(null);
+  };
+  const openRemove = (pos: PositionRow) => {
+    setPendingRemove({ id: pos.id, ticker: pos.ticker });
+    setRemoveThesis("");
+    setAdjusting(null);
+  };
+  const closeInlineEdit = () => {
+    setAdjusting(null);
+    setPendingRemove(null);
+    setAdjustShares("");
+    setAdjustThesis("");
+    setRemoveThesis("");
+  };
+
+  const submitAdjust = async (pos: PositionRow) => {
+    const newShares = Number(adjustShares);
+    if (!Number.isFinite(newShares) || newShares < 0) return;
+    setSubmitting(true);
+    const res = await fetch("/api/positions/manual", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        portfolio_id: portfolio.id,
+        ticker: pos.ticker,
+        name: pos.name,
+        shares: newShares,
+        current_price: pos.current_price,
+        thesis_note: adjustThesis.trim() || null,
+      }),
+    });
+    setSubmitting(false);
+    if (!res.ok) {
+      const j = (await res.json().catch(() => ({}))) as { error?: string };
+      fireToast({ title: "adjust failed", body: j.error ?? "" });
+      return;
+    }
+    closeInlineEdit();
+    router.refresh();
+  };
+
+  const submitRemove = async (pos: PositionRow) => {
+    setSubmitting(true);
+    const res = await fetch("/api/positions/manual", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: pos.id,
+        thesis_note: removeThesis.trim() || null,
+      }),
+    });
+    setSubmitting(false);
+    if (!res.ok) {
+      const j = (await res.json().catch(() => ({}))) as { error?: string };
+      fireToast({ title: "remove failed", body: j.error ?? "" });
+      return;
+    }
+    closeInlineEdit();
+    router.refresh();
+  };
 
   const sum = Object.values(draft).reduce((a, b) => a + (Number(b) || 0), 0);
   const isBalanced = Math.abs(sum - 100) < 0.1;
@@ -422,75 +503,192 @@ export default function ExpandablePortfolioCard({
                   <div className="glass-card-light rounded-2xl overflow-hidden">
                     <div className="grid grid-cols-12 gap-2 px-4 py-2.5 text-[10px] uppercase tracking-wider text-[color:var(--dopl-cream)]/40 border-b border-[color:var(--glass-border)]">
                       <div className="col-span-3">ticker</div>
-                      <div className="col-span-3 text-right">price</div>
+                      <div className="col-span-2 text-right">price</div>
                       <div className="col-span-2 text-right">P/L</div>
                       <div className="col-span-2 text-right">broker %</div>
                       <div className="col-span-2 text-right">your %</div>
+                      <div className="col-span-1 text-right" aria-label="actions" />
                     </div>
                     {positions.map((pos) => {
                       const gain = (pos.gain_loss_pct ?? 0) >= 0;
                       const broker = brokerPcts.get(pos.id) ?? 0;
+                      const isAdjusting = adjusting?.id === pos.id;
+                      const isRemoving = pendingRemove?.id === pos.id;
                       return (
                         <div
                           key={pos.id}
-                          className="grid grid-cols-12 gap-2 px-4 py-3 items-center border-b border-[color:var(--glass-border)] last:border-0 hover:bg-[color:var(--dopl-sage)]/10 transition-colors"
+                          className="border-b border-[color:var(--glass-border)] last:border-0"
                         >
-                          <div className="col-span-3 min-w-0">
-                            <p className="font-mono font-semibold text-sm truncate">
-                              {pos.ticker}
-                            </p>
-                            {pos.name && (
-                              <p className="text-[10px] text-[color:var(--dopl-cream)]/40 truncate">
-                                {pos.name}
+                          <div className="grid grid-cols-12 gap-2 px-4 py-3 items-center hover:bg-[color:var(--dopl-sage)]/10 transition-colors">
+                            <div className="col-span-3 min-w-0">
+                              <p className="font-mono font-semibold text-sm truncate">
+                                {pos.ticker}
                               </p>
-                            )}
-                          </div>
-                          <div className="col-span-3 text-right font-mono text-sm tabular-nums">
-                            {pos.current_price != null
-                              ? `$${Number(pos.current_price).toFixed(2)}`
-                              : "—"}
-                            {pos.shares != null && (
-                              <p className="text-[10px] text-[color:var(--dopl-cream)]/40">
-                                {pos.shares} sh
-                              </p>
-                            )}
-                          </div>
-                          <div
-                            className={`col-span-2 text-right font-mono text-sm tabular-nums ${
-                              gain
-                                ? "text-[color:var(--dopl-lime)]"
-                                : "text-red-400"
-                            }`}
-                          >
-                            {pos.gain_loss_pct != null
-                              ? `${gain ? "+" : ""}${pos.gain_loss_pct.toFixed(1)}%`
-                              : "—"}
-                          </div>
-                          <div className="col-span-2 text-right font-mono text-xs text-[color:var(--dopl-cream)]/40 tabular-nums">
-                            {broker.toFixed(1)}%
-                          </div>
-                          <div className="col-span-2 text-right">
-                            <div className="relative inline-flex items-center">
-                              <input
-                                type="number"
-                                value={draft[pos.id] ?? 0}
-                                onChange={(e) =>
-                                  setDraft({
-                                    ...draft,
-                                    [pos.id]: Math.max(
-                                      0,
-                                      Math.min(100, Number(e.target.value) || 0)
-                                    ),
-                                  })
-                                }
-                                step="0.1"
-                                className="w-20 bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/40 rounded-md px-2 py-1 text-xs font-mono text-right tabular-nums"
-                              />
-                              <span className="text-[10px] text-[color:var(--dopl-cream)]/40 ml-1">
-                                %
-                              </span>
+                              {pos.name && (
+                                <p className="text-[10px] text-[color:var(--dopl-cream)]/40 truncate">
+                                  {pos.name}
+                                </p>
+                              )}
+                            </div>
+                            <div className="col-span-2 text-right font-mono text-sm tabular-nums">
+                              {pos.current_price != null
+                                ? `$${Number(pos.current_price).toFixed(2)}`
+                                : "—"}
+                              {pos.shares != null && (
+                                <p className="text-[10px] text-[color:var(--dopl-cream)]/40">
+                                  {pos.shares} sh
+                                </p>
+                              )}
+                            </div>
+                            <div
+                              className={`col-span-2 text-right font-mono text-sm tabular-nums ${
+                                gain
+                                  ? "text-[color:var(--dopl-lime)]"
+                                  : "text-red-400"
+                              }`}
+                            >
+                              {pos.gain_loss_pct != null
+                                ? `${gain ? "+" : ""}${pos.gain_loss_pct.toFixed(1)}%`
+                                : "—"}
+                            </div>
+                            <div className="col-span-2 text-right font-mono text-xs text-[color:var(--dopl-cream)]/40 tabular-nums">
+                              {broker.toFixed(1)}%
+                            </div>
+                            <div className="col-span-2 text-right">
+                              <div className="relative inline-flex items-center">
+                                <input
+                                  type="number"
+                                  value={draft[pos.id] ?? 0}
+                                  onChange={(e) =>
+                                    setDraft({
+                                      ...draft,
+                                      [pos.id]: Math.max(
+                                        0,
+                                        Math.min(100, Number(e.target.value) || 0)
+                                      ),
+                                    })
+                                  }
+                                  step="0.1"
+                                  className="w-20 bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/40 rounded-md px-2 py-1 text-xs font-mono text-right tabular-nums"
+                                />
+                                <span className="text-[10px] text-[color:var(--dopl-cream)]/40 ml-1">
+                                  %
+                                </span>
+                              </div>
+                            </div>
+                            <div className="col-span-1 flex items-center justify-end gap-1">
+                              <button
+                                onClick={() => openAdjust(pos)}
+                                aria-label={`adjust ${pos.ticker}`}
+                                className="p-1.5 rounded-md text-[color:var(--dopl-cream)]/40 hover:text-[color:var(--dopl-cream)] hover:bg-[color:var(--dopl-sage)]/30 transition-colors"
+                              >
+                                <Pencil size={12} />
+                              </button>
+                              <button
+                                onClick={() => openRemove(pos)}
+                                aria-label={`remove ${pos.ticker}`}
+                                className="p-1.5 rounded-md text-[color:var(--dopl-cream)]/40 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                              >
+                                <Trash2 size={12} />
+                              </button>
                             </div>
                           </div>
+                          {/* Inline adjust row — change shares + thesis */}
+                          {isAdjusting && (
+                            <div className="px-4 pb-3">
+                              <div className="rounded-lg bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-lime)]/30 p-3 space-y-2">
+                                <p className="text-xs text-[color:var(--dopl-cream)]/80">
+                                  adjust{" "}
+                                  <span className="font-mono font-semibold text-[color:var(--dopl-lime)]">
+                                    {pos.ticker}
+                                  </span>{" "}
+                                  — currently{" "}
+                                  <span className="font-mono">
+                                    {pos.shares ?? 0} sh
+                                  </span>
+                                </p>
+                                <input
+                                  type="number"
+                                  step="any"
+                                  min={0}
+                                  value={adjustShares}
+                                  onChange={(e) =>
+                                    setAdjustShares(e.target.value)
+                                  }
+                                  placeholder="new share count"
+                                  className="w-full bg-[color:var(--dopl-deep-2)] border border-[color:var(--dopl-sage)]/30 rounded-lg px-3 py-2 text-sm font-mono"
+                                  autoFocus
+                                />
+                                <input
+                                  type="text"
+                                  value={adjustThesis}
+                                  onChange={(e) =>
+                                    setAdjustThesis(
+                                      e.target.value.slice(0, 280)
+                                    )
+                                  }
+                                  placeholder="why? (optional)"
+                                  className="w-full bg-[color:var(--dopl-deep-2)] border border-[color:var(--dopl-sage)]/30 rounded-lg px-3 py-2 text-xs"
+                                />
+                                <div className="flex items-center justify-end gap-2">
+                                  <button
+                                    onClick={closeInlineEdit}
+                                    className="text-xs px-3 py-1.5 text-[color:var(--dopl-cream)]/50 hover:text-[color:var(--dopl-cream)]"
+                                  >
+                                    cancel
+                                  </button>
+                                  <button
+                                    onClick={() => submitAdjust(pos)}
+                                    disabled={submitting}
+                                    className="btn-lime text-xs px-4 py-1.5 disabled:opacity-50"
+                                  >
+                                    {submitting ? "saving..." : "confirm"}
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                          {/* Inline remove row — confirmation + thesis */}
+                          {isRemoving && (
+                            <div className="px-4 pb-3">
+                              <div className="rounded-lg bg-[color:var(--dopl-deep)] border border-amber-500/30 p-3 space-y-2">
+                                <p className="text-xs text-[color:var(--dopl-cream)]/80">
+                                  remove{" "}
+                                  <span className="font-mono font-semibold text-amber-300">
+                                    {pos.ticker}
+                                  </span>
+                                  ? doplers will be notified.
+                                </p>
+                                <input
+                                  type="text"
+                                  value={removeThesis}
+                                  onChange={(e) =>
+                                    setRemoveThesis(
+                                      e.target.value.slice(0, 280)
+                                    )
+                                  }
+                                  placeholder="why are you selling? (optional)"
+                                  className="w-full bg-[color:var(--dopl-deep-2)] border border-[color:var(--dopl-sage)]/30 rounded-lg px-3 py-2 text-xs"
+                                  autoFocus
+                                />
+                                <div className="flex items-center justify-end gap-2">
+                                  <button
+                                    onClick={closeInlineEdit}
+                                    className="text-xs px-3 py-1.5 text-[color:var(--dopl-cream)]/50 hover:text-[color:var(--dopl-cream)]"
+                                  >
+                                    cancel
+                                  </button>
+                                  <button
+                                    onClick={() => submitRemove(pos)}
+                                    disabled={submitting}
+                                    className="text-xs px-3 py-1.5 rounded-lg bg-red-500/20 border border-red-500/40 text-red-200 hover:bg-red-500/30 disabled:opacity-50"
+                                  >
+                                    {submitting ? "removing..." : "remove"}
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
