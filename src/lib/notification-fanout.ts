@@ -10,8 +10,14 @@ import { sendPushToUser } from "@/lib/push";
 export type FanoutClient = Pick<SupabaseClient, "from">;
 
 export type FanoutChange =
-  | { type: "buy"; ticker: string; shares: number }
-  | { type: "sell"; ticker: string; prevShares: number }
+  | {
+      type: "buy";
+      ticker: string;
+      shares: number;
+      price?: number;
+      allocation_pct?: number;
+    }
+  | { type: "sell"; ticker: string; prevShares: number; price?: number }
   | { type: "rebalance"; ticker: string; prevShares: number; shares: number };
 
 export interface FanoutInput {
