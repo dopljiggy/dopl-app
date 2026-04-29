@@ -371,6 +371,63 @@ describe('fanOutPortfolioUpdate', () => {
     expect(row.body).toBe('sold AAPL · $189.50');
   });
 
+  it('enriched body: single rebalance routed individually with shares + price', async () => {
+    const { client, inserted } = makeFakeSupabase({
+      portfolio,
+      subscriptions: [
+        { user_id: 'u1', portfolio_id: 'p-techgrowth', status: 'active' },
+      ],
+      positions: [],
+    });
+    const result = await fanOutPortfolioUpdate(client, {
+      portfolio_id: 'p-techgrowth',
+      fund_manager_id: 'fm-alice',
+      changes: [
+        {
+          type: 'rebalance',
+          ticker: 'AMPX',
+          prevShares: 42,
+          shares: 60,
+          price: 189.5,
+        },
+      ],
+    });
+    expect(result.notified).toBe(1);
+    const row = inserted.find((i) => i.table === 'notifications')!.rows[0];
+    expect(row).toMatchObject({
+      change_type: 'rebalance',
+      ticker: 'AMPX',
+      body: 'rebalanced AMPX · 42 → 60 shares · $189.50',
+    });
+    expect(row.meta).toMatchObject({
+      shares: 60,
+      prev_shares: 42,
+      price: 189.5,
+    });
+  });
+
+  it('enriched body: single rebalance carries thesis note', async () => {
+    const { client, inserted } = makeFakeSupabase({
+      portfolio,
+      subscriptions: [
+        { user_id: 'u1', portfolio_id: 'p-techgrowth', status: 'active' },
+      ],
+      positions: [],
+    });
+    await fanOutPortfolioUpdate(client, {
+      portfolio_id: 'p-techgrowth',
+      fund_manager_id: 'fm-alice',
+      changes: [
+        { type: 'rebalance', ticker: 'AMPX', prevShares: 42, shares: 60 },
+      ],
+      thesis_note: 'trim risk',
+    });
+    const row = inserted.find((i) => i.table === 'notifications')!.rows[0];
+    expect(row.body).toBe(
+      "rebalanced AMPX · 42 → 60 shares — 'trim risk'"
+    );
+  });
+
   it('backward-compat body: buy without price falls back to "bought AAPL"', async () => {
     const { client, inserted } = makeFakeSupabase({
       portfolio,

@@ -160,12 +160,36 @@ export async function fanOutPortfolioUpdate(
         },
       });
     }
-    if (rebalances.length > 0) {
+    // Single-ticker rebalance (FM hits "adjust" on one row) → enriched
+    // per-ticker body via describeOneChange, so doplers see "rebalanced
+    // AMPX · 42 → 60 shares · $189.50" instead of a generic summary.
+    // Multi-ticker rebalances (e.g. snaptrade-sync producing many diffs
+    // in one fanout call) keep the summary path to avoid notification
+    // spam — N rebalances would otherwise emit N rows per dopler.
+    if (rebalances.length === 1) {
+      const r = rebalances[0];
       notifRows.push({
         user_id: userId,
         portfolio_update_id: updateId,
         title: (portfolio as { name: string }).name,
-        body: `rebalanced — ${rebalances.length} position${rebalances.length > 1 ? "s" : ""}`,
+        body: describeOneChange(r, input.thesis_note),
+        actionable: true,
+        change_type: "rebalance",
+        ticker: r.ticker,
+        meta: {
+          shares: r.shares,
+          prev_shares: r.prevShares,
+          price: r.price,
+          portfolio_id: input.portfolio_id,
+          ...(input.meta_extend ?? {}),
+        },
+      });
+    } else if (rebalances.length > 1) {
+      notifRows.push({
+        user_id: userId,
+        portfolio_update_id: updateId,
+        title: (portfolio as { name: string }).name,
+        body: `rebalanced — ${rebalances.length} positions`,
         actionable: true,
         change_type: "summary",
         ticker: null,
@@ -251,14 +275,28 @@ function describeChanges(
  *   - buy + price + thesis:            "bought AAPL · $189.50 — 'AI infra play'"
  *   - buy + price + alloc + thesis:    "bought AAPL · $189.50 · 40% allocation — 'AI infra play'"
  *   - sell + price:                    "sold AAPL · $189.50"
+ *   - rebalance + shares + price:      "rebalanced AMPX · 42 → 60 shares · $189.50"
+ *   - rebalance + thesis:              "rebalanced AMPX · 42 → 60 shares — 'trim risk'"
  *
  * Fields are joined with ` · ` (middle dot) for visual separation; the
  * thesis tail uses an em-dash so it reads as a clause, not another field.
  */
 function describeOneChange(
-  change: FanoutChange & { type: "buy" | "sell" },
+  change: FanoutChange,
   thesisNote?: string | null
 ): string {
+  if (change.type === "rebalance") {
+    const parts: string[] = [`rebalanced ${change.ticker}`];
+    if (change.prevShares != null && change.shares != null) {
+      parts.push(`${change.prevShares} → ${change.shares} shares`);
+    }
+    if (change.price != null) parts.push(`$${change.price.toFixed(2)}`);
+    let body = parts.join(" · ");
+    const thesis = thesisNote?.trim();
+    if (thesis) body += ` — '${thesis}'`;
+    return body;
+  }
+
   const verb = change.type === "buy" ? "bought" : "sold";
   const parts: string[] = [`${verb} ${change.ticker}`];
   if (change.price != null) parts.push(`$${change.price.toFixed(2)}`);
