@@ -71,6 +71,11 @@ function PortfolioCard({
         tabIndex={0}
         onClick={toggle}
         onKeyDown={(e) => {
+          // Only fire on the header itself — keydown bubbles from the
+          // inner <Link> and UndoplButton, and we don't want pressing
+          // Enter on the FM-profile link to toggle the portfolio
+          // instead of navigating.
+          if (e.target !== e.currentTarget) return;
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
             toggle();
