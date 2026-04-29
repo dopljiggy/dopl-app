@@ -1,4 +1,4 @@
-**Status:** under-review
+**Status:** revised — ready for round 2
 
 # Sprint 11: Performance — Perceived Load Speed
 
@@ -75,12 +75,16 @@ Each file exports a default React component showing a shimmer skeleton that roug
 
 **Current:** Hard-coded `setTimeout(() => setShow(false), 1500)`.
 
-**Change:** Replace the timer with a dismiss-on-ready pattern:
+**Change:** Replace the timer with a dismiss-on-ready pattern using a defensive global flag (eliminates React effect-ordering dependency):
 - Keep a minimum display of **400ms** (prevents a jarring flash if content loads instantly)
 - Set a maximum of **2000ms** (timeout fallback if content never signals ready)
-- Listen for a custom event `dopl:content-ready` dispatched by the first meaningful page component
+- Listen for a custom event `dopl:content-ready` dispatched by the first meaningful page wrapper after mount
+- Use a global `__doplContentReady` flag so the splash handles the case where content mounts before the splash's effect runs (concurrent mode, Suspense streaming, JSX reordering)
+
+Note: the dispatch fires when the client wrapper mounts, not when data finishes loading. For pages with server-side data fetches that suspend, the wrapper renders after suspense resolves — so the signal is effectively "page content is visible," which is the right dismiss trigger for the splash.
 
 ```tsx
+// StandaloneSplash — dismiss-on-ready with defensive flag:
 useEffect(() => {
   if (!isStandalone) return;
   setShow(true);
@@ -94,6 +98,12 @@ useEffect(() => {
     setTimeout(() => setShow(false), remaining);
   };
 
+  // If content already mounted before this effect ran, dismiss immediately.
+  if ((window as any).__doplContentReady) {
+    dismiss();
+    return;
+  }
+
   window.addEventListener("dopl:content-ready", dismiss, { once: true });
   const fallback = setTimeout(dismiss, MAX);
   return () => {
@@ -103,9 +113,10 @@ useEffect(() => {
 }, [isStandalone]);
 ```
 
-**Dispatch the event** from each page's client boundary component (DoplerShell, dashboard layout, etc.) after mount:
+**Dispatch the event** from each page's client boundary component after mount — set the global flag BEFORE dispatching so the splash can check it synchronously:
 ```tsx
 useEffect(() => {
+  (window as any).__doplContentReady = true;
   window.dispatchEvent(new Event("dopl:content-ready"));
 }, []);
 ```
@@ -173,11 +184,33 @@ Remove the 3 `<link>` tags from `<head>`.
 
 ## Task 4: Auth Dedup — Use getCachedUser() Everywhere
 
-**File:** 8 page files that call `getUser()` directly.
+`getCachedUser()` already exists in `src/lib/supabase-server.ts` — it uses React's `cache()` to deduplicate `getUser()` calls within a single server request. Currently only used by 2 files (`(dashboard)/layout.tsx` and `(dashboard)/dashboard/page.tsx`), and returns `user` only.
 
-`getCachedUser()` already exists in `src/lib/supabase-server.ts` — it uses React's `cache()` to deduplicate `getUser()` calls within a single server request. Currently only used by 2 files.
+**Step 1 — Extend `getCachedUser()` signature** (required, not conditional):
 
-**Change in each of the 8 page files:**
+Current (`src/lib/supabase-server.ts:27-33`):
+```tsx
+export const getCachedUser = cache(async () => {
+  const supabase = await createServerSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+  return user;
+});
+```
+
+Change to:
+```tsx
+export const getCachedUser = cache(async () => {
+  const supabase = await createServerSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+  return { supabase, user };
+});
+```
+
+**Step 2 — Fix the 2 existing callers** (they currently destructure the bare user):
+- `src/app/(dashboard)/layout.tsx:11` — `const user = await getCachedUser()` → `const { user } = await getCachedUser()`
+- `src/app/(dashboard)/dashboard/page.tsx:12` — same change
+
+**Step 3 — Migrate all 17 page/layout files** calling `getUser()` directly:
 
 Replace:
 ```tsx
@@ -190,7 +223,7 @@ With:
 const { supabase, user } = await getCachedUser();
 ```
 
-**Files to update:**
+**Files to update** (verified via grep — includes pages AND layouts, not just the 8 originally listed):
 1. `src/app/page.tsx`
 2. `src/app/feed/page.tsx`
 3. `src/app/feed/[portfolioId]/page.tsx`
@@ -199,12 +232,21 @@ const { supabase, user } = await getCachedUser();
 6. `src/app/me/page.tsx`
 7. `src/app/[handle]/page.tsx`
 8. `src/app/(public)/leaderboard/page.tsx`
+9. `src/app/notifications/page.tsx`
+10. `src/app/onboarding/page.tsx`
+11. `src/app/(dashboard)/dashboard/portfolios/page.tsx`
+12. `src/app/(dashboard)/dashboard/profile/page.tsx`
+13. `src/app/(dashboard)/dashboard/positions/page.tsx`
+14. `src/app/(dashboard)/dashboard/connect/page.tsx`
+15. `src/app/(dashboard)/dashboard/billing/page.tsx`
+16. `src/app/(dashboard)/dashboard/share/page.tsx`
+17. `src/app/(dashboard)/fund-manager/activity/page.tsx`
 
-**Important:** Verify `getCachedUser()` returns both the supabase client AND user — the pages need the client for subsequent queries. If the current implementation only returns user, extend it to return `{ supabase, user }`.
+**Do NOT change:**
+- API routes (`src/app/api/...`) — they handle independent requests and should each create their own auth context
+- `src/app/auth/callback/route.ts` — API route, not a page
 
-**Do NOT change API routes** — they handle independent requests and should each create their own auth context.
-
-**Exit criteria:** `grep -r "supabase.auth.getUser" src/app/` returns only API route files, not page files. Pages that share a layout (e.g., `/dashboard/*`) make only one auth round-trip per request.
+**Exit criteria:** `grep -rn "supabase.auth.getUser" src/app/ --include="*.tsx" | grep -v "/api/"` returns zero results. All pages/layouts use `getCachedUser()`. Pages that share a layout (e.g., `/dashboard/*`) make only one auth round-trip per request.
 
 **Depends on:** None
 
@@ -220,9 +262,13 @@ const { supabase, user } = await getCachedUser();
 
 **Change:**
 - Route change: reduce to **150ms** — still visible for slow transitions, but doesn't add perceptible delay for fast ones
-- Fetch: reduce to **0ms** (remove the minimum) — if a fetch completes in 50ms, don't show a spinner at all. The `loading.tsx` skeletons handle the initial page load; the aurora should only appear for genuinely slow navigations.
+- Fetch: replace the 200ms post-fetch extension with a **150ms start delay** pattern — only show the spinner if the fetch is still pending after 150ms. Sub-150ms fetches show no spinner at all; longer fetches get the full smooth CSS transition (`opacity 420ms ease` in globals.css:320) without flicker.
 
-**Exit criteria:** Fast page navigations (sub-200ms server response) don't show the aurora loader. Slow navigations (>150ms) still show it. Fetch calls don't trigger a visible spinner unless they're genuinely slow.
+  Implementation: instead of calling `start()` immediately on fetch, set a 150ms timeout. If the fetch resolves before the timeout fires, cancel it — no spinner shown. If the timeout fires, call `start()`. On fetch complete, call `stop()` immediately (no artificial extension needed since the spinner only appeared for genuinely slow fetches).
+
+  This avoids the flicker problem: with 0ms stop delay, a fast fetch would trigger the CSS opacity ramp-up then immediately reverse it, producing a visible flash. The start delay eliminates the flash entirely by never starting the animation for fast fetches.
+
+**Exit criteria:** Fast page navigations (sub-150ms server response) don't show the aurora loader at all. Slow navigations (>150ms) show a smooth spinner. No flicker on fast fetches.
 
 **Depends on:** None
 
@@ -251,12 +297,15 @@ All 5 tasks are independent. Execute in any order. Recommended: 3, 4, 5 first (s
 - `src/app/notifications/loading.tsx`
 - `src/app/settings/loading.tsx`
 
-**Modify (11):**
-- `src/app/layout.tsx` — replace Google Fonts link with next/font imports
-- `src/components/pwa/standalone-splash.tsx` — dismiss-on-ready
-- `src/components/ui/aurora-loader.tsx` — reduce minimums
-- `src/components/dopler-shell.tsx` — dispatch content-ready event
-- `src/app/(dashboard)/dashboard/layout.tsx` — dispatch content-ready event
+**Modify (23):**
+- `src/lib/supabase-server.ts` — extend getCachedUser() to return `{ supabase, user }` (Task 4 Step 1)
+- `src/app/layout.tsx` — replace Google Fonts link with next/font imports; optionally clean up literal font names from font-family stacks after CSS variable swap
+- `src/app/globals.css` — update font-family references to use `var(--font-inter)`, `var(--font-fraunces)`, `var(--font-jetbrains-mono)`
+- `src/components/pwa/standalone-splash.tsx` — dismiss-on-ready with defensive global flag
+- `src/components/ui/aurora-loader.tsx` — reduce route-change min, add 150ms fetch start delay
+- `src/components/dopler-shell.tsx` — dispatch content-ready event + set global flag
+- `src/app/(dashboard)/dashboard/layout.tsx` — dispatch content-ready event + set global flag; fix existing getCachedUser destructuring
+- `src/app/(dashboard)/dashboard/page.tsx` — fix existing getCachedUser destructuring
 - `src/app/page.tsx` — getCachedUser + dispatch content-ready
 - `src/app/feed/page.tsx` — getCachedUser
 - `src/app/feed/[portfolioId]/page.tsx` — getCachedUser
@@ -265,10 +314,19 @@ All 5 tasks are independent. Execute in any order. Recommended: 3, 4, 5 first (s
 - `src/app/me/page.tsx` — getCachedUser
 - `src/app/[handle]/page.tsx` — getCachedUser
 - `src/app/(public)/leaderboard/page.tsx` — getCachedUser
+- `src/app/notifications/page.tsx` — getCachedUser
+- `src/app/onboarding/page.tsx` — getCachedUser
+- `src/app/(dashboard)/dashboard/portfolios/page.tsx` — getCachedUser
+- `src/app/(dashboard)/dashboard/profile/page.tsx` — getCachedUser
+- `src/app/(dashboard)/dashboard/positions/page.tsx` — getCachedUser
+- `src/app/(dashboard)/dashboard/connect/page.tsx` — getCachedUser
+- `src/app/(dashboard)/dashboard/billing/page.tsx` — getCachedUser
+- `src/app/(dashboard)/dashboard/share/page.tsx` — getCachedUser
+- `src/app/(dashboard)/fund-manager/activity/page.tsx` — getCachedUser
 
 **Unchanged but relevant:**
-- `src/lib/supabase-server.ts` — getCachedUser() already exists (may need to return supabase client too)
 - API route files — keep direct getUser() (independent requests)
+- `src/app/auth/callback/route.ts` — API route, not a page
 
 ---
 
@@ -427,3 +485,17 @@ Option B is the standard "loading indicator delay" pattern. Either resolves the 
 - **3 nits:** layout sweep in Task 4, font-stack cleanup in Task 3, splash event-semantics framing.
 
 All resolvable with plan edits — no task restructuring needed. Re-review after Architect addresses the 3 important findings.
+
+---
+
+## Revision Notes (Round 1 → Round 2)
+
+**Finding 1 addressed:** Task 2 now includes the `__doplContentReady` global flag pattern. Splash checks the flag synchronously on mount before adding the event listener. Dispatchers set the flag before firing the event. Added clarifying note that the dispatch signals "client wrapper mounted" (post-suspense), not "raw data loaded" — which is the correct semantics for splash dismissal.
+
+**Finding 2 addressed:** Task 4 restructured into 3 explicit steps: (1) extend `getCachedUser()` to return `{ supabase, user }`, (2) fix 2 existing callers, (3) migrate all 17 page files (not 8 — grep revealed dashboard sub-pages, notifications, onboarding were missing from the original list). Exit criteria updated to grep verification.
+
+**Finding 3 addressed:** Task 5 now uses Option B — 150ms start delay for fetches. No spinner appears for sub-150ms fetches. Longer fetches get the full smooth CSS transition. Implementation approach specified (setTimeout on fetch start, cancel if fetch resolves first).
+
+**Nit 1 addressed:** Task 4 file list expanded to include layouts and all dashboard sub-pages.
+**Nit 2 addressed:** Task 3 files summary mentions optional font-stack literal cleanup.
+**Nit 3 addressed:** Task 2 adds explicit note about dispatch semantics.
