@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion, useScroll, useTransform } from "framer-motion";
 import CountUp from "@/components/ui/count-up";
+import { fireToast } from "@/components/ui/toast";
 import Link from "next/link";
 
 interface Props {
@@ -12,6 +13,7 @@ interface Props {
   handle: string;
   bio: string | null;
   subscriberCount: number;
+  portfolioCount: number;
   links: { platform: string; url: string }[];
 }
 
@@ -31,6 +33,7 @@ export default function ProfileHero({
   handle,
   bio,
   subscriberCount,
+  portfolioCount,
   links,
 }: Props) {
   const { scrollY } = useScroll();
@@ -50,6 +53,7 @@ export default function ProfileHero({
     );
     setCopied(true);
     setTimeout(() => setCopied(false), 1400);
+    fireToast({ title: "link copied", body: `${origin}/${handle}` });
   };
 
   return (
@@ -105,10 +109,12 @@ export default function ProfileHero({
           transition={{ duration: 0.7, ease: [0.2, 0.7, 0.2, 1] }}
           className="flex flex-col md:flex-row md:items-end gap-6"
         >
-          {/* Avatar with glow ring */}
+          {/* Avatar with glow ring — softer halo on the letter fallback so
+              the colored ring doesn't dominate a plain initial. Photo
+              avatars keep the full glow since they have their own contrast. */}
           <div className="relative w-28 h-28 md:w-32 md:h-32 flex-shrink-0">
             <div
-              className="absolute -inset-1.5 rounded-3xl blur-md opacity-80"
+              className={`absolute -inset-1.5 rounded-3xl blur-md ${avatarUrl ? "opacity-80" : "opacity-35"}`}
               style={{
                 background:
                   "conic-gradient(from 0deg, rgba(197,214,52,0.6), rgba(45,74,62,0.3), rgba(197,214,52,0.6))",
@@ -177,6 +183,12 @@ export default function ProfileHero({
             <p className="font-mono text-4xl font-bold text-[color:var(--dopl-lime)] leading-none">
               <CountUp value={subscriberCount} duration={1.4} />
             </p>
+            {portfolioCount > 0 && (
+              <p className="text-[10px] text-[color:var(--dopl-cream)]/40 font-mono mt-2">
+                across {portfolioCount} portfolio
+                {portfolioCount === 1 ? "" : "s"}
+              </p>
+            )}
           </div>
         </motion.div>
       </div>

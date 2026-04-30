@@ -162,6 +162,7 @@ export default async function FundManagerProfile({
         handle={fm.handle}
         bio={fm.bio}
         subscriberCount={fm.subscriber_count}
+        portfolioCount={portfolios?.length ?? 0}
         links={Array.isArray(fm.links) ? fm.links : []}
       />
 

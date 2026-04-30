@@ -141,13 +141,8 @@ export default function ProfileTiers({
               {/* Header: tier + doplers count */}
               <div className="flex items-center justify-between mb-4">
                 <span
-                  className={`text-[10px] font-mono font-semibold px-2 py-1 rounded tracking-wider uppercase inline-flex items-center gap-1 ${
-                    isFree
-                      ? "bg-[color:var(--dopl-lime)]/20 text-[color:var(--dopl-lime)]"
-                      : p.tier === "vip"
-                      ? "bg-[color:var(--dopl-lime)]/20 text-[color:var(--dopl-lime)]"
-                      : "bg-[color:var(--dopl-sage)]/40 text-[color:var(--dopl-cream)]/80"
-                  }`}
+                  className={`text-[10px] font-mono font-semibold px-2 py-1 rounded tracking-wider uppercase inline-flex items-center gap-1 ${tierBadgeClass(p.tier, isFree)}`}
+                  style={p.tier === "premium" && !isFree ? premiumBadgeStyle : undefined}
                 >
                   {isFree && <Sparkles size={10} />}
                   {isFree ? "free" : p.tier}
@@ -363,3 +358,28 @@ export default function ProfileTiers({
     </div>
   );
 }
+
+/**
+ * Tier badge palette. Distinct per tier so the price-vs-perks story is
+ * legible at a glance: free reads as 'open access', basic as 'subdued',
+ * premium as 'distinguished' (gradient border), vip as 'top tier' (lime
+ * fill + glow).
+ */
+function tierBadgeClass(tier: string, isFree: boolean): string {
+  if (isFree) {
+    return "bg-[color:var(--dopl-lime)]/15 text-[color:var(--dopl-lime)] border border-[color:var(--dopl-lime)]/40";
+  }
+  if (tier === "vip") {
+    return "bg-[color:var(--dopl-lime)] text-[color:var(--dopl-deep)] shadow-[0_0_18px_-4px_rgba(197,214,52,0.6)]";
+  }
+  if (tier === "premium") {
+    return "text-[color:var(--dopl-cream)] border";
+  }
+  return "bg-[color:var(--dopl-sage)]/45 text-[color:var(--dopl-cream)]/85 border border-[color:var(--dopl-sage)]/60";
+}
+
+const premiumBadgeStyle: React.CSSProperties = {
+  background:
+    "linear-gradient(rgba(13,38,31,0.85), rgba(13,38,31,0.85)) padding-box, linear-gradient(135deg, rgba(197,214,52,0.7), rgba(45,74,62,0.6)) border-box",
+  borderColor: "transparent",
+};
