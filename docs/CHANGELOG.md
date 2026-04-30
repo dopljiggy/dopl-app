@@ -5,6 +5,43 @@ Format: date, description, files, why, impact, testing, risks.
 
 ---
 
+## [2026-04-30] — Sprint 13: FM Doplers Page + Investment Calculator + Polish
+
+**Files changed:**
+- `supabase/schema.sql` — declared `fund_managers.avatar_url` (was missing from base CREATE despite existing in live DB), removed the dead dopler-trading ALTER blocks (`profiles.trading_provider`, `trading_connected`, `trading_connection_data`).
+- `supabase/migrations/005_schema_audit.sql` (NEW) — idempotent ALTER (`avatar_url` `IF NOT EXISTS`) plus three `DROP COLUMN IF EXISTS` statements for the dead dopler trading fields. Surfer pastes into the Supabase SQL editor.
+- `src/lib/csv.ts` (NEW) — tiny client-side `downloadCsv(filename, headers, rows)` helper. RFC 4180 escaping (double-quote wrap, internal quotes doubled), defensive newline flatten so future multi-line content doesn't trip Excel/Numbers. Cells accept `string | number | null | undefined`; coerced via `String(v ?? "")` inside.
+- `src/app/(dashboard)/dashboard/positions/page.tsx` — page query now also selects `gain_loss_pct` so the export carries the field.
+- `src/app/(dashboard)/dashboard/positions/positions-client.tsx` — "export CSV" button next to "resync" in the page header. Disabled when no assigned positions. Filename `dopl-positions-YYYY-MM-DD.csv`.
+- `src/app/(dashboard)/dashboard/doplers/page.tsx` (NEW) — server page reading the FM's subscriptions joined to profiles + portfolios via the cookie-bound supabase client (NOT admin — RLS already covers both). Computes 4 summary stats server-side (total doplers, active, monthly revenue cents, 30-day churn).
+- `src/app/(dashboard)/dashboard/doplers/doplers-client.tsx` (NEW) — 4 GlassCard stat tiles with CountUp; sortable HTML table (dopler, portfolio, tier, status, price, joined) matching the PositionTable pattern from feed-sections; "export CSV" button reusing `downloadCsv`. Empty state when no doplers yet.
+- `src/app/(dashboard)/dashboard-chrome.tsx` — `Users` icon imported from lucide-react; "doplers" nav item inserted between "positions" and "broker" in `sideNav`.
+- `src/components/ui/investment-calculator.tsx` (NEW) — shared client-side reference calculator. Single dollar input → per-ticker breakdown table (allocation %, your $, ≈ shares at current price). Mandatory disclaimer copy: "for reference only — dopl does not execute trades".
+- `src/app/feed/[portfolioId]/portfolio-detail-client.tsx` — `<InvestmentCalculator>` section below the positions grid. Guard: only renders when `canView` is true and the real (non-locked) `positions` array is non-empty.
+- `src/app/[handle]/profile-tiers.tsx` — pre-dopl calculator on tier cards: collapsible "calculate your allocation" toggle inside the existing `p.can_view ? (...)` branch, only when `positions.length > 0`. Locked paid tiers (subscriber-only) don't get the calculator. Tier badge palette refactored into a `tierBadgeClass()` helper plus a `premiumBadgeStyle` gradient-border style: free = lime outline + sparkle, basic = sage fill, premium = gradient border, vip = lime fill + glow.
+- `src/app/[handle]/profile-hero.tsx` — new `portfolioCount` prop renders an "across N portfolios" subtext under the doplers stat. Avatar fallback (letter) glow drops to `opacity-35` (photo avatars keep `opacity-80`). `copyLink` now fires a toast in addition to the inline button feedback.
+- `src/app/[handle]/page.tsx` — passes `portfolios?.length ?? 0` to ProfileHero.
+
+**Why:** Sprint 12 wrapped the portfolio detail fix and fee transparency. The persistent `avatar_url` schema drift (column in live DB but missing from `schema.sql`) cost 4+ fix attempts during prior sprints — Task 1 reconciles. Beyond that, the two biggest unfinished features in the v1 plan: an FM-facing doplers list (so FMs can see who actually subscribes — and export the list for outreach), and a dopler-facing allocation calculator (so doplers can size their mirror trades without doing the math themselves). Task 4's CSV utility lets both the doplers and positions pages export consistently. Task 5 ships the small profile/tier visual polish that's been queued behind feature work.
+
+**Impact:**
+- FMs can now see every dopler currently or previously subscribed at `/dashboard/doplers` (4 summary stats + sortable table + CSV export). Stripe-facing data has always been in the DB; this just surfaces it in-app.
+- Doplers see an allocation calculator on portfolios they can already view (post-dopl on the detail page; pre-dopl, collapsible, on free tier cards or tiers they're already subscribed to). Enter a dollar amount → per-ticker $ slice + ≈ shares at the current price, with a mandatory "not a trade instruction" disclaimer.
+- FM positions dashboard now has an "export CSV" button alongside "resync" — same pattern lands on the doplers page.
+- Profile page: doplers stat card shows "across N portfolios" subtext; fallback avatar glow is subtler so the colored ring doesn't dominate a plain initial; tier badges have distinct per-tier styling (free/basic/premium/vip).
+- `schema.sql` matches the live DB shape (avatar_url declared, dead dopler-trading columns gone). Migration 005 is idempotent — safe to re-run.
+
+**Testing:**
+- `npm test` — 152/152 passing across 27 files (no test changes; Sprint 13 is purely additive).
+- `npm run build` — clean. New routes registered: `/dashboard/doplers`.
+
+**Risks:**
+- `getNotifications` parity is unrelated; the schema audit's three `DROP COLUMN IF EXISTS` statements are safe per a grep across `src/` showing zero references to the dropped columns. If Surfer's live DB has any rows still using the old API surface, the drop succeeds silently because `IF EXISTS` makes it a no-op.
+- The investment calculator is reference math only — no trade execution, no API. Visibility is gated by `canView` (detail page) and the `p.can_view` branch (tier cards), which are themselves gated by RLS-compatible subscription checks. The calculator never renders for tiers the dopler hasn't unlocked.
+- The doplers page query relies on the existing FM-scoped RLS policy on `subscriptions` and the publicly-readable `profiles` policy. If either policy changes in the future, the query needs a re-audit (or a switch to admin client). Documented inline in `page.tsx`.
+
+---
+
 ## [2026-04-29] — Sprint 12: Portfolio Detail Fix + Fee Transparency
 
 **Files changed:**
