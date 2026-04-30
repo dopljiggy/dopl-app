@@ -27,6 +27,7 @@ type TierPortfolio = Portfolio & {
     allocation_pct: number | null;
     current_price: number | null;
     gain_loss_pct: number | null;
+    market_value: number | null;
   }[];
 };
 
@@ -252,6 +253,7 @@ export default function ProfileTiers({
                                 name: pos.name ?? null,
                                 allocation_pct: pos.allocation_pct ?? null,
                                 current_price: pos.current_price ?? null,
+                                market_value: pos.market_value ?? null,
                               }))}
                             />
                           </div>

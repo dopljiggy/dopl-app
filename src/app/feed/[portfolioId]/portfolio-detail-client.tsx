@@ -303,6 +303,7 @@ function Inner({
               name: p.name ?? null,
               allocation_pct: p.allocation_pct ?? null,
               current_price: p.current_price ?? null,
+              market_value: p.market_value ?? null,
             }))}
           />
         </section>

@@ -8,6 +8,7 @@ export type CalcPosition = {
   name: string | null;
   allocation_pct: number | null;
   current_price: number | null;
+  market_value?: number | null;
 };
 
 /**
@@ -30,20 +31,27 @@ export function InvestmentCalculator({
   const amount = Number(amountInput);
   const valid = Number.isFinite(amount) && amount > 0;
 
+  const totalMarketValue = positions.reduce(
+    (a, p) => a + (Number(p.market_value) || 0),
+    0
+  );
+
   const rows = valid
     ? positions
-        .filter(
-          (p) =>
-            p.allocation_pct != null &&
-            p.allocation_pct > 0 &&
-            p.current_price != null &&
-            p.current_price > 0
-        )
+        .filter((p) => p.current_price != null && p.current_price > 0)
         .map((p) => {
-          const slice = (amount * (p.allocation_pct as number)) / 100;
+          const alloc =
+            p.allocation_pct != null && p.allocation_pct > 0
+              ? p.allocation_pct
+              : p.market_value != null && totalMarketValue > 0
+                ? (Number(p.market_value) / totalMarketValue) * 100
+                : null;
+          if (alloc == null) return null;
+          const slice = (amount * alloc) / 100;
           const shares = slice / (p.current_price as number);
-          return { ...p, slice, shares };
+          return { ...p, alloc, slice, shares };
         })
+        .filter((r): r is NonNullable<typeof r> => r != null)
     : [];
 
   return (
@@ -94,7 +102,7 @@ export function InvestmentCalculator({
                     {r.ticker}
                   </td>
                   <td className="px-3 py-2 text-right font-mono tabular-nums text-[color:var(--dopl-cream)]/70">
-                    {(r.allocation_pct as number).toFixed(1)}%
+                    {r.alloc.toFixed(1)}%
                   </td>
                   <td className="px-3 py-2 text-right font-mono tabular-nums text-[color:var(--dopl-lime)]">
                     ${r.slice.toFixed(2)}

@@ -19,11 +19,22 @@ export default function BillingClient({
 }) {
   const [loading, setLoading] = useState(false);
 
+  const [stripeError, setStripeError] = useState<string | null>(null);
+
   const handleSetupStripe = async () => {
     setLoading(true);
-    const res = await fetch("/api/stripe/connect", { method: "POST" });
-    const { url } = await res.json();
-    if (url) window.location.href = url;
+    setStripeError(null);
+    try {
+      const res = await fetch("/api/stripe/connect", { method: "POST" });
+      const json = await res.json();
+      if (json.url) {
+        window.location.href = json.url;
+        return;
+      }
+      setStripeError(json.error ?? "couldn't connect to Stripe — check your API keys");
+    } catch {
+      setStripeError("network error — try again");
+    }
     setLoading(false);
   };
 
@@ -71,6 +82,9 @@ export default function BillingClient({
               dopl takes {DOPL_FEE_PERCENT}% of each subscription. you keep{" "}
               {100 - DOPL_FEE_PERCENT}%.
             </p>
+            {stripeError && (
+              <p className="text-xs text-red-400 mb-4">{stripeError}</p>
+            )}
             <button
               onClick={handleSetupStripe}
               disabled={loading}
