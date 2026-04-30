@@ -8,8 +8,9 @@ import SlideToDopl from "@/components/ui/slide-to-dopl";
 import UndoplButton from "@/components/ui/undopl-button";
 import { SyncBadge } from "@/components/ui/sync-badge";
 import { fireToast } from "@/components/ui/toast";
-import { Lock, Users, TrendingUp, TrendingDown, Sparkles } from "lucide-react";
+import { Calculator, Lock, Users, TrendingUp, TrendingDown, Sparkles } from "lucide-react";
 import { DOPL_FEE_PERCENT } from "@/lib/constants";
+import { InvestmentCalculator } from "@/components/ui/investment-calculator";
 import type { Portfolio } from "@/types/database";
 
 type TierPortfolio = Portfolio & {
@@ -50,6 +51,15 @@ export default function ProfileTiers({
   // a successful free dopl (before router.refresh completes).
   const [locallyDopled, setLocallyDopled] = useState<Set<string>>(new Set());
   const [pending, setPending] = useState<string | null>(null);
+  const [expandedCalc, setExpandedCalc] = useState<Set<string>>(new Set());
+
+  const toggleCalc = (portfolioId: string) =>
+    setExpandedCalc((prev) => {
+      const next = new Set(prev);
+      if (next.has(portfolioId)) next.delete(portfolioId);
+      else next.add(portfolioId);
+      return next;
+    });
 
   const gotoSignup = (portfolioId: string) => {
     const next = encodeURIComponent(
@@ -173,51 +183,87 @@ export default function ProfileTiers({
                     </p>
                   </div>
                 ) : p.can_view ? (
-                  // Visible positions — mini glass cards per position
-                  <div className="grid grid-cols-2 gap-1.5">
-                    {p.positions.slice(0, 6).map((pos) => {
-                      const gain = (pos.gain_loss_pct ?? 0) >= 0;
-                      return (
-                        <div
-                          key={pos.id}
-                          className="glass-card-light rounded-lg px-2.5 py-2 flex items-center justify-between text-[11px]"
-                        >
-                          <span className="flex items-center gap-1 min-w-0">
-                            {gain ? (
-                              <TrendingUp
-                                size={9}
-                                className="text-[color:var(--dopl-lime)] flex-shrink-0"
-                              />
-                            ) : (
-                              <TrendingDown
-                                size={9}
-                                className="text-red-400 flex-shrink-0"
-                              />
-                            )}
-                            <span className="font-mono font-semibold truncate">
-                              {pos.ticker}
-                            </span>
-                          </span>
-                          <span
-                            className={`font-mono tabular-nums ${
-                              gain
-                                ? "text-[color:var(--dopl-lime)]/80"
-                                : "text-red-400/80"
-                            }`}
+                  <>
+                    {/* Visible positions — mini glass cards per position */}
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {p.positions.slice(0, 6).map((pos) => {
+                        const gain = (pos.gain_loss_pct ?? 0) >= 0;
+                        return (
+                          <div
+                            key={pos.id}
+                            className="glass-card-light rounded-lg px-2.5 py-2 flex items-center justify-between text-[11px]"
                           >
-                            {pos.allocation_pct != null
-                              ? `${pos.allocation_pct.toFixed(0)}%`
-                              : "—"}
-                          </span>
+                            <span className="flex items-center gap-1 min-w-0">
+                              {gain ? (
+                                <TrendingUp
+                                  size={9}
+                                  className="text-[color:var(--dopl-lime)] flex-shrink-0"
+                                />
+                              ) : (
+                                <TrendingDown
+                                  size={9}
+                                  className="text-red-400 flex-shrink-0"
+                                />
+                              )}
+                              <span className="font-mono font-semibold truncate">
+                                {pos.ticker}
+                              </span>
+                            </span>
+                            <span
+                              className={`font-mono tabular-nums ${
+                                gain
+                                  ? "text-[color:var(--dopl-lime)]/80"
+                                  : "text-red-400/80"
+                              }`}
+                            >
+                              {pos.allocation_pct != null
+                                ? `${pos.allocation_pct.toFixed(0)}%`
+                                : "—"}
+                            </span>
+                          </div>
+                        );
+                      })}
+                      {p.positions.length > 6 && (
+                        <div className="col-span-2 text-[10px] text-[color:var(--dopl-cream)]/30 px-2 pt-1">
+                          + {p.positions.length - 6} more
                         </div>
-                      );
-                    })}
-                    {p.positions.length > 6 && (
-                      <div className="col-span-2 text-[10px] text-[color:var(--dopl-cream)]/30 px-2 pt-1">
-                        + {p.positions.length - 6} more
+                      )}
+                    </div>
+
+                    {/* Pre-dopl allocation calculator — collapsed by
+                        default to keep the tier card compact. Lives on
+                        the same panel where positions are already
+                        visible (free tiers + tiers the dopler is
+                        already subscribed to), so the data is never
+                        leaked through this path. */}
+                    {p.positions.length > 0 && (
+                      <div className="mt-3">
+                        <button
+                          type="button"
+                          onClick={() => toggleCalc(p.id)}
+                          className="w-full glass-card-light rounded-lg px-3 py-2 text-[11px] font-mono text-[color:var(--dopl-cream)]/70 hover:bg-[color:var(--dopl-sage)]/30 transition-colors flex items-center justify-center gap-2"
+                          aria-expanded={expandedCalc.has(p.id)}
+                        >
+                          <Calculator size={11} />
+                          {expandedCalc.has(p.id)
+                            ? "hide calculator"
+                            : "calculate your allocation"}
+                        </button>
+                        {expandedCalc.has(p.id) && (
+                          <div className="mt-2">
+                            <InvestmentCalculator
+                              positions={p.positions.map((pos) => ({
+                                ticker: pos.ticker,
+                                name: pos.name ?? null,
+                                allocation_pct: pos.allocation_pct ?? null,
+                                current_price: pos.current_price ?? null,
+                              }))}
+                            />
+                          </div>
+                        )}
                       </div>
                     )}
-                  </div>
+                  </>
                 ) : (
                   // Locked preview for paid + not subscribed
                   <div className="relative glass-card-light p-3 overflow-hidden rounded-lg">

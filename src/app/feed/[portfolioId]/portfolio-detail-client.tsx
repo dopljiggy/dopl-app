@@ -11,6 +11,7 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { fireToast } from "@/components/ui/toast";
 import { resolveFm } from "@/lib/fm-resolver";
 import { DOPL_FEE_PERCENT } from "@/lib/constants";
+import { InvestmentCalculator } from "@/components/ui/investment-calculator";
 import type { Portfolio, PortfolioUpdate } from "@/types/database";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -290,6 +291,22 @@ function Inner({
           </div>
         )}
       </section>
+
+      {/* Allocation calculator — only for subscribed/owner/free viewers
+          with real positions. Hidden for the locked blurred-placeholder
+          state since the dopler hasn't opted in yet. */}
+      {canView && positions.length > 0 && (
+        <section className="mb-10">
+          <InvestmentCalculator
+            positions={positions.map((p) => ({
+              ticker: p.ticker,
+              name: p.name ?? null,
+              allocation_pct: p.allocation_pct ?? null,
+              current_price: p.current_price ?? null,
+            }))}
+          />
+        </section>
+      )}
 
       {updates && updates.length > 0 && (
         <section>
