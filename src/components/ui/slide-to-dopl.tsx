@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, useMotionValue, useTransform, animate } from "framer-motion";
 import { Check, ArrowRight } from "lucide-react";
 
@@ -11,11 +11,9 @@ type Props = {
   disabled?: boolean;
 };
 
-/**
- * Slide-to-confirm pill. Track fills with a sage→lime gradient as the handle
- * slides right. Completion triggers a haptic pulse and swaps the handle for
- * a checkmark.
- */
+const HANDLE = 48;
+const PAD = 4;
+
 export default function SlideToDopl({
   label = "slide to dopl",
   completedLabel = "dopl'd",
@@ -25,18 +23,27 @@ export default function SlideToDopl({
   const trackRef = useRef<HTMLDivElement>(null);
   const [completed, setCompleted] = useState(false);
   const [running, setRunning] = useState(false);
+  const [maxDrag, setMaxDrag] = useState(0);
   const x = useMotionValue(0);
 
-  const fillWidth = useTransform(x, (v) => `${v + 48}px`);
+  const measure = useCallback(() => {
+    if (trackRef.current) {
+      setMaxDrag(trackRef.current.offsetWidth - HANDLE - PAD * 2);
+    }
+  }, []);
+
+  useEffect(() => {
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [measure]);
+
+  const fillWidth = useTransform(x, (v) => `${v + HANDLE}px`);
   const labelOpacity = useTransform(x, [0, 80], [1, 0]);
 
   const handleEnd = async () => {
-    const track = trackRef.current;
-    if (!track) return;
-    const trackWidth = track.offsetWidth;
-    const handleWidth = 48;
-    const maxDrag = trackWidth - handleWidth - 4;
-    const threshold = maxDrag * 0.85;
+    if (!maxDrag) return;
+    const threshold = maxDrag * 0.75;
 
     if (x.get() >= threshold && !running && !completed) {
       setRunning(true);
@@ -56,19 +63,23 @@ export default function SlideToDopl({
   return (
     <div
       ref={trackRef}
-      className={`relative h-14 w-full rounded-full glass-card-light overflow-hidden select-none ${
+      className={`relative h-14 w-full select-none ${
         disabled ? "opacity-50 pointer-events-none" : ""
       }`}
       style={{
+        borderRadius: 9999,
         background:
           "linear-gradient(180deg, rgba(45,74,62,0.35), rgba(45,74,62,0.15))",
+        border: "1px solid var(--glass-border)",
+        overflow: "hidden",
       }}
     >
       {/* Fill gradient */}
       <motion.div
-        className="absolute inset-y-0 left-0 rounded-full pointer-events-none"
+        className="absolute inset-y-0 left-0 pointer-events-none"
         style={{
           width: fillWidth,
+          borderRadius: 9999,
           background:
             "linear-gradient(90deg, rgba(45,74,62,0.7) 0%, rgba(197,214,52,0.65) 100%)",
           boxShadow: "inset 0 1px 0 rgba(255,255,255,0.15)",
@@ -102,12 +113,12 @@ export default function SlideToDopl({
       {/* Handle */}
       <motion.div
         drag={completed || running ? false : "x"}
-        dragConstraints={trackRef}
+        dragConstraints={{ left: 0, right: maxDrag }}
         dragElastic={0}
         dragMomentum={false}
         style={{ x }}
         onDragEnd={handleEnd}
-        className="absolute top-1 left-1 h-12 w-12 rounded-full flex items-center justify-center cursor-grab active:cursor-grabbing"
+        className="absolute top-1 left-1 h-12 w-12 rounded-full flex items-center justify-center cursor-grab active:cursor-grabbing touch-none"
         initial={false}
         animate={
           completed
