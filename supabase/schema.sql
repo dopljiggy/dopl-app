@@ -20,6 +20,7 @@ create table public.fund_managers (
   handle text unique not null,
   display_name text not null,
   bio text,
+  avatar_url text,
   banner_url text,
   links jsonb default '[]'::jsonb,
   snaptrade_user_id text,
@@ -198,7 +199,7 @@ alter table public.fund_managers add column if not exists broker_provider text d
 alter table public.fund_managers add column if not exists saltedge_customer_id text;
 alter table public.fund_managers add column if not exists saltedge_connection_id text;
 
--- Dopler trading connection columns (2026-04-15)
-alter table public.profiles add column if not exists trading_provider text;
-alter table public.profiles add column if not exists trading_connected boolean default false;
-alter table public.profiles add column if not exists trading_connection_data jsonb default '{}'::jsonb;
+-- Dopler trading connect was removed in Sprint 8 (regulatory). The
+-- columns trading_provider / trading_connected / trading_connection_data
+-- are dropped via migration 005_schema_audit.sql; intentionally NOT
+-- declared in this base schema.
