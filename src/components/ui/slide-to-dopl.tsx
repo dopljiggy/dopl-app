@@ -46,11 +46,11 @@ export default function SlideToDopl({
 
     if (x.get() >= threshold && !running && !completed) {
       setRunning(true);
-      animate(x, max, { type: "spring", stiffness: 300, damping: 28 });
+      setCompleted(true);
+      animate(x, max, { type: "spring", stiffness: 500, damping: 35 });
       if (navigator.vibrate) navigator.vibrate([10, 30, 10]);
       try {
         await onComplete();
-        setCompleted(true);
       } finally {
         setRunning(false);
       }
