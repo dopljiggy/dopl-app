@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, useMotionValue, useTransform, animate } from "framer-motion";
 import { Check, ArrowRight } from "lucide-react";
 
@@ -21,33 +21,32 @@ export default function SlideToDopl({
   disabled,
 }: Props) {
   const trackRef = useRef<HTMLDivElement>(null);
+  const maxDragRef = useRef(0);
   const [completed, setCompleted] = useState(false);
   const [running, setRunning] = useState(false);
-  const [maxDrag, setMaxDrag] = useState(0);
   const x = useMotionValue(0);
 
-  const measure = useCallback(() => {
-    if (trackRef.current) {
-      setMaxDrag(trackRef.current.offsetWidth - HANDLE - PAD * 2);
-    }
-  }, []);
-
   useEffect(() => {
-    measure();
-    window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
-  }, [measure]);
+    const el = trackRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      maxDragRef.current = el.offsetWidth - HANDLE - PAD * 2;
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const fillWidth = useTransform(x, (v) => `${v + HANDLE}px`);
   const labelOpacity = useTransform(x, [0, 80], [1, 0]);
 
   const handleEnd = async () => {
-    if (!maxDrag) return;
-    const threshold = maxDrag * 0.75;
+    const max = maxDragRef.current;
+    if (!max) return;
+    const threshold = max * 0.75;
 
     if (x.get() >= threshold && !running && !completed) {
       setRunning(true);
-      animate(x, maxDrag, { type: "spring", stiffness: 300, damping: 28 });
+      animate(x, max, { type: "spring", stiffness: 300, damping: 28 });
       if (navigator.vibrate) navigator.vibrate([10, 30, 10]);
       try {
         await onComplete();
@@ -72,6 +71,7 @@ export default function SlideToDopl({
           "linear-gradient(180deg, rgba(45,74,62,0.35), rgba(45,74,62,0.15))",
         border: "1px solid var(--glass-border)",
         overflow: "hidden",
+        touchAction: "none",
       }}
     >
       {/* Fill gradient */}
@@ -113,8 +113,8 @@ export default function SlideToDopl({
       {/* Handle */}
       <motion.div
         drag={completed || running ? false : "x"}
-        dragConstraints={{ left: 0, right: maxDrag }}
-        dragElastic={0}
+        dragConstraints={trackRef}
+        dragElastic={0.05}
         dragMomentum={false}
         style={{ x }}
         onDragEnd={handleEnd}
