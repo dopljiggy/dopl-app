@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, RefreshCw, Trash2, TrendingUp } from "lucide-react";
+import { Download, Loader2, RefreshCw, Trash2, TrendingUp } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
   NotifyDoplersModal,
   type PortfolioChangeset,
 } from "@/components/ui/notify-doplers-modal";
+import { downloadCsv } from "@/lib/csv";
 
 interface SyncedPosition {
   ticker: string;
@@ -27,6 +28,7 @@ interface AssignedPosition {
   current_price: number | null;
   market_value: number | null;
   allocation_pct: number | null;
+  gain_loss_pct: number | null;
   portfolio_id: string;
 }
 
@@ -157,22 +159,61 @@ export default function PositionsClient({
     );
   }
 
+  const exportCsv = () => {
+    const portfolioById = new Map(portfolios.map((p) => [p.id, p.name]));
+    const rows = assignedPositions.map((p) => [
+      p.ticker,
+      p.name,
+      portfolioById.get(p.portfolio_id) ?? "",
+      p.shares,
+      p.current_price,
+      p.market_value,
+      p.allocation_pct,
+      p.gain_loss_pct,
+    ]);
+    const today = new Date().toISOString().slice(0, 10);
+    downloadCsv(
+      `dopl-positions-${today}.csv`,
+      [
+        "ticker",
+        "name",
+        "portfolio",
+        "shares",
+        "price",
+        "market_value",
+        "allocation_pct",
+        "gain_loss_pct",
+      ],
+      rows
+    );
+  };
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
         <h1 className="font-display text-3xl font-semibold">positions</h1>
-        <button
-          onClick={() => runSync(true)}
-          disabled={syncing}
-          className="glass-card-light px-4 py-2 text-sm flex items-center gap-2 hover:bg-dopl-sage/40 transition-colors"
-        >
-          {syncing ? (
-            <Loader2 size={14} className="animate-spin" />
-          ) : (
-            <RefreshCw size={14} />
-          )}
-          {syncing ? "syncing..." : "resync"}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={exportCsv}
+            disabled={assignedPositions.length === 0}
+            className="glass-card-light px-4 py-2 text-sm flex items-center gap-2 hover:bg-dopl-sage/40 transition-colors disabled:opacity-40"
+          >
+            <Download size={14} />
+            export CSV
+          </button>
+          <button
+            onClick={() => runSync(true)}
+            disabled={syncing}
+            className="glass-card-light px-4 py-2 text-sm flex items-center gap-2 hover:bg-dopl-sage/40 transition-colors"
+          >
+            {syncing ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <RefreshCw size={14} />
+            )}
+            {syncing ? "syncing..." : "resync"}
+          </button>
+        </div>
       </div>
       <p className="text-dopl-cream/50 text-sm mb-8">
         assign positions from your broker to portfolios. doplers see them

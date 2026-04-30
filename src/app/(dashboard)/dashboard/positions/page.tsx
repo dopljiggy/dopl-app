@@ -22,7 +22,9 @@ export default async function PositionsPage() {
   const portfolioIds = (portfolios ?? []).map((p) => p.id);
   const { data: assignedPositions } = await supabase
     .from("positions")
-    .select("id, ticker, name, shares, current_price, market_value, allocation_pct, portfolio_id")
+    .select(
+      "id, ticker, name, shares, current_price, market_value, allocation_pct, gain_loss_pct, portfolio_id"
+    )
     .in(
       "portfolio_id",
       portfolioIds.length
