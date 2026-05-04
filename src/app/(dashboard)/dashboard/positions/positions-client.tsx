@@ -396,17 +396,17 @@ export default function PositionsClient({
                                       setPendingRemove(null);
                                       setRemoveThesis("");
                                     }}
-                                    className="text-xs px-3 py-1.5 text-dopl-cream/50 hover:text-dopl-cream"
+                                    className="btn-lime text-xs px-3 py-1.5"
                                   >
-                                    cancel
+                                    Keep Position
                                   </button>
                                   <button
                                     onClick={() =>
                                       remove(it.id, removeThesis)
                                     }
-                                    className="text-xs px-3 py-1.5 rounded-lg bg-red-500/20 border border-red-500/40 text-red-200 hover:bg-red-500/30"
+                                    className="text-xs px-3 py-1.5 rounded-lg border border-red-500/55 text-red-300 hover:bg-red-500/12 transition-colors"
                                   >
-                                    remove
+                                    Remove
                                   </button>
                                 </div>
                               </div>

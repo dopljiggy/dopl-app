@@ -99,17 +99,17 @@ export default function UndoplButton({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => !busy && setConfirming(false)}
-            className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6"
+            className="fixed inset-0 z-[80] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6"
           >
             <motion.div
               initial={{ scale: 0.96, y: 12 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.96, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="glass-card glass-card-strong p-6 w-full max-w-md"
+              className="glass-card glass-card-strong p-6 w-full max-w-md relative z-[81]"
             >
               <h2 className="font-display text-xl font-semibold mb-2">
-                stop dopling?
+                Stop Dopling?
               </h2>
               <p className="text-sm text-[color:var(--dopl-cream)]/60 mb-6">
                 you&apos;ll stop seeing{" "}
@@ -121,28 +121,41 @@ export default function UndoplButton({
                 </span>{" "}
                 in your feed. you can dopl again anytime.
               </p>
+              {/* Green-vs-red destructive pattern: the safe "keep" path is
+                  prominent (btn-lime), the destructive "undopl" path is a
+                  secondary red ghost. Same pattern lands on positions
+                  removal + broker disconnect. */}
               <div className="flex gap-3">
                 <button
+                  type="button"
                   onClick={() => setConfirming(false)}
                   disabled={busy}
-                  className="flex-1 glass-card-light py-2.5 text-sm rounded-xl hover:bg-[color:var(--dopl-sage)]/40 transition-colors"
+                  className="btn-lime flex-1 py-2.5 text-sm disabled:opacity-50"
                 >
-                  keep dopling
+                  Keep Dopling
                 </button>
                 <button
+                  type="button"
                   onClick={undopl}
                   disabled={busy}
-                  className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 text-sm rounded-xl font-semibold transition-colors"
+                  className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 text-sm rounded-xl font-semibold transition-colors disabled:opacity-50"
                   style={{
-                    background: "rgba(239, 68, 68, 0.15)",
-                    border: "1px solid rgba(239, 68, 68, 0.4)",
+                    background: "transparent",
+                    border: "1px solid rgba(239, 68, 68, 0.55)",
                     color: "#fca5a5",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background =
+                      "rgba(239, 68, 68, 0.12)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "transparent";
                   }}
                 >
                   {busy ? (
                     <Loader2 size={14} className="animate-spin" />
                   ) : null}
-                  {busy ? "undopling..." : "undopl"}
+                  {busy ? "Undopling..." : "Undopl"}
                 </button>
               </div>
             </motion.div>

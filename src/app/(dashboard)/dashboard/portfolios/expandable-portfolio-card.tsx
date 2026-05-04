@@ -648,16 +648,16 @@ export default function ExpandablePortfolioCard({
                                 <div className="flex items-center justify-end gap-2">
                                   <button
                                     onClick={closeInlineEdit}
-                                    className="text-xs px-3 py-1.5 text-[color:var(--dopl-cream)]/50 hover:text-[color:var(--dopl-cream)]"
+                                    className="btn-lime text-xs px-3 py-1.5"
                                   >
-                                    cancel
+                                    Keep Position
                                   </button>
                                   <button
                                     onClick={() => submitRemove(pos)}
                                     disabled={submitting}
-                                    className="text-xs px-3 py-1.5 rounded-lg bg-red-500/20 border border-red-500/40 text-red-200 hover:bg-red-500/30 disabled:opacity-50"
+                                    className="text-xs px-3 py-1.5 rounded-lg border border-red-500/55 text-red-300 hover:bg-red-500/12 transition-colors disabled:opacity-50"
                                   >
-                                    {submitting ? "removing..." : "remove"}
+                                    {submitting ? "Removing..." : "Remove"}
                                   </button>
                                 </div>
                               </div>
