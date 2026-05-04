@@ -1,6 +1,6 @@
 # dopl-app — Project Status
 
-**Last updated:** 2026-04-28 (Sprint 8 closed, Sprint 9 ready for review)
+**Last updated:** 2026-05-04 (Sprint 14 closed, hotfixes pushed, Stripe migrated to CA)
 **Updated by:** Instance 1 (Architect)
 
 ---
@@ -11,7 +11,7 @@ Portfolio transparency platform for fund managers. Fund managers connect their b
 
 Revenue: 10% platform fee via Stripe Connect `application_fee_percent`.
 
-Production: `dopl-app.vercel.app` — live with 4 fund managers (Jack, Jay, Yazan, Sami).
+Production: `dopl-app.vercel.app` — live with fund managers onboarding.
 
 ---
 
@@ -19,12 +19,13 @@ Production: `dopl-app.vercel.app` — live with 4 fund managers (Jack, Jay, Yaza
 
 | Metric | Value |
 |--------|-------|
-| Branch | `main` (all Sprint 8 work merged + hotfixes pushed) |
-| Tests | 145 passing, build clean |
+| Branch | `main` (Sprint 14 + hotfixes + Stripe CA migration merged) |
+| Tests | 152 passing (27 files), build clean |
 | Framework | Next.js 16.2.3 + React 19.2.4 + Tailwind v4 |
 | Deploy | Vercel (region: cdg1 / Paris) |
 | Pipeline | 3-instance (Architect / Reviewer / Implementer) per PIPELINE.md |
-| In flight | Sprint 9 — plan at `draft`, ready for Instance 2 review |
+| Stripe platform | **Canada-based** (migrated from AE, 2026-05-04) |
+| In flight | Sprint 14 hotfixes complete; next sprint TBD |
 
 ---
 
@@ -40,54 +41,68 @@ Production: `dopl-app.vercel.app` — live with 4 fund managers (Jack, Jay, Yaza
 | 6 | Position flow + sandbox | done | 2026-04-22 |
 | 7 | Dopler deep-link CTAs | done | 2026-04-27 |
 | 8 | Regulatory + polish + performance | done | 2026-04-28 |
-| 9 | Web push + Apple Sports design | draft | — |
+| 9–12 | Various sprints | done | — |
+| 13 | FM Doplers page, Calculator, CSV, Profile polish | done | 2026-05-03 |
+| 14 | Team feedback improvements (30 items, 11 tasks) | done | 2026-05-04 |
+| 14-hotfix | Smoke test failures + Stripe CA migration | done | 2026-05-04 |
 
 ---
 
-## What Sprint 8 shipped
+## What Sprint 14 shipped
 
-**Regulatory (Tasks 1-4):**
-- Deleted 7 dopler-side trading API routes + TradingConnect component
-- Removed proxy gate that redirected doplers to /welcome based on trading_connected
-- Simplified welcome onboarding (removed broker connect OAuth step)
+**30 improvement items from team page-by-page review:**
 
-**Broker Preference (Tasks 5-13):**
-- New `trading_broker_preference` text column on profiles
-- Simple dropdown picker (Robinhood, Fidelity, Schwab, Webull, IB, Coinbase, Trading 212, Wealthsimple, Other)
-- Broker homepage map for deep-link CTAs — all 8 named brokers have working URLs
-- "Other" shows no broker CTA (copy ticker only)
-- Integrated into settings, dopler shell, notification bell, popup, notifications page
-- Broker picker added to welcome onboarding flow (step 3, with skip option)
+- **P1 fixes:** Undopl modal (portal-based, buttons work), portfolio edit (clickable pencil → centered modal), sparkline artifacts removed, allocation column read-only + auto-computed
+- **Auth:** Forgot/reset password flow end-to-end
+- **Homepage:** Hero subtext removed, gradient buttons, How It Works cards, footer with logo + links
+- **Onboarding:** Subtexts trimmed, compact price input, empty portfolio name default
+- **FM Dashboard:** Share page stripped, profile gradient sections + handle-based links, broker vertical layout + distinct switch/disconnect modals, positions richer tiles
+- **Discover:** Leaderboard → card grid sorted by recent, no ranking, portfolio count shown
+- **Slider:** Apple-quality spring physics, momentum carry, progressive glow, 65% threshold
+- **Stripe overlay:** Branded transition on all Stripe redirects, shows immediately on slide complete
+- **Auto-rebalance:** Server-side on every insert/delete, rounding correction to always sum 100%
+- **Global:** Title Case across all headings + CTAs, green/red destructive button pattern
 
-**UX Polish (Tasks 14-15 + hotfixes):**
-- Role-aware homepage CTAs (dopler → "your feed", FM → "your dashboard", logged out → "launch your fund")
-- PWA safe-area-inset-top for Dynamic Island
-- Fixed FM mobile Safari PWA onboarding loop (hard navigation instead of router.replace)
-- Fixed notification popup safe-area overflow (dvh + safe-area-inset-top)
-- Removed capsule active-tab indicator from both mobile nav bars (color-only)
-- Fixed content/nav overlap on both dopler + FM mobile shells
-- Share card scales proportionally on mobile viewports
+**Sprint 14 Hotfixes (post-smoke):**
 
-**Performance (Tasks 16-23):**
-- Parallelized queries on 5 pages (dashboard, feed, positions, portfolio detail, settings)
-- React.cache getUser dedup across dashboard layout + child pages
-- Eager prefetch on all primary nav links
-- Manifest `id` field for iOS push (Sprint 9 prep)
+- Undopl modal → `createPortal` to escape framer-motion stacking contexts
+- Portfolio edit pencil → `div[role=button]` header (no nested buttons)
+- Portfolio edit modal → portal to document.body (centered, not buried in card)
+- Allocation column → read-only (removed stale draft state bug showing 100% for older positions)
+- `recalculateAllocations` → rounding correction, always sums to exactly 100%
+- Sparklines → removed entirely (fake placeholder data was confusing)
+- Positions table → single "allocation" column (merged dual broker%/your%)
+- Footer → mobile alignment fixed, Terms/Privacy → homepage
+- Stripe overlay → 800ms min display, then immediate on slide complete
+- Discover → fixed card height + reserved bio space, portfolio count shown
+- Slider → fill reaches full width, softer springs
+- Broker disconnect modal → better close button spacing
+
+**Stripe Platform Migration:**
+
+- Platform migrated from UAE (AE) to Canada (CA)
+- CA platform supports cross-border Express accounts for US, GB, NL, AU, IN, AE
+- Per-country region mapping restored (each FM gets local onboarding form)
+- Sandbox tested — all regions work without errors
+- **Pending:** Live mode setup (enable countries at dashboard.stripe.com/settings/applications/express, verify Connect active in live mode)
 
 ---
 
 ## What happens next
 
-1. **Now:** Sprint 9 plan moves from `draft` to `under-review`.
-2. Sprint 9 goes through the standard pipeline: Instance 2 review → Instance 3 implement → Instance 2 implementation review → merge.
+1. **Surfer:** Complete Stripe CA live mode setup (enable countries, verify Connect, test with real FM)
+2. **Surfer:** Smoke test remaining items from Sprint 14 hotfix on `dopl-app.vercel.app`
+3. **Surfer:** Add reset-password URLs to Supabase redirect allow-list
+4. **Next sprint:** TBD — waiting for Surfer direction
 
 ---
 
 ## Outstanding risks + flagged items
 
-- **Stripe Connect AE→US restriction** — Jiggy action item.
+- **Stripe CA live mode** — sandbox confirmed working; live mode needs countries enabled + Connect activated before production FMs can onboard.
 - **Free subscribe double-click race** — `/api/subscriptions/free` could double-increment `subscriber_count`.
 - **Rate limiting absent** — no per-endpoint rate limits on public routes.
+- **Supabase redirect URLs** — must add reset-password URLs for forgot-password flow to work.
 
 ---
 
@@ -98,6 +113,6 @@ Production: `dopl-app.vercel.app` — live with 4 fund managers (Jack, Jay, Yaza
 | `CLAUDE.md` | Engineering reference |
 | `CLAUDE-BRAND.md` | Brand + design system |
 | `PIPELINE.md` | 3-instance workflow |
-| `plans/2026-04-27-sprint-8-regulatory-polish-perf.md` | Sprint 8 plan (closed) |
-| `plans/2026-04-27-sprint-9-web-push-apple-sports.md` | Sprint 9 plan (draft) |
-| `docs/superpowers/specs/2026-04-27-sprint-8-9-design.md` | Design spec for both sprints |
+| `IMPROVEMENT.md` | Sprint 14 feedback collection (30 items) |
+| `plans/2026-05-04-sprint-14-improvements.md` | Sprint 14 plan (implemented) |
+| `docs/CHANGELOG.md` | Reverse-chronological commit log |

@@ -1,4 +1,4 @@
-**Status:** implemented
+**Status:** implemented + hotfixed (2026-05-04)
 
 # Sprint 14: Team Feedback Improvements
 

@@ -5,6 +5,46 @@ Format: date, description, files, why, impact, testing, risks.
 
 ---
 
+## [2026-05-04] — Stripe Platform Migration (AE → Canada)
+
+**Files changed:**
+- `src/app/api/stripe/connect/route.ts` — mapped all regions to CA temporarily, then restored per-country mapping (US, GB, NL, AE, AU, IN) once CA platform confirmed working in sandbox for all regions. Fallback "other" region now maps to CA instead of US.
+
+**Why:** UAE-registered Stripe platforms cannot create Express connected accounts in US, GB, IN, etc. A real FM with Canada region hit this error in production. Stripe support confirmed a CA-based platform resolves all cross-border restrictions. Platform migrated to Canada, new API keys deployed to Vercel.
+
+**Impact:** FMs from any region can now complete Stripe onboarding. Each region gets its native onboarding form (Indian FM sees Indian form, US FM sees US form, etc.) Per-country mapping works because CA platforms support cross-border connected accounts globally.
+
+**Testing:** All 7 regions tested in Stripe sandbox — no errors. Live mode pending (Surfer to enable countries + verify Connect).
+
+**Risks:** Live mode requires manual setup: enable countries at dashboard.stripe.com/settings/applications/express and verify Connect is active. Until that's done, production FMs will still see the "cannot create accounts" error.
+
+---
+
+## [2026-05-04] — Sprint 14 Hotfixes (post-smoke)
+
+**Files changed:**
+- `src/components/ui/undopl-button.tsx` — modal rendered via `createPortal` to `document.body`; z-index bumped to 9999; escapes framer-motion stacking contexts that trapped fixed-position elements.
+- `src/app/(dashboard)/dashboard/portfolios/expandable-portfolio-card.tsx` — header changed from `<button>` to `div[role=button]` so nested pencil button clicks fire; removed all draft/save/rebalance allocation state; allocation column is read-only showing server values; edit modal rendered via portal to document.body (centered on screen, not buried in card).
+- `src/lib/recalculate-allocations.ts` — rounds to 2 decimals; corrects rounding drift so sum is always exactly 100% (applies remainder to largest position).
+- `src/app/(dashboard)/dashboard/page.tsx` — removed fake sparkline placeholder data and Sparkline component from stat cards.
+- `src/app/marketing-landing.tsx` — footer mobile: added items-center + text-center; Terms/Privacy links → `/` since pages don't exist.
+- `src/app/(dashboard)/dashboard/billing/billing-client.tsx` + `src/app/[handle]/profile-tiers.tsx` + `src/app/feed/[portfolioId]/portfolio-detail-client.tsx` — Stripe overlay shows immediately on slide complete (before API call, not after "redirecting..." label); if API fails, overlay dismissed + error toast.
+- `src/app/(public)/leaderboard/leaderboard-list.tsx` — fixed card min-height + reserved bio space; shows actual portfolio count number instead of bare icon.
+- `src/app/(public)/leaderboard/page.tsx` — query joins portfolios to compute portfolio_count per FM.
+- `src/types/database.ts` — added optional `portfolio_count` to FundManager type.
+- `src/components/ui/slide-to-dopl.tsx` — Apple-quality spring physics (momentum carry, softer springs, progressive glow, animated arrow hint, lower threshold, fill reaches full width).
+- `src/app/(dashboard)/dashboard/connect/connect-client.tsx` — disconnect modal close button padding + hit area increased.
+
+**Why:** Post-merge smoke testing revealed multiple critical failures: undopl buttons unresponsive (framer-motion stacking context trap), portfolio edit icon not clickable (nested button HTML), allocation showing stale 100% for first-added positions (client draft state never refreshed), sparkline artifacts still present, footer broken on mobile, Stripe overlay flashing for a split second, discover cards misaligned.
+
+**Impact:** All 12 smoke failures fixed. The allocation system is now fully automatic (no manual editing) with guaranteed 100% sum. All modals render via portals and appear centered on screen regardless of scroll position.
+
+**Testing:** `npm test` — 152/152 passing. `npm run build` — clean.
+
+**Risks:** None — all fixes are backwards-compatible UI/logic corrections.
+
+---
+
 ## [2026-05-04] — Sprint 14: Team Feedback Improvements (30 items, 11 tasks)
 
 **Files changed:**
