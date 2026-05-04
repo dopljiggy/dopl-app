@@ -37,24 +37,38 @@ export default function SlideToDopl({
     return () => ro.disconnect();
   }, []);
 
-  // Fill width subtly trails the handle for a parallax depth cue —
-  // gives the slide a 'pulling the gradient with you' feel rather than
-  // a hard-locked fill behind the puck.
-  const fillWidth = useTransform(x, (v) => `${Math.max(0, v + HANDLE - 6)}px`);
-  const labelOpacity = useTransform(x, [0, 80], [1, 0]);
+  const fillWidth = useTransform(x, (v) => `${Math.max(0, v + HANDLE - 8)}px`);
+  const labelOpacity = useTransform(x, [0, 60], [1, 0]);
+  const progress = useTransform(x, (v) =>
+    maxDragRef.current > 0 ? v / maxDragRef.current : 0
+  );
+  const handleGlow = useTransform(
+    progress,
+    [0, 0.5, 0.7, 1],
+    [
+      "0 4px 12px -4px rgba(197,214,52,0.3)",
+      "0 6px 20px -4px rgba(197,214,52,0.45)",
+      "0 8px 28px -4px rgba(197,214,52,0.6)",
+      "0 10px 36px -4px rgba(197,214,52,0.75)",
+    ]
+  );
+  const fillOpacity = useTransform(progress, [0, 0.4, 1], [0.4, 0.7, 1]);
 
   const handleEnd = async () => {
     setDragging(false);
     const max = maxDragRef.current;
     if (!max) return;
-    const threshold = max * 0.75;
+    const threshold = max * 0.65;
 
     if (x.get() >= threshold && !running && !completed) {
       setRunning(true);
       setCompleted(true);
-      // Softer spring on completion: lower stiffness, more damping,
-      // for a buttery 'click into place' instead of a hard snap.
-      animate(x, max, { type: "spring", stiffness: 320, damping: 32 });
+      animate(x, max, {
+        type: "spring",
+        stiffness: 180,
+        damping: 24,
+        mass: 0.8,
+      });
       if (navigator.vibrate) navigator.vibrate(8);
       try {
         await onComplete();
@@ -62,7 +76,12 @@ export default function SlideToDopl({
         setRunning(false);
       }
     } else {
-      animate(x, 0, { type: "spring", stiffness: 280, damping: 28 });
+      animate(x, 0, {
+        type: "spring",
+        stiffness: 200,
+        damping: 22,
+        mass: 0.6,
+      });
     }
   };
 
@@ -81,15 +100,16 @@ export default function SlideToDopl({
         touchAction: "none",
       }}
     >
-      {/* Fill gradient */}
+      {/* Fill gradient — trails the handle with parallax */}
       <motion.div
         className="absolute inset-y-0 left-0 pointer-events-none"
         style={{
           width: fillWidth,
+          opacity: fillOpacity,
           borderRadius: 9999,
           background:
-            "linear-gradient(90deg, rgba(45,74,62,0.7) 0%, rgba(197,214,52,0.65) 100%)",
-          boxShadow: "inset 0 1px 0 rgba(255,255,255,0.15)",
+            "linear-gradient(90deg, rgba(45,74,62,0.6) 0%, rgba(197,214,52,0.7) 100%)",
+          boxShadow: "inset 0 1px 0 rgba(255,255,255,0.12)",
         }}
       />
 
@@ -100,7 +120,12 @@ export default function SlideToDopl({
       >
         <span className="text-sm font-semibold tracking-wide text-[color:var(--dopl-cream)]/80 flex items-center gap-2">
           {label}
-          <ArrowRight size={14} className="opacity-60" />
+          <motion.span
+            animate={{ x: [0, 4, 0] }}
+            transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+          >
+            <ArrowRight size={14} className="opacity-60" />
+          </motion.span>
         </span>
       </motion.div>
 
@@ -109,6 +134,7 @@ export default function SlideToDopl({
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
+          transition={{ type: "spring", stiffness: 300, damping: 20 }}
           className="absolute inset-0 flex items-center justify-center pointer-events-none"
         >
           <span className="text-sm font-semibold text-[color:var(--dopl-deep)]">
@@ -121,8 +147,9 @@ export default function SlideToDopl({
       <motion.div
         drag={completed || running ? false : "x"}
         dragConstraints={trackRef}
-        dragElastic={0.12}
-        dragMomentum={false}
+        dragElastic={0.08}
+        dragMomentum
+        dragTransition={{ bounceStiffness: 300, bounceDamping: 30 }}
         style={{ x }}
         onDragStart={() => setDragging(true)}
         onDragEnd={handleEnd}
@@ -130,32 +157,31 @@ export default function SlideToDopl({
         initial={false}
         animate={
           completed
-            ? { scale: [1, 1.18, 1] }
-            : { scale: dragging ? 1.06 : 1 }
+            ? { scale: [1, 1.15, 1] }
+            : { scale: dragging ? 1.08 : 1 }
         }
-        transition={{ duration: 0.25, ease: [0.2, 0.7, 0.2, 1] }}
+        transition={{ duration: 0.3, ease: [0.2, 0.7, 0.2, 1] }}
       >
-        <div
+        <motion.div
           className="h-full w-full rounded-full flex items-center justify-center"
           style={{
             background:
               "linear-gradient(135deg, #D5E456 0%, #C5D634 55%, #a8b82c 100%)",
-            boxShadow:
-              "inset 0 1px 0 rgba(255,255,255,0.35), 0 6px 16px -6px rgba(197,214,52,0.5), 0 0 0 1px rgba(0,0,0,0.15)",
+            boxShadow: handleGlow,
           }}
         >
           {completed ? (
             <motion.span
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ type: "spring", stiffness: 500, damping: 22 }}
+              initial={{ scale: 0, rotate: -90 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ type: "spring", stiffness: 400, damping: 18 }}
             >
               <Check size={20} color="#0D261F" strokeWidth={3} />
             </motion.span>
           ) : (
             <ArrowRight size={18} color="#0D261F" strokeWidth={2.5} />
           )}
-        </div>
+        </motion.div>
       </motion.div>
     </div>
   );
