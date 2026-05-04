@@ -2,10 +2,16 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { Briefcase, Users } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
 import CountUp from "@/components/ui/count-up";
 import type { FundManager } from "@/types/database";
 
+/**
+ * Discover grid (Sprint 14): replaces the ranked leaderboard. No
+ * positions/podium colors, no rank numbers — just FM cards in a
+ * 2-up (md+) grid sorted by recently joined.
+ */
 export default function LeaderboardList({
   managers,
 }: {
@@ -28,100 +34,77 @@ export default function LeaderboardList({
   }
 
   return (
-    <div className="space-y-3">
-      {managers.map((fm, index) => {
-        const glow =
-          index === 0
-            ? "gold"
-            : index === 1
-            ? "silver"
-            : index === 2
-            ? "bronze"
-            : null;
-        return (
-          <motion.div
-            key={fm.id}
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{
-              duration: 0.5,
-              delay: index * 0.04,
-              ease: [0.2, 0.7, 0.2, 1],
-            }}
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {managers.map((fm, index) => (
+        <motion.div
+          key={fm.id}
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{
+            duration: 0.4,
+            delay: Math.min(index * 0.03, 0.6),
+            ease: [0.2, 0.7, 0.2, 1],
+          }}
+        >
+          <Link
+            href={`/${fm.handle}`}
+            className="block focus:outline-none"
+            aria-label={`View ${fm.display_name}'s profile`}
           >
-            <Link
-              href={`/${fm.handle}`}
-              className="block focus:outline-none"
-              aria-label={`View ${fm.display_name}'s profile`}
-            >
-              <GlassCard
-                glow={glow}
-                className="p-5 flex items-center gap-5 group"
-              >
-                <span
-                  className={`font-mono text-2xl font-bold w-10 flex-shrink-0 tabular-nums ${
-                    index < 3
-                      ? index === 0
-                        ? "text-[#F5D76E]"
-                        : index === 1
-                        ? "text-[#C8D2DC]"
-                        : "text-[#CD7F50]"
-                      : "text-[color:var(--dopl-cream)]/30"
-                  }`}
-                >
-                  <CountUp
-                    value={index + 1}
-                    duration={0.8 + index * 0.05}
-                  />
-                </span>
+            <GlassCard className="p-5 h-full flex flex-col gap-3 group hover:border-[color:var(--dopl-lime)]/35 transition-colors">
+              <div className="flex items-center gap-3">
                 <div className="relative w-12 h-12 rounded-xl overflow-hidden bg-[color:var(--dopl-sage)] flex-shrink-0">
-                  {index < 3 && (
-                    <div
-                      className="absolute -inset-1 blur-md opacity-60 rounded-2xl"
-                      style={{
-                        background:
-                          index === 0
-                            ? "rgba(245, 215, 110, 0.6)"
-                            : index === 1
-                            ? "rgba(200, 210, 220, 0.5)"
-                            : "rgba(205, 127, 80, 0.5)",
-                      }}
+                  {fm.avatar_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={fm.avatar_url}
+                      alt=""
+                      className="w-full h-full object-cover"
                     />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center font-display text-lg text-[color:var(--dopl-lime)]">
+                      {fm.display_name[0]?.toUpperCase()}
+                    </div>
                   )}
-                  <div className="relative w-full h-full flex items-center justify-center">
-                    {fm.avatar_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={fm.avatar_url}
-                        alt=""
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <span className="font-display text-lg text-[color:var(--dopl-lime)]">
-                        {fm.display_name[0]?.toUpperCase()}
-                      </span>
-                    )}
-                  </div>
                 </div>
-                <div className="flex-grow min-w-0">
-                  <p className="font-semibold truncate">{fm.display_name}</p>
-                  <p className="text-xs text-[color:var(--dopl-cream)]/40 font-mono">
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold truncate group-hover:text-[color:var(--dopl-lime)] transition-colors">
+                    {fm.display_name}
+                  </p>
+                  <p className="text-xs text-[color:var(--dopl-cream)]/45 font-mono truncate">
                     @{fm.handle}
                   </p>
                 </div>
-                <div className="text-right flex-shrink-0">
-                  <p className="font-mono text-xl font-bold text-[color:var(--dopl-lime)]">
-                    <CountUp value={fm.subscriber_count} duration={1} />
-                  </p>
-                  <p className="text-[10px] uppercase tracking-wider text-[color:var(--dopl-cream)]/30">
-                    doplers
-                  </p>
-                </div>
-              </GlassCard>
-            </Link>
-          </motion.div>
-        );
-      })}
+              </div>
+
+              {fm.bio && (
+                <p className="text-xs text-[color:var(--dopl-cream)]/65 leading-relaxed line-clamp-2">
+                  {fm.bio}
+                </p>
+              )}
+
+              <div className="mt-auto pt-2 flex items-center gap-4 text-xs text-[color:var(--dopl-cream)]/60">
+                <span className="inline-flex items-center gap-1.5">
+                  <Users size={12} className="text-[color:var(--dopl-cream)]/40" />
+                  <CountUp value={fm.subscriber_count} duration={0.8} />
+                  <span className="text-[color:var(--dopl-cream)]/40">
+                    {fm.subscriber_count === 1 ? "dopler" : "doplers"}
+                  </span>
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <Briefcase
+                    size={12}
+                    className="text-[color:var(--dopl-cream)]/40"
+                  />
+                  <span className="text-[color:var(--dopl-cream)]/55">
+                    portfolios
+                  </span>
+                </span>
+              </div>
+            </GlassCard>
+          </Link>
+        </motion.div>
+      ))}
     </div>
   );
 }
