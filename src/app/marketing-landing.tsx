@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { UserChip } from "@/components/ui/user-chip";
 
@@ -56,10 +57,10 @@ export default function MarketingLanding({ viewer }: { viewer: Viewer }) {
               href="/login"
               className="text-sm text-dopl-cream/60 hover:text-dopl-cream transition-colors"
             >
-              log in
+              Log In
             </Link>
             <Link href="/signup" className="btn-lime text-sm px-5 py-2.5">
-              get started
+              Get Started
             </Link>
           </div>
         )}
@@ -67,90 +68,70 @@ export default function MarketingLanding({ viewer }: { viewer: Viewer }) {
 
       {/* Hero */}
       <section className="max-w-4xl mx-auto px-6 pt-24 pb-16 text-center">
-        <h1 className="font-display text-5xl md:text-7xl font-semibold leading-[1.1] tracking-tight mb-6">
+        <h1 className="font-display text-5xl md:text-7xl font-semibold leading-[1.1] tracking-tight mb-10">
           your audience.{" "}
           <span className="text-dopl-lime">your fund.</span>{" "}
           your price.
         </h1>
-        <p className="text-lg md:text-xl text-dopl-cream/60 max-w-2xl mx-auto mb-10 font-light">
-          connect your broker. create portfolio tiers. your followers subscribe
-          and see your live positions. you get paid. dopl handles the rest.
-        </p>
-        <div className="flex items-center justify-center gap-4">
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
           {viewer?.role === "subscriber" ? (
             <>
               <Link href="/feed" className="btn-lime text-base px-8 py-3.5">
-                your feed
+                Your Feed
               </Link>
-              <Link
-                href="/leaderboard"
-                className="text-sm text-dopl-cream/50 hover:text-dopl-cream transition-colors underline underline-offset-4"
-              >
-                discover fund managers →
-              </Link>
+              <CtaSecondary href="/leaderboard" label="See Fund Managers" />
             </>
           ) : viewer?.role === "fund_manager" ? (
             <>
               <Link href="/dashboard" className="btn-lime text-base px-8 py-3.5">
-                your dashboard
+                Your Dashboard
               </Link>
-              <Link
-                href="/leaderboard"
-                className="text-sm text-dopl-cream/50 hover:text-dopl-cream transition-colors underline underline-offset-4"
-              >
-                see fund managers →
-              </Link>
+              <CtaSecondary href="/leaderboard" label="See Fund Managers" />
             </>
           ) : (
             <>
               <Link href="/signup" className="btn-lime text-base px-8 py-3.5">
-                launch your fund
+                Launch Your Fund
               </Link>
-              <Link
-                href="/leaderboard"
-                className="text-sm text-dopl-cream/50 hover:text-dopl-cream transition-colors underline underline-offset-4"
-              >
-                see fund managers →
-              </Link>
+              <CtaSecondary href="/leaderboard" label="See Fund Managers" />
             </>
           )}
         </div>
       </section>
 
+      {/* Subtle gradient divider — separates hero from sections below */}
+      <div
+        className="h-px max-w-3xl mx-auto"
+        style={{
+          background:
+            "linear-gradient(to right, transparent, rgba(197,214,52,0.25), transparent)",
+        }}
+      />
+
       {/* How it works */}
       <section className="max-w-5xl mx-auto px-6 py-24">
         <h2 className="font-display text-3xl font-semibold text-center mb-16">
-          how it works
+          How It Works
         </h2>
         <div className="grid md:grid-cols-3 gap-6">
           {[
             {
               step: "01",
-              title: "connect your broker",
+              title: "Connect Your Broker",
               desc: "link your existing brokerage account. dopl reads your positions in real time. you keep trading normally.",
             },
             {
               step: "02",
-              title: "create portfolio tiers",
+              title: "Create Portfolio Tiers",
               desc: "set up free and paid portfolios. assign positions. set your price. dopl handles billing through Stripe.",
             },
             {
               step: "03",
-              title: "your followers subscribe",
+              title: "Your Followers Subscribe",
               desc: "share your dopl link. followers pay to see your live portfolio. when you trade, they get notified instantly.",
             },
           ].map((item) => (
-            <div key={item.step} className="glass-card p-8">
-              <span className="font-mono text-dopl-lime text-sm font-semibold">
-                {item.step}
-              </span>
-              <h3 className="font-display text-xl font-semibold mt-3 mb-3">
-                {item.title}
-              </h3>
-              <p className="text-dopl-cream/50 text-sm leading-relaxed">
-                {item.desc}
-              </p>
-            </div>
+            <HowCard key={item.step} {...item} />
           ))}
         </div>
       </section>
@@ -165,44 +146,135 @@ export default function MarketingLanding({ viewer }: { viewer: Viewer }) {
           <p className="font-mono text-2xl text-dopl-cream/80">
             = $9,800/mo in your pocket
           </p>
-          <p className="text-dopl-cream/40 text-sm mt-4">
-            from the audience you already have. the research you&apos;re already doing. the trades you&apos;re already taking.
-          </p>
         </div>
       </section>
 
       {/* CTA */}
       <section className="max-w-4xl mx-auto px-6 py-24 text-center">
         <h2 className="font-display text-3xl md:text-4xl font-semibold mb-4">
-          stop giving away your best trades for free
+          Stop Giving Away Your Best Trades For Free
         </h2>
-        <p className="text-dopl-cream/50 mb-8">
-          your followers are already copying your positions manually. badly. and late. dopl makes it automatic.
+        <p className="text-dopl-cream/55 mb-8">
+          your followers are already copying — manually, late, badly.
         </p>
         {viewer?.role === "subscriber" ? (
           <Link href="/feed" className="btn-lime text-base px-8 py-3.5 inline-block">
-            your feed
+            Your Feed
           </Link>
         ) : viewer?.role === "fund_manager" ? (
           <Link href="/dashboard" className="btn-lime text-base px-8 py-3.5 inline-block">
-            your dashboard
+            Your Dashboard
           </Link>
         ) : (
           <Link href="/signup" className="btn-lime text-base px-8 py-3.5 inline-block">
-            launch your fund
+            Launch Your Fund
           </Link>
         )}
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-dopl-sage/30 py-8 px-6">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <span className="font-display text-lg text-dopl-cream/40">dopl</span>
-          <p className="text-xs text-dopl-cream/30">
-            infrastructure for fund managers
-          </p>
+      <footer
+        className="px-6 pt-16 pb-10 mt-12 border-t"
+        style={{
+          borderColor: "rgba(197,214,52,0.18)",
+        }}
+      >
+        <div className="max-w-6xl mx-auto flex flex-col md:flex-row md:items-end md:justify-between gap-6">
+          <div className="flex items-center gap-3">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/dopl-logo.svg"
+              alt=""
+              width={36}
+              height={36}
+              className="rounded-xl"
+            />
+            <div>
+              <span className="font-display text-2xl font-semibold tracking-tight text-dopl-cream">
+                dopl
+              </span>
+              <p className="text-xs text-dopl-cream/40 mt-0.5">
+                infrastructure for fund managers
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-col md:items-end gap-2 text-xs">
+            <div className="flex items-center gap-5 text-dopl-cream/40">
+              <Link href="/terms" className="hover:text-dopl-cream transition-colors">
+                Terms
+              </Link>
+              <Link href="/privacy" className="hover:text-dopl-cream transition-colors">
+                Privacy
+              </Link>
+              <Link href="/leaderboard" className="hover:text-dopl-cream transition-colors">
+                Discover
+              </Link>
+            </div>
+            <p className="text-dopl-cream/30 font-mono">© dopl 2026</p>
+          </div>
         </div>
       </footer>
     </main>
+  );
+}
+
+function CtaSecondary({ href, label }: { href: string; label: string }) {
+  return (
+    <Link
+      href={href}
+      className="group relative inline-flex items-center gap-2 px-7 py-3.5 rounded-2xl text-base font-semibold text-dopl-cream/85 transition-all"
+      style={{
+        background:
+          "linear-gradient(rgba(13,38,31,0.85), rgba(13,38,31,0.85)) padding-box, linear-gradient(135deg, rgba(197,214,52,0.45), rgba(45,74,62,0.55)) border-box",
+        border: "1px solid transparent",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.boxShadow =
+          "0 0 0 1px rgba(197,214,52,0.25), 0 8px 32px -10px rgba(197,214,52,0.35)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.boxShadow = "";
+      }}
+    >
+      <span>{label}</span>
+      <ArrowRight
+        size={16}
+        className="transition-transform group-hover:translate-x-0.5"
+      />
+    </Link>
+  );
+}
+
+function HowCard({
+  step,
+  title,
+  desc,
+}: {
+  step: string;
+  title: string;
+  desc: string;
+}) {
+  return (
+    <div
+      className="rounded-2xl p-8 transition-all hover:-translate-y-0.5"
+      style={{
+        background:
+          "linear-gradient(rgba(13,38,31,0.6), rgba(13,38,31,0.6)) padding-box, linear-gradient(135deg, rgba(197,214,52,0.35), rgba(45,74,62,0.45)) border-box",
+        border: "1px solid transparent",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.boxShadow =
+          "0 0 0 1px rgba(197,214,52,0.18), 0 12px 40px -16px rgba(197,214,52,0.28)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.boxShadow = "";
+      }}
+    >
+      <span className="font-mono text-dopl-lime text-sm font-semibold">
+        {step}
+      </span>
+      <h3 className="font-display text-xl font-semibold mt-3 mb-3">{title}</h3>
+      <p className="text-dopl-cream/55 text-sm leading-relaxed">{desc}</p>
+    </div>
   );
 }
