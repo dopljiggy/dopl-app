@@ -3,11 +3,8 @@ import { getStripe } from "@/lib/stripe";
 import { createServerSupabase } from "@/lib/supabase-server";
 
 // Map FM `region` → Stripe Connect country (ISO 3166-1 alpha-2).
-// Required because Stripe defaults Express account country to the
-// platform's country of registration (UAE for dopl), which means
-// every FM ended up in AE regardless of their actual region.
-// `europe` is a multi-country bucket; Netherlands is the chosen default
-// (Stripe Express supported, central in EU, common FM base).
+// Platform is registered in Canada. CA platforms support cross-border
+// connected accounts in US, CA, GB, AU, NL, and most EU countries.
 const COUNTRY_BY_REGION: Record<string, string> = {
   us_canada: "US",
   uk: "GB",
@@ -15,7 +12,7 @@ const COUNTRY_BY_REGION: Record<string, string> = {
   uae: "AE",
   australia: "AU",
   india: "IN",
-  other: "US",
+  other: "CA",
 };
 
 export async function POST(request: Request) {
