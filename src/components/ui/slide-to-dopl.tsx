@@ -37,7 +37,7 @@ export default function SlideToDopl({
     return () => ro.disconnect();
   }, []);
 
-  const fillWidth = useTransform(x, (v) => `${Math.max(0, v + HANDLE - 8)}px`);
+  const fillWidth = useTransform(x, (v) => `${Math.max(0, v + HANDLE + PAD)}px`);
   const labelOpacity = useTransform(x, [0, 60], [1, 0]);
   const progress = useTransform(x, (v) =>
     maxDragRef.current > 0 ? v / maxDragRef.current : 0

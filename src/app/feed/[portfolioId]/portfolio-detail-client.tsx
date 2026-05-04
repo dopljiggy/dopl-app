@@ -126,6 +126,7 @@ function Inner({
   }, [portfolioId, canView, router]);
 
   const handleSubscribe = async () => {
+    setStripeRedirecting(true);
     const res = await fetch("/api/stripe/checkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -133,11 +134,10 @@ function Inner({
     });
     const { url, error } = await res.json();
     if (url) {
-      setStripeRedirecting(true);
-      await new Promise((r) => setTimeout(r, 800));
       window.location.href = url;
       return;
     }
+    setStripeRedirecting(false);
     fireToast({ title: "couldn't start checkout", body: error ?? "" });
   };
 
@@ -259,7 +259,7 @@ function Inner({
             <div className="max-w-sm mx-auto">
               <SlideToDopl
                 label={`slide to dopl · $${(portfolio.price_cents / 100).toFixed(0)}/mo`}
-                completedLabel="redirecting..."
+                completedLabel="dopl'd"
                 onComplete={handleSubscribe}
               />
             </div>
