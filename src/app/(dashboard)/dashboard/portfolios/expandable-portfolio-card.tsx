@@ -317,9 +317,18 @@ export default function ExpandablePortfolioCard({
   return (
     <GlassCard className="overflow-hidden p-0" hover={false} tilt={false}>
       {/* Header */}
-      <button
+      <div
+        role="button"
+        tabIndex={0}
         onClick={onToggle}
-        className="w-full text-left p-5 md:p-6 flex items-center gap-4 hover:bg-[color:var(--dopl-sage)]/10 transition-colors"
+        onKeyDown={(e) => {
+          if (e.target !== e.currentTarget) return;
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onToggle();
+          }
+        }}
+        className="w-full text-left p-5 md:p-6 flex items-center gap-4 hover:bg-[color:var(--dopl-sage)]/10 transition-colors cursor-pointer"
       >
         <motion.div
           animate={{ rotate: isExpanded ? 180 : 0 }}
@@ -383,7 +392,7 @@ export default function ExpandablePortfolioCard({
             )}
           </div>
         </div>
-      </button>
+      </div>
 
       {/* Expanded body */}
       <AnimatePresence initial={false}>
@@ -537,13 +546,11 @@ export default function ExpandablePortfolioCard({
                       <div className="col-span-3">ticker</div>
                       <div className="col-span-2 text-right">price</div>
                       <div className="col-span-2 text-right">P/L</div>
-                      <div className="col-span-2 text-right">broker %</div>
-                      <div className="col-span-2 text-right">your %</div>
-                      <div className="col-span-1 text-right" aria-label="actions" />
+                      <div className="col-span-3 text-right">allocation</div>
+                      <div className="col-span-2 text-right" aria-label="actions" />
                     </div>
                     {positions.map((pos) => {
                       const gain = (pos.gain_loss_pct ?? 0) >= 0;
-                      const broker = brokerPcts.get(pos.id) ?? 0;
                       const isAdjusting = adjusting?.id === pos.id;
                       const isRemoving = pendingRemove?.id === pos.id;
                       return (
@@ -583,10 +590,7 @@ export default function ExpandablePortfolioCard({
                                 ? `${gain ? "+" : ""}${pos.gain_loss_pct.toFixed(1)}%`
                                 : "—"}
                             </div>
-                            <div className="col-span-2 text-right font-mono text-xs text-[color:var(--dopl-cream)]/40 tabular-nums">
-                              {broker.toFixed(1)}%
-                            </div>
-                            <div className="col-span-2 text-right">
+                            <div className="col-span-3 text-right">
                               <div className="relative inline-flex items-center">
                                 <input
                                   type="number"
@@ -608,7 +612,7 @@ export default function ExpandablePortfolioCard({
                                 </span>
                               </div>
                             </div>
-                            <div className="col-span-1 flex items-center justify-end gap-1">
+                            <div className="col-span-2 flex items-center justify-end gap-1">
                               <button
                                 onClick={() => openAdjust(pos)}
                                 aria-label={`adjust ${pos.ticker}`}

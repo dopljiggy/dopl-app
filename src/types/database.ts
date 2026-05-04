@@ -24,6 +24,7 @@ export interface FundManager {
   subscriber_count: number;
   is_featured: boolean;
   created_at: string;
+  portfolio_count?: number;
 }
 
 export interface Portfolio {

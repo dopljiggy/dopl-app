@@ -111,6 +111,7 @@ export default function ProfileTiers({
     const { url, error } = await res.json();
     if (url) {
       setStripeRedirecting(true);
+      await new Promise((r) => setTimeout(r, 800));
       window.location.href = url;
       return;
     }

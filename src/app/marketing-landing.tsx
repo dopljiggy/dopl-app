@@ -179,7 +179,7 @@ export default function MarketingLanding({ viewer }: { viewer: Viewer }) {
           borderColor: "rgba(197,214,52,0.18)",
         }}
       >
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row md:items-end md:justify-between gap-6">
+        <div className="max-w-6xl mx-auto flex flex-col items-center text-center md:flex-row md:items-end md:justify-between md:text-left gap-6">
           <div className="flex items-center gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -198,12 +198,12 @@ export default function MarketingLanding({ viewer }: { viewer: Viewer }) {
               </p>
             </div>
           </div>
-          <div className="flex flex-col md:items-end gap-2 text-xs">
+          <div className="flex flex-col items-center md:items-end gap-2 text-xs">
             <div className="flex items-center gap-5 text-dopl-cream/40">
-              <Link href="/terms" className="hover:text-dopl-cream transition-colors">
+              <Link href="/" className="hover:text-dopl-cream transition-colors">
                 Terms
               </Link>
-              <Link href="/privacy" className="hover:text-dopl-cream transition-colors">
+              <Link href="/" className="hover:text-dopl-cream transition-colors">
                 Privacy
               </Link>
               <Link href="/leaderboard" className="hover:text-dopl-cream transition-colors">
