@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Loader2, ArrowRight, Building2, Landmark, Globe } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
+import { fireToast } from "@/components/ui/toast";
 
 export type BrokerProvider = "snaptrade" | "saltedge" | "manual";
 
@@ -50,10 +52,22 @@ export function BrokerTypeSelector({
   onSelected: (choice: BrokerChoice) => void;
   persist?: boolean;
 }) {
+  const router = useRouter();
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const choose = async (choice: BrokerChoice) => {
+    // 'My broker isn't listed' shortcuts straight to the portfolios page
+    // where Sprint 13's inline-add form covers manual entry — the
+    // separate ManualEntry surface this used to land on was redundant.
+    if (choice.key === "manual") {
+      fireToast({
+        title: "add positions directly in your portfolio",
+      });
+      router.push("/dashboard/portfolios");
+      return;
+    }
+
     setPending(choice.key);
     setError(null);
     try {
@@ -63,11 +77,7 @@ export function BrokerTypeSelector({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             region:
-              choice.key === "manual"
-                ? "other"
-                : choice.key === "saltedge"
-                ? "europe"
-                : "us_canada",
+              choice.key === "saltedge" ? "europe" : "us_canada",
           }),
         });
         if (!res.ok) {
@@ -93,7 +103,7 @@ export function BrokerTypeSelector({
         {subheading}
       </p>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="flex flex-col gap-3 max-w-2xl">
         {BROKER_CHOICES.map((c) => {
           const busy = pending === c.key;
           const Icon = c.icon;
