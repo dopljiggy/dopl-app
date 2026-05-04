@@ -494,13 +494,6 @@ export default function ExpandablePortfolioCard({
                   </div>
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={rebalance}
-                      disabled={isBalanced}
-                      className="glass-card-light px-3 py-1.5 text-xs rounded-lg hover:bg-[color:var(--dopl-sage)]/40 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      rebalance to 100%
-                    </button>
-                    <button
                       onClick={save}
                       disabled={!isDirty || saving}
                       className="btn-lime text-xs px-3 py-1.5 disabled:opacity-40"
