@@ -124,11 +124,18 @@ export default async function DashboardPage() {
     },
   ];
 
+  // Post-setup empty state: the FM finished the checklist (every item
+  // done) but hasn't picked up doplers yet. Replace the bare zero-stat
+  // grid with a friendlier 'share your profile' nudge.
+  const checklistComplete = checklistItems.every((c) => c.done);
+  const allStatsZero = stats.every((s) => Number(s.numeric || 0) === 0);
+  const showShareNudge = checklistComplete && allStatsZero;
+
   return (
     <div>
       <div className="mb-8">
         <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight">
-          welcome back
+          Welcome Back
           {fm?.display_name ? `, ${fm.display_name.split(" ")[0]}` : ""}
         </h1>
         {fm?.handle && (
@@ -140,38 +147,56 @@ export default async function DashboardPage() {
 
       <FinishSetupChecklist items={checklistItems} />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        {stats.map((stat) => (
-          <GlassCard key={stat.label} className="p-6 relative overflow-hidden">
-            <div className="absolute inset-0 opacity-70 pointer-events-none">
-              <div className="absolute bottom-0 right-0">
-                <Sparkline
-                  data={stat.spark}
-                  width={180}
-                  height={54}
-                  color="var(--dopl-lime)"
-                />
+      {showShareNudge ? (
+        <GlassCard className="p-8 md:p-10 mb-8 text-center">
+          <p className="font-display text-xl font-semibold mb-2">
+            you&apos;re all set up
+          </p>
+          <p className="text-[color:var(--dopl-cream)]/55 text-sm mb-6 max-w-md mx-auto">
+            share your profile to start picking up doplers. once you have
+            subscribers, MRR + churn live here.
+          </p>
+          <a
+            href="/dashboard/share"
+            className="btn-lime text-sm px-6 py-2.5 inline-block"
+          >
+            Share Your Profile
+          </a>
+        </GlassCard>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          {stats.map((stat) => (
+            <GlassCard key={stat.label} className="p-6 relative overflow-hidden">
+              <div className="absolute inset-0 opacity-70 pointer-events-none">
+                <div className="absolute bottom-0 right-0">
+                  <Sparkline
+                    data={stat.spark}
+                    width={180}
+                    height={54}
+                    color="var(--dopl-lime)"
+                  />
+                </div>
               </div>
-            </div>
-            <div className="relative">
-              <p className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/40 mb-2">
-                {stat.label}
-              </p>
-              <p className="font-mono text-4xl font-bold text-[color:var(--dopl-lime)] leading-none">
-                <CountUp
-                  value={stat.numeric}
-                  prefix={stat.prefix ?? ""}
-                  decimals={stat.prefix === "$" ? 0 : 0}
-                  duration={1.3}
-                />
-              </p>
-              <p className="text-xs text-[color:var(--dopl-cream)]/30 mt-2">
-                {stat.sub}
-              </p>
-            </div>
-          </GlassCard>
-        ))}
-      </div>
+              <div className="relative">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/40 mb-2">
+                  {stat.label}
+                </p>
+                <p className="font-mono text-4xl font-bold text-[color:var(--dopl-lime)] leading-none">
+                  <CountUp
+                    value={stat.numeric}
+                    prefix={stat.prefix ?? ""}
+                    decimals={stat.prefix === "$" ? 0 : 0}
+                    duration={1.3}
+                  />
+                </p>
+                <p className="text-xs text-[color:var(--dopl-cream)]/30 mt-2">
+                  {stat.sub}
+                </p>
+              </div>
+            </GlassCard>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -165,14 +165,14 @@ export default function PortfoliosClient({
       )}
       <div className="flex items-center justify-between mb-8">
         <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight">
-          portfolios
+          Portfolios
         </h1>
         <button
           onClick={() => setShowCreate(true)}
           className="btn-lime text-sm px-5 py-2.5 flex items-center gap-2"
         >
           <Plus size={16} />
-          new portfolio
+          New Portfolio
         </button>
       </div>
 

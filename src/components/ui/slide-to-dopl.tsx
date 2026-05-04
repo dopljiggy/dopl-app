@@ -24,6 +24,7 @@ export default function SlideToDopl({
   const maxDragRef = useRef(0);
   const [completed, setCompleted] = useState(false);
   const [running, setRunning] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const x = useMotionValue(0);
 
   useEffect(() => {
@@ -36,10 +37,14 @@ export default function SlideToDopl({
     return () => ro.disconnect();
   }, []);
 
-  const fillWidth = useTransform(x, (v) => `${v + HANDLE}px`);
+  // Fill width subtly trails the handle for a parallax depth cue —
+  // gives the slide a 'pulling the gradient with you' feel rather than
+  // a hard-locked fill behind the puck.
+  const fillWidth = useTransform(x, (v) => `${Math.max(0, v + HANDLE - 6)}px`);
   const labelOpacity = useTransform(x, [0, 80], [1, 0]);
 
   const handleEnd = async () => {
+    setDragging(false);
     const max = maxDragRef.current;
     if (!max) return;
     const threshold = max * 0.75;
@@ -47,15 +52,17 @@ export default function SlideToDopl({
     if (x.get() >= threshold && !running && !completed) {
       setRunning(true);
       setCompleted(true);
-      animate(x, max, { type: "spring", stiffness: 500, damping: 35 });
-      if (navigator.vibrate) navigator.vibrate([10, 30, 10]);
+      // Softer spring on completion: lower stiffness, more damping,
+      // for a buttery 'click into place' instead of a hard snap.
+      animate(x, max, { type: "spring", stiffness: 320, damping: 32 });
+      if (navigator.vibrate) navigator.vibrate(8);
       try {
         await onComplete();
       } finally {
         setRunning(false);
       }
     } else {
-      animate(x, 0, { type: "spring", stiffness: 400, damping: 30 });
+      animate(x, 0, { type: "spring", stiffness: 280, damping: 28 });
     }
   };
 
@@ -114,18 +121,19 @@ export default function SlideToDopl({
       <motion.div
         drag={completed || running ? false : "x"}
         dragConstraints={trackRef}
-        dragElastic={0.05}
+        dragElastic={0.12}
         dragMomentum={false}
         style={{ x }}
+        onDragStart={() => setDragging(true)}
         onDragEnd={handleEnd}
         className="absolute top-1 left-1 h-12 w-12 rounded-full flex items-center justify-center cursor-grab active:cursor-grabbing touch-none"
         initial={false}
         animate={
           completed
             ? { scale: [1, 1.18, 1] }
-            : { scale: 1 }
+            : { scale: dragging ? 1.06 : 1 }
         }
-        transition={{ duration: 0.35, ease: [0.2, 0.7, 0.2, 1] }}
+        transition={{ duration: 0.25, ease: [0.2, 0.7, 0.2, 1] }}
       >
         <div
           className="h-full w-full rounded-full flex items-center justify-center"

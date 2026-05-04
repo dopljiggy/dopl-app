@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Copy, Download, Share2, Check, Link2 } from "lucide-react";
+import { Copy, Download, Share2, Check } from "lucide-react";
 import { motion } from "framer-motion";
 
 interface Props {
@@ -23,7 +23,6 @@ export default function ShareClient({
   const [downloading, setDownloading] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
   const shareUrl = `${origin}/${handle}`;
-  const shareLabel = shareUrl.replace(/^https?:\/\//, "");
 
   // Any share action (copy, download, X) flips the dashboard's
   // "share your dopl link" checklist item to done. localStorage-based
@@ -109,12 +108,9 @@ export default function ShareClient({
 
   return (
     <div>
-      <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight mb-2">
-        share
+      <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight mb-10">
+        Share
       </h1>
-      <p className="text-[color:var(--dopl-cream)]/50 text-sm mb-10">
-        download a premium card and drop it anywhere
-      </p>
 
       <div className="grid lg:grid-cols-[auto,300px] gap-8 items-start">
         <div>
@@ -461,34 +457,20 @@ export default function ShareClient({
           <div className="space-y-3">
             <ActionButton
               icon={copied ? <Check size={16} /> : <Copy size={16} />}
-              title={copied ? "copied!" : "copy link"}
-              subtitle={shareLabel}
+              title={copied ? "Copied!" : "Copy Link"}
               onClick={copyLink}
             />
             <ActionButton
               icon={<Download size={16} />}
-              title={downloading ? "rendering..." : "download PNG"}
-              subtitle="1200 × 630 · og-ready"
+              title={downloading ? "Rendering..." : "Download PNG"}
               onClick={downloadPng}
               disabled={downloading}
             />
             <ActionButton
               icon={<Share2 size={16} />}
-              title="share on X"
-              subtitle="opens tweet composer"
+              title="Share On X"
               onClick={shareOnX}
             />
-          </div>
-
-          <div className="mt-6 glass-card-light rounded-xl p-4 text-xs text-[color:var(--dopl-cream)]/50 flex items-start gap-2">
-            <Link2
-              size={14}
-              className="mt-0.5 text-[color:var(--dopl-lime)]/70 shrink-0"
-            />
-            <p className="leading-relaxed">
-              the downloaded PNG is 1200×630 — perfect for X, LinkedIn, Discord
-              previews and stories.
-            </p>
           </div>
         </div>
       </div>
@@ -524,13 +506,11 @@ export default function ShareClient({
 function ActionButton({
   icon,
   title,
-  subtitle,
   onClick,
   disabled,
 }: {
   icon: React.ReactNode;
   title: string;
-  subtitle: string;
   onClick: () => void;
   disabled?: boolean;
 }) {
@@ -546,16 +526,11 @@ function ActionButton({
         aria-hidden
         className="absolute left-0 top-3 bottom-3 w-[2px] rounded-full bg-[color:var(--dopl-lime)]/40 group-hover:bg-[color:var(--dopl-lime)] transition-colors"
       />
-      <div className="flex items-start gap-3 pl-2">
+      <div className="flex items-center gap-3 pl-2">
         <div className="w-9 h-9 rounded-lg bg-[color:var(--dopl-lime)]/10 border border-[color:var(--dopl-lime)]/25 flex items-center justify-center text-[color:var(--dopl-lime)] shrink-0 group-hover:bg-[color:var(--dopl-lime)]/15 transition-colors">
           {icon}
         </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold truncate">{title}</p>
-          <p className="text-xs text-[color:var(--dopl-cream)]/40 font-mono truncate">
-            {subtitle}
-          </p>
-        </div>
+        <p className="text-sm font-semibold truncate">{title}</p>
       </div>
     </motion.button>
   );

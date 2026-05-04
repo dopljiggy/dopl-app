@@ -46,6 +46,7 @@ export default function ConnectClient({
   const [error, setError] = useState<string | null>(errorMessage);
   const [isConnected, setIsConnected] = useState(alreadyConnected);
   const [showDisconnect, setShowDisconnect] = useState(false);
+  const [showSwitch, setShowSwitch] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
 
   // Unused but retained to satisfy the server-provided props without
@@ -162,7 +163,7 @@ export default function ConnectClient({
     return (
       <div>
         <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight mb-2">
-          connect broker
+          Connect Broker
         </h1>
         <p className="text-[color:var(--dopl-cream)]/50 text-sm mb-8">
           pick how you want to link your portfolio. dopl reads positions —
@@ -183,7 +184,7 @@ export default function ConnectClient({
         <div className="flex items-start justify-between gap-4 mb-8">
           <div>
             <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight mb-2">
-              connect broker
+              Connect Broker
             </h1>
             <p className="text-[color:var(--dopl-cream)]/50 text-sm">
               your portfolio is linked.
@@ -223,7 +224,7 @@ export default function ConnectClient({
             </div>
             <div className="mt-6 pt-5 border-t border-[color:var(--glass-border)] flex flex-col sm:flex-row gap-2 justify-center">
               <button
-                onClick={() => setShowDisconnect(true)}
+                onClick={() => setShowSwitch(true)}
                 className="text-xs text-[color:var(--dopl-cream)]/50 hover:text-[color:var(--dopl-cream)] transition-colors inline-flex items-center justify-center gap-1.5 px-3 py-2"
               >
                 <Repeat size={12} />
@@ -234,7 +235,7 @@ export default function ConnectClient({
                 className="text-xs text-[color:var(--dopl-cream)]/40 hover:text-red-300 transition-colors inline-flex items-center justify-center gap-1.5 px-3 py-2"
               >
                 <Unplug size={12} />
-                disconnect broker
+                disConnect Broker
               </button>
             </div>
           </div>
@@ -246,6 +247,16 @@ export default function ConnectClient({
           disconnecting={disconnecting}
           onClose={() => !disconnecting && setShowDisconnect(false)}
           onConfirm={disconnect}
+        />
+
+        <SwitchProviderModal
+          open={showSwitch}
+          working={disconnecting}
+          onClose={() => !disconnecting && setShowSwitch(false)}
+          onConfirm={async () => {
+            await disconnect();
+            setShowSwitch(false);
+          }}
         />
       </div>
     );
@@ -259,7 +270,7 @@ export default function ConnectClient({
       <div className="flex items-start justify-between gap-4 mb-8">
         <div>
           <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight mb-2">
-            connect broker
+            Connect Broker
           </h1>
           <p className="text-[color:var(--dopl-cream)]/50 text-sm">
             {activeProvider === "manual"
@@ -312,7 +323,7 @@ export default function ConnectClient({
                 }
                 className="btn-lime w-full text-sm py-3"
               >
-                connect broker
+                Connect Broker
               </button>
             </div>
           )}
@@ -368,7 +379,7 @@ export default function ConnectClient({
                 className="mt-5 text-xs text-[color:var(--dopl-cream)]/40 hover:text-red-300 transition-colors inline-flex items-center gap-1.5"
               >
                 <Unplug size={12} />
-                disconnect broker
+                disConnect Broker
               </button>
             </div>
           )}
@@ -429,7 +440,7 @@ function DisconnectModal({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-5"
+          className="fixed inset-0 z-[80] flex items-center justify-center p-5"
           onClick={onClose}
         >
           <div
@@ -442,7 +453,7 @@ function DisconnectModal({
             exit={{ opacity: 0, y: 10, scale: 0.97 }}
             transition={{ duration: 0.25, ease: [0.2, 0.7, 0.2, 1] }}
             onClick={(e) => e.stopPropagation()}
-            className="glass-card glass-card-strong relative w-full max-w-md rounded-2xl p-6 md:p-7"
+            className="glass-card glass-card-strong relative w-full max-w-md rounded-2xl p-6 md:p-7 z-[81]"
           >
             <button
               onClick={onClose}
@@ -453,22 +464,8 @@ function DisconnectModal({
               <X size={16} />
             </button>
 
-            <div
-              className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-5 ${
-                hasDoplers
-                  ? "bg-red-500/15 border border-red-400/30 text-red-300"
-                  : "bg-[color:var(--dopl-lime)]/12 border border-[color:var(--dopl-lime)]/25 text-[color:var(--dopl-lime)]"
-              }`}
-            >
-              {hasDoplers ? (
-                <AlertTriangle size={20} />
-              ) : (
-                <Unplug size={20} />
-              )}
-            </div>
-
-            <h3 className="font-display text-xl font-semibold mb-2">
-              disconnect broker?
+            <h3 className="font-display text-xl font-semibold mb-3 pr-6">
+              Disconnect Broker?
             </h3>
 
             {hasDoplers ? (
@@ -498,21 +495,100 @@ function DisconnectModal({
               <button
                 onClick={onClose}
                 disabled={disconnecting}
-                className="flex-1 glass-card-light py-2.5 text-sm rounded-xl hover:bg-[color:var(--dopl-sage)]/40 transition-colors"
+                className="btn-lime flex-1 py-2.5 text-sm disabled:opacity-50"
               >
-                keep connected
+                Keep Connected
               </button>
               <button
                 onClick={onConfirm}
                 disabled={disconnecting}
-                className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 text-sm rounded-xl bg-red-500/15 border border-red-400/40 text-red-200 hover:bg-red-500/25 transition-colors disabled:opacity-50"
+                className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 text-sm rounded-xl border border-red-500/55 text-red-300 hover:bg-red-500/12 transition-colors disabled:opacity-50"
               >
                 {disconnecting ? (
                   <Loader2 size={14} className="animate-spin" />
                 ) : (
                   <Unplug size={14} />
                 )}
-                {disconnecting ? "disconnecting…" : "disconnect"}
+                {disconnecting ? "Disconnecting…" : "Disconnect"}
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+function SwitchProviderModal({
+  open,
+  working,
+  onClose,
+  onConfirm,
+}: {
+  open: boolean;
+  working: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[80] flex items-center justify-center p-5"
+          onClick={onClose}
+        >
+          <div
+            className="absolute inset-0 bg-[color:var(--dopl-deep)]/70 backdrop-blur-md"
+            aria-hidden
+          />
+          <motion.div
+            initial={{ opacity: 0, y: 20, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.97 }}
+            transition={{ duration: 0.25, ease: [0.2, 0.7, 0.2, 1] }}
+            onClick={(e) => e.stopPropagation()}
+            className="glass-card glass-card-strong relative w-full max-w-md rounded-2xl p-6 md:p-7 z-[81]"
+          >
+            <button
+              onClick={onClose}
+              disabled={working}
+              className="absolute top-4 right-4 text-[color:var(--dopl-cream)]/40 hover:text-[color:var(--dopl-cream)]"
+              aria-label="close"
+            >
+              <X size={16} />
+            </button>
+
+            <h3 className="font-display text-xl font-semibold mb-3 pr-6">
+              Switch Broker?
+            </h3>
+            <p className="text-sm text-[color:var(--dopl-cream)]/65 leading-relaxed mb-5">
+              this will disconnect your current broker and let you connect a
+              new one. your portfolios and last-known positions stay live —
+              only sync stops until you finish the new connection.
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-3 mt-2">
+              <button
+                onClick={onClose}
+                disabled={working}
+                className="btn-lime flex-1 py-2.5 text-sm disabled:opacity-50"
+              >
+                Keep Current
+              </button>
+              <button
+                onClick={onConfirm}
+                disabled={working}
+                className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 text-sm rounded-xl border border-amber-400/55 text-amber-200 hover:bg-amber-400/10 transition-colors disabled:opacity-50"
+              >
+                {working ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Repeat size={14} />
+                )}
+                {working ? "Switching…" : "Switch"}
               </button>
             </div>
           </motion.div>

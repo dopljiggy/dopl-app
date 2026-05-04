@@ -139,7 +139,7 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
   const [stripeLaunched, setStripeLaunched] = useState(false);
   const [stripeError, setStripeError] = useState<string | null>(null);
 
-  const [portfolioName, setPortfolioName] = useState("Main Portfolio");
+  const [portfolioName, setPortfolioName] = useState("");
   const [portfolioTier, setPortfolioTier] = useState<"free" | "basic" | "premium" | "vip">("basic");
   const [portfolioPrice, setPortfolioPrice] = useState("29");
   // Prevent duplicate portfolio rows when the FM clicks back → next again.
@@ -487,8 +487,7 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
             {steps[step] === "profile" && (
               <StepCard
                 icon={<User size={22} />}
-                title="tell your audience who you are"
-                subtitle="display name + handle are required. bio + avatar can come later from profile settings."
+                title="Tell Your Audience Who You Are"
               >
                 <input
                   type="text"
@@ -555,9 +554,12 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
             {steps[step] === "region" && (
               <StepCard
                 icon={<Globe size={22} />}
-                title="where do you trade?"
-                subtitle="we route you to the right broker network for your region."
+                title="Where Do You Trade?"
               >
+                <p className="text-[11px] text-[color:var(--dopl-cream)]/45 mb-3">
+                  regions group broker networks — pick the closest match. you
+                  can always use manual entry.
+                </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   {REGIONS.map((r) => {
                     const busy = regionSaving === r.key;
@@ -687,8 +689,8 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
                 icon={<Briefcase size={22} />}
                 title={
                   portfolioCreated
-                    ? "your first portfolio is live"
-                    : "create your first portfolio"
+                    ? "Your First Portfolio Is Live"
+                    : "Create Your First Portfolio"
                 }
                 subtitle={
                   portfolioCreated
@@ -709,7 +711,8 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
                   value={portfolioName}
                   onChange={(e) => setPortfolioName(e.target.value)}
                   disabled={portfolioCreated}
-                  className="w-full bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/30 rounded-xl px-4 py-3 text-sm mb-3 disabled:opacity-50"
+                  placeholder="e.g. Growth Portfolio"
+                  className="w-full bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/30 rounded-xl px-4 py-3 text-sm mb-3 placeholder:text-[color:var(--dopl-cream)]/30 disabled:opacity-50"
                 />
                 <div className="grid grid-cols-4 gap-2 mb-3">
                   {(["free", "basic", "premium", "vip"] as const).map((t) => (
@@ -728,25 +731,27 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
                   ))}
                 </div>
                 {portfolioTier !== "free" && (
-                  <div className="relative mb-3">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[color:var(--dopl-cream)]/40 text-sm">
-                      $
-                    </span>
-                    <input
-                      type="number"
-                      value={portfolioPrice}
-                      onChange={(e) => setPortfolioPrice(e.target.value)}
-                      disabled={portfolioCreated}
-                      className="w-full bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/30 rounded-xl pl-8 pr-16 py-3 text-sm disabled:opacity-50"
-                    />
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[color:var(--dopl-cream)]/40 text-sm">
+                  <div className="inline-flex items-center mb-3">
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--dopl-cream)]/40 text-sm font-mono">
+                        $
+                      </span>
+                      <input
+                        type="number"
+                        value={portfolioPrice}
+                        onChange={(e) => setPortfolioPrice(e.target.value)}
+                        disabled={portfolioCreated}
+                        className="w-28 bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/30 rounded-xl pl-7 pr-2 py-3 text-sm font-mono tabular-nums disabled:opacity-50"
+                      />
+                    </div>
+                    <span className="ml-2 text-sm text-[color:var(--dopl-cream)]/55 font-mono">
                       /mo
                     </span>
                   </div>
                 )}
                 {portfolioTier !== "free" && !initial.stripeOnboarded && (
                   <div className="mt-3 rounded-xl border border-amber-400/30 bg-amber-400/5 px-3 py-2.5 text-xs text-amber-200/80">
-                    paid tier — will go live once you finish stripe in the next step. doplers see a &ldquo;finalizing setup&rdquo; lock until then.
+                    paid tiers go live after Stripe setup.
                   </div>
                 )}
                 {createError && (
@@ -795,17 +800,28 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
                   </div>
                 ) : (
                   <>
-                    <SubmitButton
-                      onClick={launchStripe}
-                      isPending={stripeChecking}
-                      pendingLabel="opening stripe..."
-                      className="text-sm px-6 py-3 inline-flex items-center gap-2"
-                    >
-                      <span className="inline-flex items-center gap-2">
-                        {stripeLaunched ? "re-open stripe" : "set up stripe"}
-                        <ArrowRight size={14} />
-                      </span>
-                    </SubmitButton>
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                      <SubmitButton
+                        onClick={launchStripe}
+                        isPending={stripeChecking}
+                        pendingLabel="opening stripe..."
+                        className="text-sm px-6 py-3 inline-flex items-center gap-2"
+                      >
+                        <span className="inline-flex items-center gap-2">
+                          {stripeLaunched ? "Re-open Stripe" : "Set Up Stripe"}
+                          <ArrowRight size={14} />
+                        </span>
+                      </SubmitButton>
+                      <SubmitButton
+                        onClick={recheckStripe}
+                        isPending={stripeChecking}
+                        pendingLabel="checking..."
+                        variant="secondary"
+                        className="px-5 py-3 text-sm rounded-xl inline-flex items-center gap-2 hover:bg-[color:var(--dopl-sage)]/40"
+                      >
+                        I&apos;m Done — Check Status
+                      </SubmitButton>
+                    </div>
                     {stripeError && (
                       <div className="mt-3">
                         <InlineError
@@ -817,22 +833,11 @@ export default function OnboardingClient({ initial }: { initial: Initial }) {
                     {stripeLaunched && !stripeError && (
                       <div className="mt-4 rounded-xl border border-[color:var(--dopl-sage)]/30 bg-[color:var(--dopl-deep)] p-4 text-xs text-[color:var(--dopl-cream)]/65 leading-relaxed">
                         finish stripe in the new tab, then come back here and
-                        click <span className="text-[color:var(--dopl-lime)]">i&apos;m done</span>.
+                        click <span className="text-[color:var(--dopl-lime)]">I&apos;m Done</span>.
                         stripe sometimes takes a few seconds to confirm — if
                         it&apos;s not green yet, try again shortly.
                       </div>
                     )}
-                    <div className="mt-3">
-                      <SubmitButton
-                        onClick={recheckStripe}
-                        isPending={stripeChecking}
-                        pendingLabel="checking..."
-                        variant="secondary"
-                        className="px-5 py-2.5 text-sm rounded-xl inline-flex items-center gap-2 hover:bg-[color:var(--dopl-sage)]/40"
-                      >
-                        i&apos;m done — check status
-                      </SubmitButton>
-                    </div>
                     <p className="text-[11px] text-[color:var(--dopl-cream)]/35 mt-3">
                       you can also skip this and come back later — paid-tier
                       portfolios stay unpublished until stripe is done.
@@ -900,7 +905,7 @@ function StepCard({
 }: {
   icon: React.ReactNode;
   title: string;
-  subtitle: string;
+  subtitle?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -911,9 +916,12 @@ function StepCard({
       <h2 className="font-display text-2xl md:text-3xl font-semibold leading-tight tracking-tight">
         {title}
       </h2>
-      <p className="text-[color:var(--dopl-cream)]/55 text-sm mt-2 mb-6">
-        {subtitle}
-      </p>
+      {subtitle && (
+        <p className="text-[color:var(--dopl-cream)]/55 text-sm mt-2 mb-6">
+          {subtitle}
+        </p>
+      )}
+      {!subtitle && <div className="mt-6" />}
       {children}
     </GlassCard>
   );

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase-server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { fanOutPortfolioUpdate } from "@/lib/notification-fanout";
+import { recalculateAllocations } from "@/lib/recalculate-allocations";
 
 interface AssignBody {
   portfolio_id: string;
@@ -68,16 +69,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     positionId = inserted.id;
 
-    // Seed allocation_pct from market_value if this is the very first
-    // position in the portfolio. Once the fund manager starts setting
-    // custom allocations, we stop auto-recalculating on assignment.
-    const { count: existingCount } = await supabase
-      .from("positions")
-      .select("id", { count: "exact", head: true })
-      .eq("portfolio_id", body.portfolio_id);
-    if ((existingCount ?? 0) <= 1) {
-      await recalculateAllocations(supabase, body.portfolio_id);
-    }
+    // Auto-rebalance after every assignment (Sprint 14): allocation_pct
+    // tracks market_value proportions automatically, so the FM never has
+    // to hit a 'rebalance to 100%' button. Positions with null/zero
+    // market_value receive 0% allocation; siblings absorb the slice.
+    // The helper no-ops if every position has zero market_value.
+    await recalculateAllocations(supabase, body.portfolio_id);
 
     await fanOutPortfolioUpdate(createAdminClient(), {
       portfolio_id: body.portfolio_id,
@@ -122,8 +119,12 @@ export async function DELETE(request: Request) {
   }
 
   await supabase.from("positions").delete().eq("id", id);
-  // Don't auto-recalc on delete — fund manager's custom allocations stay
-  // intact; the "rebalance to 100%" button in the UI lets them fix sums.
+  // Auto-rebalance after delete (Sprint 14): with the position gone, the
+  // remaining holdings re-proportion so allocation_pct still sums to 100%
+  // (or 0% if the portfolio is now empty). Reverses the prior 'don't
+  // auto-recalc on delete — keep custom allocations' policy now that
+  // the manual 'rebalance to 100%' button has been removed.
+  await recalculateAllocations(supabase, pos.portfolio_id);
   await fanOutPortfolioUpdate(createAdminClient(), {
     portfolio_id: pos.portfolio_id,
     fund_manager_id: user.id,
@@ -141,28 +142,3 @@ export async function DELETE(request: Request) {
   return NextResponse.json({ ok: true });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function recalculateAllocations(supabase: any, portfolioId: string) {
-  const { data: positions } = await supabase
-    .from("positions")
-    .select("id, market_value")
-    .eq("portfolio_id", portfolioId);
-  if (!positions?.length) return;
-  const total = positions.reduce(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (a: number, p: any) => a + (Number(p.market_value) || 0),
-    0
-  );
-  if (total === 0) return;
-  await Promise.all(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    positions.map((p: any) =>
-      supabase
-        .from("positions")
-        .update({
-          allocation_pct: ((Number(p.market_value) || 0) / total) * 100,
-        })
-        .eq("id", p.id)
-    )
-  );
-}

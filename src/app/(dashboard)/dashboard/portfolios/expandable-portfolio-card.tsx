@@ -136,6 +136,60 @@ export default function ExpandablePortfolioCard({
   const [removeThesis, setRemoveThesis] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // Portfolio-edit modal — name, description, tier, price. Hits the
+  // existing PATCH /api/portfolios/[id] route.
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState(portfolio.name);
+  const [editDescription, setEditDescription] = useState(
+    portfolio.description ?? ""
+  );
+  const [editTier, setEditTier] = useState<string>(portfolio.tier);
+  const [editPriceDollars, setEditPriceDollars] = useState(
+    String(Math.round((portfolio.price_cents ?? 0) / 100))
+  );
+  const [editSaving, setEditSaving] = useState(false);
+
+  const openEdit = () => {
+    setEditName(portfolio.name);
+    setEditDescription(portfolio.description ?? "");
+    setEditTier(portfolio.tier);
+    setEditPriceDollars(String(Math.round((portfolio.price_cents ?? 0) / 100)));
+    setEditing(true);
+  };
+  const closeEdit = () => {
+    if (editSaving) return;
+    setEditing(false);
+  };
+  const saveEdit = async () => {
+    const trimmedName = editName.trim();
+    if (!trimmedName) {
+      fireToast({ title: "name is required" });
+      return;
+    }
+    const isFreeTier = editTier === "free";
+    const priceDollars = isFreeTier ? 0 : Number(editPriceDollars) || 0;
+    setEditSaving(true);
+    const res = await fetch(`/api/portfolios/${portfolio.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: trimmedName,
+        description: editDescription.trim() || null,
+        tier: editTier,
+        price_cents: priceDollars * 100,
+      }),
+    });
+    setEditSaving(false);
+    if (!res.ok) {
+      const j = (await res.json().catch(() => ({}))) as { error?: string };
+      fireToast({ title: "couldn't save", body: j.error ?? "" });
+      return;
+    }
+    setEditing(false);
+    fireToast({ title: "portfolio updated" });
+    router.refresh();
+  };
+
   const openAdjust = (pos: PositionRow) => {
     setAdjusting({ id: pos.id, ticker: pos.ticker });
     setAdjustShares(pos.shares != null ? String(pos.shares) : "");
@@ -291,6 +345,17 @@ export default function ExpandablePortfolioCard({
             <h3 className="font-display text-lg md:text-xl font-semibold truncate">
               {portfolio.name}
             </h3>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                openEdit();
+              }}
+              aria-label="edit portfolio"
+              className="text-[color:var(--dopl-cream)]/40 hover:text-[color:var(--dopl-cream)] transition-colors"
+            >
+              <Pencil size={13} />
+            </button>
             <SyncBadge provider={brokerProvider} />
           </div>
           {portfolio.description && (
@@ -428,13 +493,6 @@ export default function ExpandablePortfolioCard({
                     <AllocationSumBadge sum={sum} balanced={isBalanced} />
                   </div>
                   <div className="flex items-center gap-2">
-                    <button
-                      onClick={rebalance}
-                      disabled={isBalanced}
-                      className="glass-card-light px-3 py-1.5 text-xs rounded-lg hover:bg-[color:var(--dopl-sage)]/40 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      rebalance to 100%
-                    </button>
                     <button
                       onClick={save}
                       disabled={!isDirty || saving}
@@ -648,16 +706,16 @@ export default function ExpandablePortfolioCard({
                                 <div className="flex items-center justify-end gap-2">
                                   <button
                                     onClick={closeInlineEdit}
-                                    className="text-xs px-3 py-1.5 text-[color:var(--dopl-cream)]/50 hover:text-[color:var(--dopl-cream)]"
+                                    className="btn-lime text-xs px-3 py-1.5"
                                   >
-                                    cancel
+                                    Keep Position
                                   </button>
                                   <button
                                     onClick={() => submitRemove(pos)}
                                     disabled={submitting}
-                                    className="text-xs px-3 py-1.5 rounded-lg bg-red-500/20 border border-red-500/40 text-red-200 hover:bg-red-500/30 disabled:opacity-50"
+                                    className="text-xs px-3 py-1.5 rounded-lg border border-red-500/55 text-red-300 hover:bg-red-500/12 transition-colors disabled:opacity-50"
                                   >
-                                    {submitting ? "removing..." : "remove"}
+                                    {submitting ? "Removing..." : "Remove"}
                                   </button>
                                 </div>
                               </div>
@@ -730,6 +788,105 @@ export default function ExpandablePortfolioCard({
         portfolioName={portfolio.name}
         onClose={() => setShowManualUpdate(false)}
       />
+
+      <AnimatePresence>
+        {editing && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[80] flex items-center justify-center p-5"
+            onClick={closeEdit}
+          >
+            <div
+              aria-hidden
+              className="absolute inset-0 bg-[color:var(--dopl-deep)]/70 backdrop-blur-md"
+            />
+            <motion.div
+              initial={{ opacity: 0, y: 20, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.97 }}
+              transition={{ duration: 0.25, ease: [0.2, 0.7, 0.2, 1] }}
+              onClick={(e) => e.stopPropagation()}
+              className="glass-card glass-card-strong relative w-full max-w-md rounded-2xl p-6 md:p-7 z-[81] space-y-3"
+            >
+              <h3 className="font-display text-xl font-semibold mb-2">
+                Edit Portfolio
+              </h3>
+
+              <input
+                type="text"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="portfolio name"
+                className="w-full bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/30 rounded-xl px-4 py-3 text-sm placeholder:text-[color:var(--dopl-cream)]/30"
+              />
+              <textarea
+                value={editDescription}
+                onChange={(e) =>
+                  setEditDescription(e.target.value.slice(0, 280))
+                }
+                placeholder="description (optional)"
+                rows={2}
+                className="w-full bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/30 rounded-xl px-4 py-3 text-sm placeholder:text-[color:var(--dopl-cream)]/30 resize-none"
+              />
+              <div className="grid grid-cols-4 gap-2">
+                {(["free", "basic", "premium", "vip"] as const).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setEditTier(t)}
+                    className={`py-2 text-xs rounded-lg transition-all ${
+                      editTier === t
+                        ? "bg-[color:var(--dopl-lime)]/15 border border-[color:var(--dopl-lime)]/40 text-[color:var(--dopl-lime)]"
+                        : "glass-card-light"
+                    }`}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+              {editTier !== "free" && (
+                <div className="inline-flex items-center">
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--dopl-cream)]/40 text-sm font-mono">
+                      $
+                    </span>
+                    <input
+                      type="number"
+                      value={editPriceDollars}
+                      onChange={(e) => setEditPriceDollars(e.target.value)}
+                      className="w-28 bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/30 rounded-xl pl-7 pr-2 py-2.5 text-sm font-mono tabular-nums"
+                    />
+                  </div>
+                  <span className="ml-2 text-sm text-[color:var(--dopl-cream)]/55 font-mono">
+                    /mo
+                  </span>
+                </div>
+              )}
+
+              <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={closeEdit}
+                  disabled={editSaving}
+                  className="flex-1 glass-card-light py-2.5 text-sm rounded-xl hover:bg-[color:var(--dopl-sage)]/40 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={saveEdit}
+                  disabled={editSaving || !editName.trim()}
+                  className="btn-lime flex-1 py-2.5 text-sm disabled:opacity-50"
+                >
+                  {editSaving ? "Saving…" : "Save"}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </GlassCard>
   );
 }

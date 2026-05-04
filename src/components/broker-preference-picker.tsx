@@ -3,15 +3,45 @@
 import { useState } from "react";
 import { ChevronDown, Check } from "lucide-react";
 
+// Grouped broker list for the dopler "deep-link target" preference. Order
+// is intentional: most-used in each region first. The dopler picks the
+// broker they trade in personally — dopl deep-links to it when an FM
+// trades. There's no account linking here, so we keep the list curated
+// rather than fetching dynamically (Sprint 14 expansion item #28).
 const BROKERS = [
+  // United States / Canada
   "Robinhood",
   "Fidelity",
   "Schwab",
   "Webull",
   "Interactive Brokers",
-  "Coinbase",
-  "Trading 212",
+  "E*Trade",
+  "TD Ameritrade",
+  "Public",
+  "SoFi Invest",
   "Wealthsimple",
+  // United Kingdom / Europe
+  "Trading 212",
+  "DeGiro",
+  "Trade Republic",
+  "IG",
+  "Hargreaves Lansdown",
+  "Saxo Bank",
+  // Asia / Pacific
+  "CommSec",
+  "SelfWealth",
+  "Zerodha",
+  "Upstox",
+  "Groww",
+  // Middle East
+  "Emirates NBD",
+  "FAB",
+  "ADCB Securities",
+  // Crypto
+  "Coinbase",
+  "Kraken",
+  "Binance",
+  // Catch-all
   "Other",
 ] as const;
 

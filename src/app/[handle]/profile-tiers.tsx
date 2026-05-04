@@ -11,6 +11,7 @@ import { fireToast } from "@/components/ui/toast";
 import { Calculator, Lock, Users, TrendingUp, TrendingDown, Sparkles } from "lucide-react";
 import { DOPL_FEE_PERCENT } from "@/lib/constants";
 import { InvestmentCalculator } from "@/components/ui/investment-calculator";
+import { StripeLoadingOverlay } from "@/components/ui/stripe-loading-overlay";
 import type { Portfolio } from "@/types/database";
 
 type TierPortfolio = Portfolio & {
@@ -53,6 +54,7 @@ export default function ProfileTiers({
   const [locallyDopled, setLocallyDopled] = useState<Set<string>>(new Set());
   const [pending, setPending] = useState<string | null>(null);
   const [expandedCalc, setExpandedCalc] = useState<Set<string>>(new Set());
+  const [stripeRedirecting, setStripeRedirecting] = useState(false);
 
   const toggleCalc = (portfolioId: string) =>
     setExpandedCalc((prev) => {
@@ -108,6 +110,7 @@ export default function ProfileTiers({
     });
     const { url, error } = await res.json();
     if (url) {
+      setStripeRedirecting(true);
       window.location.href = url;
       return;
     }
@@ -357,6 +360,7 @@ export default function ProfileTiers({
           </motion.div>
         );
       })}
+      <StripeLoadingOverlay open={stripeRedirecting} />
     </div>
   );
 }

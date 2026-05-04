@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { createServerSupabase } from "@/lib/supabase-server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { fanOutPortfolioUpdate } from "@/lib/notification-fanout";
+import { recalculateAllocations } from "@/lib/recalculate-allocations";
 
 /**
  * Manual position management.
@@ -207,6 +208,10 @@ export async function POST(request: Request) {
       .eq("id", existing.id);
     if (error)
       return NextResponse.json({ error: error.message }, { status: 500 });
+    // Auto-rebalance after upsert (Sprint 14): the share count or price
+    // may have changed, which shifts market_value and therefore the
+    // allocation distribution.
+    await recalculateAllocations(supabase, portfolioId);
     await revalidatePositionSurfaces(supabase, portfolioId, user.id);
 
     if (isExplicitPortfolio) {
@@ -244,6 +249,10 @@ export async function POST(request: Request) {
     .single();
   if (error)
     return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Auto-rebalance after every insert (Sprint 14) — runs before the
+  // fanout so the inline allocation_pct compute below sees fresh values.
+  await recalculateAllocations(supabase, portfolioId);
 
   if (isExplicitPortfolio) {
     // Subscribable portfolio — fan out a buy event to every active dopler
@@ -341,6 +350,9 @@ export async function DELETE(request: Request) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const portfolioId = (pos as any).portfolio_id as string;
+  // Auto-rebalance after delete (Sprint 14) — remaining holdings
+  // re-proportion so allocation_pct still sums to 100%.
+  await recalculateAllocations(supabase, portfolioId);
   await revalidatePositionSurfaces(supabase, portfolioId, user.id);
 
   // Fan out a sell event only when the position lived in a subscribable

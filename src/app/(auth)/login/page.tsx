@@ -75,7 +75,7 @@ function LoginForm() {
 
         <form onSubmit={handleLogin} className="glass-card p-8">
           <h1 className="font-display text-xl font-semibold mb-6 text-center">
-            log in
+            Log In
           </h1>
 
           {(error || queryError) && (
@@ -98,8 +98,17 @@ function LoginForm() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            className="w-full bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/30 rounded-lg px-4 py-3 text-sm placeholder:text-[color:var(--dopl-cream)]/30 mb-4"
+            className="w-full bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/30 rounded-lg px-4 py-3 text-sm placeholder:text-[color:var(--dopl-cream)]/30 mb-2"
           />
+
+          <div className="flex justify-end mb-4">
+            <Link
+              href="/forgot-password"
+              className="text-xs text-[color:var(--dopl-cream)]/55 hover:text-[color:var(--dopl-lime)] transition-colors"
+            >
+              Forgot Password?
+            </Link>
+          </div>
 
           <SubmitButton
             type="submit"
@@ -107,10 +116,10 @@ function LoginForm() {
             pendingLabel="signing in..."
             className="w-full text-sm py-3"
           >
-            log in
+            Log In
           </SubmitButton>
 
-          <p className="text-center text-xs text-[color:var(--dopl-cream)]/30 mt-4">
+          <p className="text-center text-xs text-[color:var(--dopl-cream)]/70 mt-4">
             no account?{" "}
             <Link
               href={`/signup${

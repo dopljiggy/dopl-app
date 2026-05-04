@@ -34,6 +34,17 @@ function SignupForm() {
   const [handleError, setHandleError] = useState<string | null>(null);
   const supabase = createClient();
 
+  const emailLooksValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  const showEmailHint = email.length > 3 && !emailLooksValid;
+  const passwordStrength: "weak" | "ok" | "strong" =
+    password.length === 0
+      ? "weak"
+      : password.length >= 12 && /[A-Z]/.test(password) && /\d/.test(password)
+        ? "strong"
+        : password.length >= 8
+          ? "ok"
+          : "weak";
+
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -134,7 +145,7 @@ function SignupForm() {
 
         <form onSubmit={handleSignup} className="glass-card p-8">
           <h1 className="font-display text-xl font-semibold mb-6 text-center">
-            get started
+            Get Started
           </h1>
 
           {(error || queryError) && (
@@ -182,8 +193,17 @@ function SignupForm() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            className="w-full bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/30 rounded-lg px-4 py-3 text-sm placeholder:text-[color:var(--dopl-cream)]/30 mb-3"
+            className={`w-full bg-[color:var(--dopl-deep)] border rounded-lg px-4 py-3 text-sm placeholder:text-[color:var(--dopl-cream)]/30 ${
+              showEmailHint
+                ? "border-amber-400/40 mb-1"
+                : "border-[color:var(--dopl-sage)]/30 mb-3"
+            }`}
           />
+          {showEmailHint && (
+            <p className="text-[10px] text-amber-300/80 mb-3">
+              that doesn&apos;t look like a valid email
+            </p>
+          )}
           <input
             type="password"
             placeholder="password (8+ characters)"
@@ -191,12 +211,37 @@ function SignupForm() {
             onChange={(e) => setPassword(e.target.value)}
             required
             minLength={8}
-            className="w-full bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/30 rounded-lg px-4 py-3 text-sm placeholder:text-[color:var(--dopl-cream)]/30 mb-3"
+            className="w-full bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/30 rounded-lg px-4 py-3 text-sm placeholder:text-[color:var(--dopl-cream)]/30 mb-1"
           />
-          {password.length > 0 && password.length < 8 && (
-            <p className="text-[10px] text-[color:var(--dopl-cream)]/40 -mt-2 mb-3">
-              at least 8 characters
-            </p>
+          {password.length > 0 && (
+            <div className="flex items-center gap-2 mb-3 -mt-0.5">
+              <div className="flex-1 h-1 rounded-full bg-[color:var(--dopl-sage)]/25 overflow-hidden">
+                <div
+                  className={`h-full transition-all ${
+                    passwordStrength === "strong"
+                      ? "w-full bg-[color:var(--dopl-lime)]"
+                      : passwordStrength === "ok"
+                        ? "w-2/3 bg-amber-300/70"
+                        : "w-1/3 bg-red-400/60"
+                  }`}
+                />
+              </div>
+              <span
+                className={`text-[10px] font-mono uppercase tracking-wider ${
+                  passwordStrength === "strong"
+                    ? "text-[color:var(--dopl-lime)]"
+                    : passwordStrength === "ok"
+                      ? "text-amber-300/80"
+                      : "text-red-300/80"
+                }`}
+              >
+                {passwordStrength === "strong"
+                  ? "strong"
+                  : passwordStrength === "ok"
+                    ? "ok"
+                    : "weak"}
+              </span>
+            </div>
           )}
 
           {role === "fund_manager" && (
@@ -235,10 +280,10 @@ function SignupForm() {
             pendingLabel="creating account..."
             className="w-full text-sm py-3 mt-2"
           >
-            create account
+            Create Account
           </SubmitButton>
 
-          <p className="text-center text-xs text-[color:var(--dopl-cream)]/30 mt-4">
+          <p className="text-center text-xs text-[color:var(--dopl-cream)]/70 mt-4">
             already have an account?{" "}
             <Link
               href={`/login${
