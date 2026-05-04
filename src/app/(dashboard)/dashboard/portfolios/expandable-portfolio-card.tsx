@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronDown,
@@ -67,59 +68,10 @@ export default function ExpandablePortfolioCard({
   brokerProvider?: string | null;
 }) {
   const router = useRouter();
-
-  // Local editable copy of allocation percents.
-  const brokerPcts = useMemo(() => {
-    const total = positions.reduce(
-      (a, p) => a + (Number(p.market_value) || 0),
-      0
-    );
-    return new Map(
-      positions.map((p) => [
-        p.id,
-        total > 0 ? ((Number(p.market_value) || 0) / total) * 100 : 0,
-      ])
-    );
-  }, [positions]);
-
-  const [draft, setDraft] = useState<Record<string, number>>(() =>
-    Object.fromEntries(
-      positions.map((p) => [
-        p.id,
-        p.allocation_pct != null
-          ? Number(p.allocation_pct)
-          : brokerPcts.get(p.id) ?? 0,
-      ])
-    )
-  );
-
-  // Sync draft when positions change. The useState initializer only runs
-  // on mount — adding a position via the trading terminal triggers
-  // router.refresh(), which pushes new positions as props but leaves the
-  // draft state stale (the new id was never added). This effect adds
-  // entries for new positions and prunes entries for removed ones,
-  // preserving any in-flight edits the FM hasn't saved yet.
-  useEffect(() => {
-    setDraft((prev) => {
-      const next = { ...prev };
-      for (const p of positions) {
-        if (!(p.id in next)) {
-          next[p.id] =
-            p.allocation_pct != null
-              ? Number(p.allocation_pct)
-              : brokerPcts.get(p.id) ?? 0;
-        }
-      }
-      for (const id of Object.keys(next)) {
-        if (!positions.some((p) => p.id === id)) delete next[id];
-      }
-      return next;
-    });
-  }, [positions, brokerPcts]);
-
-  const [saving, setSaving] = useState(false);
   const [showManualUpdate, setShowManualUpdate] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
+  useEffect(() => { setPortalTarget(document.body); }, []);
 
   // Inline-edit state for the per-row Adjust + Delete actions (H3).
   // Only one row can be in edit mode at a time; opening one closes the
@@ -255,60 +207,16 @@ export default function ExpandablePortfolioCard({
     router.refresh();
   };
 
-  const sum = Object.values(draft).reduce((a, b) => a + (Number(b) || 0), 0);
-  const isBalanced = Math.abs(sum - 100) < 0.1;
-  const isDirty = positions.some((p) => {
-    const current = p.allocation_pct ?? brokerPcts.get(p.id) ?? 0;
-    return Math.abs((draft[p.id] ?? 0) - current) > 0.05;
-  });
-
-  const rebalance = () => {
-    if (sum <= 0) return;
-    const scale = 100 / sum;
-    const next: Record<string, number> = {};
-    for (const [id, pct] of Object.entries(draft)) {
-      next[id] = Number((pct * scale).toFixed(2));
-    }
-    setDraft(next);
-  };
-
-  const save = async () => {
-    if (!isBalanced) {
-      fireToast({
-        title: "allocations must sum to 100%",
-        body: `currently ${sum.toFixed(1)}% — hit rebalance or adjust manually`,
-      });
-      return;
-    }
-    setSaving(true);
-    const res = await fetch("/api/positions/allocations", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        portfolio_id: portfolio.id,
-        allocations: positions.map((p) => ({
-          id: p.id,
-          allocation_pct: draft[p.id] ?? 0,
-        })),
-      }),
-    });
-    setSaving(false);
-    if (!res.ok) {
-      const j = await res.json().catch(() => ({}));
-      fireToast({ title: "save failed", body: j.error ?? "" });
-      return;
-    }
-    fireToast({
-      title: "allocations saved",
-      body: `${positions.length} positions updated`,
-    });
-    router.refresh();
-  };
+  const allocationSum = positions.reduce(
+    (a, p) => a + (Number(p.allocation_pct) || 0),
+    0
+  );
+  const isBalanced = Math.abs(allocationSum - 100) < 0.5;
 
   const donutData = positions
     .map((p) => ({
       name: p.ticker,
-      value: Number(draft[p.id]) || 0,
+      value: Number(p.allocation_pct) || 0,
     }))
     .filter((d) => d.value > 0);
 
@@ -492,24 +400,13 @@ export default function ExpandablePortfolioCard({
                 </div>
               </div>
 
-              {/* Positions table with allocation editor */}
+              {/* Positions table */}
               <div>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    <p className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/50">
-                      positions
-                    </p>
-                    <AllocationSumBadge sum={sum} balanced={isBalanced} />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={save}
-                      disabled={!isDirty || saving}
-                      className="btn-lime text-xs px-3 py-1.5 disabled:opacity-40"
-                    >
-                      {saving ? "saving..." : "save"}
-                    </button>
-                  </div>
+                <div className="flex items-center gap-3 mb-3">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/50">
+                    positions
+                  </p>
+                  <AllocationSumBadge sum={allocationSum} balanced={isBalanced} />
                 </div>
 
                 {positions.length === 0 ? (
@@ -590,27 +487,10 @@ export default function ExpandablePortfolioCard({
                                 ? `${gain ? "+" : ""}${pos.gain_loss_pct.toFixed(1)}%`
                                 : "—"}
                             </div>
-                            <div className="col-span-3 text-right">
-                              <div className="relative inline-flex items-center">
-                                <input
-                                  type="number"
-                                  value={draft[pos.id] ?? 0}
-                                  onChange={(e) =>
-                                    setDraft({
-                                      ...draft,
-                                      [pos.id]: Math.max(
-                                        0,
-                                        Math.min(100, Number(e.target.value) || 0)
-                                      ),
-                                    })
-                                  }
-                                  step="0.1"
-                                  className="w-20 bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/40 rounded-md px-2 py-1 text-xs font-mono text-right tabular-nums"
-                                />
-                                <span className="text-[10px] text-[color:var(--dopl-cream)]/40 ml-1">
-                                  %
-                                </span>
-                              </div>
+                            <div className="col-span-3 text-right font-mono text-sm tabular-nums">
+                              {pos.allocation_pct != null
+                                ? `${Number(pos.allocation_pct).toFixed(1)}%`
+                                : "—"}
                             </div>
                             <div className="col-span-2 flex items-center justify-end gap-1">
                               <button
@@ -793,104 +673,107 @@ export default function ExpandablePortfolioCard({
         onClose={() => setShowManualUpdate(false)}
       />
 
-      <AnimatePresence>
-        {editing && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[80] flex items-center justify-center p-5"
-            onClick={closeEdit}
-          >
-            <div
-              aria-hidden
-              className="absolute inset-0 bg-[color:var(--dopl-deep)]/70 backdrop-blur-md"
-            />
+      {portalTarget && createPortal(
+        <AnimatePresence>
+          {editing && (
             <motion.div
-              initial={{ opacity: 0, y: 20, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 10, scale: 0.97 }}
-              transition={{ duration: 0.25, ease: [0.2, 0.7, 0.2, 1] }}
-              onClick={(e) => e.stopPropagation()}
-              className="glass-card glass-card-strong relative w-full max-w-md rounded-2xl p-6 md:p-7 z-[81] space-y-3"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[9999] flex items-center justify-center p-5"
+              onClick={closeEdit}
             >
-              <h3 className="font-display text-xl font-semibold mb-2">
-                Edit Portfolio
-              </h3>
+              <div
+                aria-hidden
+                className="absolute inset-0 bg-[color:var(--dopl-deep)]/70 backdrop-blur-md"
+              />
+              <motion.div
+                initial={{ opacity: 0, y: 20, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.97 }}
+                transition={{ duration: 0.25, ease: [0.2, 0.7, 0.2, 1] }}
+                onClick={(e) => e.stopPropagation()}
+                className="glass-card glass-card-strong relative w-full max-w-md rounded-2xl p-6 md:p-7 space-y-3"
+              >
+                <h3 className="font-display text-xl font-semibold mb-2">
+                  Edit Portfolio
+                </h3>
 
-              <input
-                type="text"
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-                placeholder="portfolio name"
-                className="w-full bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/30 rounded-xl px-4 py-3 text-sm placeholder:text-[color:var(--dopl-cream)]/30"
-              />
-              <textarea
-                value={editDescription}
-                onChange={(e) =>
-                  setEditDescription(e.target.value.slice(0, 280))
-                }
-                placeholder="description (optional)"
-                rows={2}
-                className="w-full bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/30 rounded-xl px-4 py-3 text-sm placeholder:text-[color:var(--dopl-cream)]/30 resize-none"
-              />
-              <div className="grid grid-cols-4 gap-2">
-                {(["free", "basic", "premium", "vip"] as const).map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => setEditTier(t)}
-                    className={`py-2 text-xs rounded-lg transition-all ${
-                      editTier === t
-                        ? "bg-[color:var(--dopl-lime)]/15 border border-[color:var(--dopl-lime)]/40 text-[color:var(--dopl-lime)]"
-                        : "glass-card-light"
-                    }`}
-                  >
-                    {t}
-                  </button>
-                ))}
-              </div>
-              {editTier !== "free" && (
-                <div className="inline-flex items-center">
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--dopl-cream)]/40 text-sm font-mono">
-                      $
-                    </span>
-                    <input
-                      type="number"
-                      value={editPriceDollars}
-                      onChange={(e) => setEditPriceDollars(e.target.value)}
-                      className="w-28 bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/30 rounded-xl pl-7 pr-2 py-2.5 text-sm font-mono tabular-nums"
-                    />
-                  </div>
-                  <span className="ml-2 text-sm text-[color:var(--dopl-cream)]/55 font-mono">
-                    /mo
-                  </span>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  placeholder="portfolio name"
+                  className="w-full bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/30 rounded-xl px-4 py-3 text-sm placeholder:text-[color:var(--dopl-cream)]/30"
+                />
+                <textarea
+                  value={editDescription}
+                  onChange={(e) =>
+                    setEditDescription(e.target.value.slice(0, 280))
+                  }
+                  placeholder="description (optional)"
+                  rows={2}
+                  className="w-full bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/30 rounded-xl px-4 py-3 text-sm placeholder:text-[color:var(--dopl-cream)]/30 resize-none"
+                />
+                <div className="grid grid-cols-4 gap-2">
+                  {(["free", "basic", "premium", "vip"] as const).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setEditTier(t)}
+                      className={`py-2 text-xs rounded-lg transition-all ${
+                        editTier === t
+                          ? "bg-[color:var(--dopl-lime)]/15 border border-[color:var(--dopl-lime)]/40 text-[color:var(--dopl-lime)]"
+                          : "glass-card-light"
+                      }`}
+                    >
+                      {t}
+                    </button>
+                  ))}
                 </div>
-              )}
+                {editTier !== "free" && (
+                  <div className="inline-flex items-center">
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--dopl-cream)]/40 text-sm font-mono">
+                        $
+                      </span>
+                      <input
+                        type="number"
+                        value={editPriceDollars}
+                        onChange={(e) => setEditPriceDollars(e.target.value)}
+                        className="w-28 bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/30 rounded-xl pl-7 pr-2 py-2.5 text-sm font-mono tabular-nums"
+                      />
+                    </div>
+                    <span className="ml-2 text-sm text-[color:var(--dopl-cream)]/55 font-mono">
+                      /mo
+                    </span>
+                  </div>
+                )}
 
-              <div className="flex flex-col sm:flex-row gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={closeEdit}
-                  disabled={editSaving}
-                  className="flex-1 glass-card-light py-2.5 text-sm rounded-xl hover:bg-[color:var(--dopl-sage)]/40 transition-colors disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={saveEdit}
-                  disabled={editSaving || !editName.trim()}
-                  className="btn-lime flex-1 py-2.5 text-sm disabled:opacity-50"
-                >
-                  {editSaving ? "Saving…" : "Save"}
-                </button>
-              </div>
+                <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={closeEdit}
+                    disabled={editSaving}
+                    className="flex-1 glass-card-light py-2.5 text-sm rounded-xl hover:bg-[color:var(--dopl-sage)]/40 transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={saveEdit}
+                    disabled={editSaving || !editName.trim()}
+                    className="btn-lime flex-1 py-2.5 text-sm disabled:opacity-50"
+                  >
+                    {editSaving ? "Saving…" : "Save"}
+                  </button>
+                </div>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>,
+        portalTarget
+      )}
     </GlassCard>
   );
 }

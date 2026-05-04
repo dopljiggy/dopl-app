@@ -26,15 +26,30 @@ export async function recalculateAllocations(supabase: any, portfolioId: string)
     0
   );
   if (total === 0) return;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const allocations = positions.map((p: any) => ({
+    id: p.id,
+    pct: Number((((Number(p.market_value) || 0) / total) * 100).toFixed(2)),
+  }));
+
+  // Correct rounding drift so the sum is exactly 100.
+  const rawSum = allocations.reduce((a: number, x: { pct: number }) => a + x.pct, 0);
+  const drift = Number((100 - rawSum).toFixed(2));
+  if (drift !== 0 && allocations.length > 0) {
+    const largest = allocations.reduce(
+      (max: { pct: number }, x: { pct: number }) => (x.pct > max.pct ? x : max),
+      allocations[0]
+    );
+    largest.pct = Number((largest.pct + drift).toFixed(2));
+  }
+
   await Promise.all(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    positions.map((p: any) =>
+    allocations.map((a: { id: string; pct: number }) =>
       supabase
         .from("positions")
-        .update({
-          allocation_pct: ((Number(p.market_value) || 0) / total) * 100,
-        })
-        .eq("id", p.id)
+        .update({ allocation_pct: a.pct })
+        .eq("id", a.id)
     )
   );
 }
