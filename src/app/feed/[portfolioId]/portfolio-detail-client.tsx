@@ -133,9 +133,8 @@ function Inner({
     });
     const { url, error } = await res.json();
     if (url) {
-      // Branded transition between slide-to-dopl completion and the
-      // Stripe redirect — replaces the white-flash gap.
       setStripeRedirecting(true);
+      await new Promise((r) => setTimeout(r, 800));
       window.location.href = url;
       return;
     }

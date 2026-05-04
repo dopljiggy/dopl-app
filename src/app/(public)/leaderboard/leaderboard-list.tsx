@@ -51,7 +51,7 @@ export default function LeaderboardList({
             className="block focus:outline-none"
             aria-label={`View ${fm.display_name}'s profile`}
           >
-            <GlassCard className="p-5 h-full flex flex-col gap-3 group hover:border-[color:var(--dopl-lime)]/35 transition-colors">
+            <GlassCard className="p-5 h-full min-h-[160px] flex flex-col gap-3 group hover:border-[color:var(--dopl-lime)]/35 transition-colors">
               <div className="flex items-center gap-3">
                 <div className="relative w-12 h-12 rounded-xl overflow-hidden bg-[color:var(--dopl-sage)] flex-shrink-0">
                   {fm.avatar_url ? (
@@ -77,11 +77,9 @@ export default function LeaderboardList({
                 </div>
               </div>
 
-              {fm.bio && (
-                <p className="text-xs text-[color:var(--dopl-cream)]/65 leading-relaxed line-clamp-2">
-                  {fm.bio}
-                </p>
-              )}
+              <p className="text-xs text-[color:var(--dopl-cream)]/65 leading-relaxed line-clamp-2 min-h-[2.5rem]">
+                {fm.bio || " "}
+              </p>
 
               <div className="mt-auto pt-2 flex items-center gap-4 text-xs text-[color:var(--dopl-cream)]/60">
                 <span className="inline-flex items-center gap-1.5">
@@ -96,8 +94,9 @@ export default function LeaderboardList({
                     size={12}
                     className="text-[color:var(--dopl-cream)]/40"
                   />
-                  <span className="text-[color:var(--dopl-cream)]/55">
-                    portfolios
+                  <CountUp value={fm.portfolio_count ?? 0} duration={0.8} />
+                  <span className="text-[color:var(--dopl-cream)]/40">
+                    {(fm.portfolio_count ?? 0) === 1 ? "portfolio" : "portfolios"}
                   </span>
                 </span>
               </div>

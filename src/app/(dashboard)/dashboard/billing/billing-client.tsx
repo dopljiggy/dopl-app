@@ -31,6 +31,7 @@ export default function BillingClient({
       const json = await res.json();
       if (json.url) {
         setRedirecting(true);
+        await new Promise((r) => setTimeout(r, 800));
         window.location.href = json.url;
         return;
       }

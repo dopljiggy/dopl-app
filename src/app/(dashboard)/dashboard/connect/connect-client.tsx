@@ -458,13 +458,13 @@ function DisconnectModal({
             <button
               onClick={onClose}
               disabled={disconnecting}
-              className="absolute top-4 right-4 text-[color:var(--dopl-cream)]/40 hover:text-[color:var(--dopl-cream)]"
+              className="absolute top-5 right-5 p-1 rounded-lg text-[color:var(--dopl-cream)]/40 hover:text-[color:var(--dopl-cream)] hover:bg-[color:var(--dopl-sage)]/30 transition-colors"
               aria-label="close"
             >
               <X size={16} />
             </button>
 
-            <h3 className="font-display text-xl font-semibold mb-3 pr-6">
+            <h3 className="font-display text-xl font-semibold mb-3 pr-8">
               Disconnect Broker?
             </h3>
 

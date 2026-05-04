@@ -6,15 +6,17 @@ import DoplerShell from "@/components/dopler-shell";
 export default async function LeaderboardPage() {
   const { supabase, user } = await getCachedUser();
 
-  // Discover (Sprint 14): sort by created_at desc instead of
-  // subscriber_count so brand-new FMs aren't permanently buried at the
-  // bottom of the list. Removes the implicit 'doplers = quality' signal
-  // that the prior leaderboard sent.
   const { data: managers } = await supabase
     .from("fund_managers")
-    .select("*")
+    .select("*, portfolios(id)")
     .order("created_at", { ascending: false })
     .limit(60);
+
+  const managersWithCount = (managers ?? []).map((fm: any) => ({
+    ...fm,
+    portfolio_count: Array.isArray(fm.portfolios) ? fm.portfolios.length : 0,
+    portfolios: undefined,
+  }));
 
   // Decide chrome: authed users get the DoplerShell (consistent nav);
   // visitors get a minimal public header.
@@ -25,7 +27,7 @@ export default async function LeaderboardPage() {
           Discover Fund Managers
         </h1>
       </div>
-      <LeaderboardList managers={managers ?? []} />
+      <LeaderboardList managers={managersWithCount} />
     </div>
   );
 
