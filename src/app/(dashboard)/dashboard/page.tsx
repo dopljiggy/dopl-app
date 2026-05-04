@@ -1,7 +1,6 @@
 import { getCachedUser } from "@/lib/supabase-server";
 import { redirect } from "next/navigation";
 import CountUp from "@/components/ui/count-up";
-import Sparkline from "@/components/ui/sparkline";
 import { GlassCard } from "@/components/ui/glass-card";
 import {
   FinishSetupChecklist,
@@ -38,39 +37,22 @@ export default async function DashboardPage() {
     0
   );
 
-  // Light placeholder sparkline data — real historic data would come from
-  // periodic snapshots we don't collect yet.
-  const makeSpark = (seed: number, trend = 1) => {
-    const out: number[] = [];
-    let v = Math.max(1, seed * 0.6);
-    for (let i = 0; i < 14; i++) {
-      v += (Math.sin(i * 0.8 + seed) * seed) / 12 + trend * (seed / 30);
-      out.push(Math.max(0, v));
-    }
-    out[out.length - 1] = seed;
-    return out;
-  };
-
   const stats = [
     {
       label: "doplers",
       numeric: fm?.subscriber_count ?? 0,
       sub: "across all portfolios",
-      spark: makeSpark(fm?.subscriber_count ?? 10, 1),
     },
     {
       label: "MRR",
       prefix: "$",
       numeric: mrrCents / 100,
       sub: "monthly recurring revenue",
-      spark: makeSpark(Math.max(10, mrrCents / 100), 1.2),
-      delay: 0.6,
     },
     {
       label: "portfolios",
       numeric: activePortfolios.length,
       sub: "active",
-      spark: makeSpark(Math.max(3, activePortfolios.length), 0.4),
     },
   ];
 
@@ -166,33 +148,21 @@ export default async function DashboardPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
           {stats.map((stat) => (
-            <GlassCard key={stat.label} className="p-6 relative overflow-hidden">
-              <div className="absolute inset-0 opacity-70 pointer-events-none">
-                <div className="absolute bottom-0 right-0">
-                  <Sparkline
-                    data={stat.spark}
-                    width={180}
-                    height={54}
-                    color="var(--dopl-lime)"
-                  />
-                </div>
-              </div>
-              <div className="relative">
-                <p className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/40 mb-2">
-                  {stat.label}
-                </p>
-                <p className="font-mono text-4xl font-bold text-[color:var(--dopl-lime)] leading-none">
-                  <CountUp
-                    value={stat.numeric}
-                    prefix={stat.prefix ?? ""}
-                    decimals={stat.prefix === "$" ? 0 : 0}
-                    duration={1.3}
-                  />
-                </p>
-                <p className="text-xs text-[color:var(--dopl-cream)]/30 mt-2">
-                  {stat.sub}
-                </p>
-              </div>
+            <GlassCard key={stat.label} className="p-6">
+              <p className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/40 mb-2">
+                {stat.label}
+              </p>
+              <p className="font-mono text-4xl font-bold text-[color:var(--dopl-lime)] leading-none">
+                <CountUp
+                  value={stat.numeric}
+                  prefix={stat.prefix ?? ""}
+                  decimals={0}
+                  duration={1.3}
+                />
+              </p>
+              <p className="text-xs text-[color:var(--dopl-cream)]/30 mt-2">
+                {stat.sub}
+              </p>
             </GlassCard>
           ))}
         </div>
