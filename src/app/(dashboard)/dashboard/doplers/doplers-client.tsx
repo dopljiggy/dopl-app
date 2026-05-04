@@ -106,7 +106,7 @@ export default function DoplersClient({
   return (
     <div>
       <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
-        <h1 className="font-display text-3xl font-semibold">doplers</h1>
+        <h1 className="font-display text-3xl font-semibold">Doplers</h1>
         <button
           onClick={exportCsv}
           disabled={rows.length === 0}

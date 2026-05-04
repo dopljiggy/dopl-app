@@ -43,7 +43,7 @@ export default function BillingClient({
 
   return (
     <div>
-      <h1 className="font-display text-3xl font-semibold mb-2">billing</h1>
+      <h1 className="font-display text-3xl font-semibold mb-2">Billing</h1>
       <p className="text-dopl-cream/50 text-sm mb-8">
         set up payments to receive subscription revenue
       </p>

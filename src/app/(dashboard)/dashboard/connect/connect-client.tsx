@@ -163,7 +163,7 @@ export default function ConnectClient({
     return (
       <div>
         <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight mb-2">
-          connect broker
+          Connect Broker
         </h1>
         <p className="text-[color:var(--dopl-cream)]/50 text-sm mb-8">
           pick how you want to link your portfolio. dopl reads positions —
@@ -184,7 +184,7 @@ export default function ConnectClient({
         <div className="flex items-start justify-between gap-4 mb-8">
           <div>
             <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight mb-2">
-              connect broker
+              Connect Broker
             </h1>
             <p className="text-[color:var(--dopl-cream)]/50 text-sm">
               your portfolio is linked.
@@ -235,7 +235,7 @@ export default function ConnectClient({
                 className="text-xs text-[color:var(--dopl-cream)]/40 hover:text-red-300 transition-colors inline-flex items-center justify-center gap-1.5 px-3 py-2"
               >
                 <Unplug size={12} />
-                disconnect broker
+                disConnect Broker
               </button>
             </div>
           </div>
@@ -270,7 +270,7 @@ export default function ConnectClient({
       <div className="flex items-start justify-between gap-4 mb-8">
         <div>
           <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight mb-2">
-            connect broker
+            Connect Broker
           </h1>
           <p className="text-[color:var(--dopl-cream)]/50 text-sm">
             {activeProvider === "manual"
@@ -323,7 +323,7 @@ export default function ConnectClient({
                 }
                 className="btn-lime w-full text-sm py-3"
               >
-                connect broker
+                Connect Broker
               </button>
             </div>
           )}
@@ -379,7 +379,7 @@ export default function ConnectClient({
                 className="mt-5 text-xs text-[color:var(--dopl-cream)]/40 hover:text-red-300 transition-colors inline-flex items-center gap-1.5"
               >
                 <Unplug size={12} />
-                disconnect broker
+                disConnect Broker
               </button>
             </div>
           )}
