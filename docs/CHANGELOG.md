@@ -5,6 +5,61 @@ Format: date, description, files, why, impact, testing, risks.
 
 ---
 
+## [2026-05-04] — Sprint 14: Team Feedback Improvements (30 items, 11 tasks)
+
+**Files changed:**
+- `src/components/ui/undopl-button.tsx` — modal redesigned with btn-lime "Keep Dopling" + red ghost "Undopl"; bumped to z-[80]/[81] so it sits above bell + push popups; title-cased copy.
+- `src/app/(dashboard)/dashboard/positions/positions-client.tsx` — same green/red pattern on the inline trash-confirm row; richer assigned-position tiles (bold ticker + lime allocation badge + price/shares/market_value/G%); "unassigned" → "From Broker" w/ helper, "assigned" → "In Portfolios"; title-cased page heading.
+- `src/app/(dashboard)/dashboard/portfolios/expandable-portfolio-card.tsx` — pencil edit button + edit modal (name, description, tier, price → existing PATCH); same green/red on inline remove row; "rebalance to 100%" button removed since auto-rebalance now runs server-side.
+- `src/app/marketing-landing.tsx` — hero subtext dropped, secondary CTA upgraded to gradient-bordered glass card with arrow + glow, How It Works cards switched to gradient borders, math card subtext stripped, footer rebuilt with logo + tagline + Terms/Privacy/Discover links + © dopl 2026.
+- `src/app/(auth)/login/page.tsx` — "Forgot Password?" link below password field; title-cased; bottom link brightened from /30 → /70.
+- `src/app/(auth)/signup/page.tsx` — title-cased; bottom link brightness bumped; inline email validation hint; password strength meter (weak/ok/strong).
+- `src/app/(auth)/forgot-password/page.tsx` (NEW) — email input + Send Reset Link → `supabase.auth.resetPasswordForEmail` with `redirectTo: origin + /reset-password`. Success state.
+- `src/app/(auth)/reset-password/page.tsx` (NEW) — Suspense-wrapped form, two password inputs, `supabase.auth.updateUser({ password })`, redirect to /login on success.
+- `src/app/onboarding/onboarding-client.tsx` — profile/region step subtexts removed; region helper line moved below the grid; portfolio name default flips empty with placeholder "e.g. Growth Portfolio"; price input compact (`w-28` + inline /mo); Stripe-step buttons aligned side-by-side; title-cased throughout.
+- `src/app/(dashboard)/dashboard/connect/connect-client.tsx` — "Change Provider" now opens a separate `SwitchProviderModal` (Keep Current / Switch); disconnect modal removed the icon block, switched buttons to btn-lime + red ghost; both modals at z-[80]/[81].
+- `src/components/connect/broker-type-selector.tsx` — three cards stack vertically (no md+ row layout); "My broker isn't listed" shortcuts to /dashboard/portfolios with a toast.
+- `src/app/welcome/welcome-client.tsx` — region step removed entirely (Sprint 8 stripped dopler broker connection so region serves no purpose); flow is now welcome → broker preference → /feed.
+- `src/components/broker-preference-picker.tsx` — curated broker list expanded from 9 to 26 grouped by region (US/Canada · UK/EU · Asia/Pacific · Middle East · Crypto · Other).
+- `src/app/api/positions/assign/route.ts` + `src/app/api/positions/manual/route.ts` — auto-rebalance on every insert AND every delete via the new shared helper; manual upsert path also recalcs after share/price edits.
+- `src/lib/recalculate-allocations.ts` (NEW) — extracted the helper from assign/route.ts so manual route imports it. Same arithmetic; no-op edge cases (empty portfolio, all-zero market_value) documented in JSDoc.
+- `src/components/ui/sparkline.tsx` — hide entirely on flat/zero data; 4px inset on path coordinates + clipPath on the area gradient so the stroke + fill stop bleeding to card edges.
+- `src/app/(dashboard)/dashboard/page.tsx` — when checklist is complete and stats are all zero, replace the bare zero-stat grid with a "you're all set up — share your profile" nudge linking to /dashboard/share.
+- `src/app/(dashboard)/dashboard/share/share-client.tsx` — stripped subtitles from each ActionButton, the page subtext, and the bottom PNG-dimensions blurb; ActionButton's subtitle prop removed.
+- `src/app/(dashboard)/dashboard/profile/profile-client.tsx` — gradient-bordered form sections (padding-box + border-box layering); links section replaced with fixed platform rows (X / Instagram / YouTube / Discord / Website) where the FM enters just the @handle and the URL is constructed on save / parsed back on load.
+- `src/app/(dashboard)/dashboard/doplers/doplers-client.tsx` — table text and stat label opacities raised (/40 → /60, /60 → /75-85).
+- `src/app/(public)/leaderboard/page.tsx` — renamed to "Discover Fund Managers"; query sorted by `created_at desc` instead of `subscriber_count desc`.
+- `src/app/(public)/leaderboard/leaderboard-list.tsx` — rewritten as a 2-up FM card grid; rank numbers + gold/silver/bronze podium glow removed.
+- `src/components/ui/slide-to-dopl.tsx` — softer spring (stiffness 500/400 → 320/280, tighter damping); `dragElastic` 0.05 → 0.12; fill width trails the handle by 6px for parallax depth; handle scales to 1.06 while dragging; vibration shrunk to a single 8ms blip.
+- `src/components/ui/stripe-loading-overlay.tsx` (NEW) — full-screen branded transition (dopl logo + "connecting to Stripe..." with a soft lime aurora pulse) shown between slide/click and `window.location.href`.
+- `src/app/feed/[portfolioId]/portfolio-detail-client.tsx` + `src/app/[handle]/profile-tiers.tsx` + `src/app/(dashboard)/dashboard/billing/billing-client.tsx` — overlay wired into all three Stripe entry points.
+
+**Why:** Sprint 13 shipped the FM Doplers page, Investment Calculator, CSV export, and profile/tier polish. Post-merge smoke + a full page-by-page team review surfaced 30 improvement items captured in `IMPROVEMENT.md`. Sprint 14 batches them into one push: P1 broken (#4 undopl), homepage polish (#6-9), missing forgot-password (#5), onboarding subtexts/defaults (#11-14), broker layout + bugs (#19-20, #25, #28), portfolio edit (#21), auto-rebalance (#3), dashboard visual artifacts (#16-18, #22-23, #27), discover redesign (#29), slider/Stripe transition (#1-2, #24), global title casing (#15).
+
+**Impact:**
+- Doplers can actually undopl from both feed and profile pages without click interception or layout overlap; the green/red destructive pattern is consistent across undopl, position removal, and broker disconnect.
+- Forgot/reset password flow ships end-to-end (login link → email → reset → toast → /login).
+- FMs can edit portfolio name/description/tier/price after creation (PATCH already existed; UI is new).
+- Allocation_pct stays in sync with market_value automatically — no more hitting a manual "rebalance to 100%" button.
+- Stripe redirects (paid subscribe + FM Connect onboarding) hold a branded overlay through the white-flash gap.
+- Dopler welcome flow is shorter (region step gone); FM onboarding portfolio step has compact `$X /mo` inline price input and an empty default portfolio name with placeholder.
+- Discover page surfaces new FMs instead of burying them behind subscriber-count-sorted veterans; ranks/podium colors gone.
+- Profile edit links section: per-platform rows with @handle inputs + URL construction on save (no more dropdown + "+ add link" friction).
+- Sparkline edge artifacts on stat cards eliminated; brand-new FMs see a friendly empty-state nudge.
+- Title Case is consistent across every dashboard heading + primary CTA.
+
+**Testing:**
+- `npm test` — 152/152 passing across 27 files (no test changes; Sprint 14 is purely additive + UI/visual).
+- `npm run build` — clean. New routes registered: `/forgot-password`, `/reset-password`.
+
+**Risks:**
+- **Manual prerequisite (Surfer):** add `http://localhost:3000/reset-password` and `https://dopl-app.vercel.app/reset-password` to Supabase Dashboard → Authentication → URL Configuration → Redirect URLs allow-list. Without this, the password-reset email's link fails with "redirect URL not allowed."
+- Auto-rebalance reverses the prior "FM custom allocations stay intact on delete" policy. The "save" button on the portfolios card still lets an FM nudge custom allocations away from the market-value default; the button just stops firing on every position change.
+- Profile links section now expects a handle (not a full URL) — existing FMs with non-canonical URLs (e.g., `https://twitter.com/foo` instead of `https://x.com/foo`) may need to re-save once. URL parsing on load is best-effort regex; edge cases land as the raw string in the input.
+- The 26-broker preference list is curated, not dynamic. New brokers need a manual edit. Acceptable since the dopler-broker question is just a deep-link target — there's no account linking behind it.
+
+---
+
 ## [2026-04-30] — Sprint 13: FM Doplers Page + Investment Calculator + Polish
 
 **Files changed:**
