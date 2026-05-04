@@ -6,12 +6,12 @@ import { createServerSupabase } from "@/lib/supabase-server";
 // Platform is registered in Canada. CA platforms support cross-border
 // connected accounts in US, CA, GB, AU, NL, and most EU countries.
 const COUNTRY_BY_REGION: Record<string, string> = {
-  us_canada: "US",
-  uk: "GB",
-  europe: "NL",
-  uae: "AE",
-  australia: "AU",
-  india: "IN",
+  us_canada: "CA",
+  uk: "CA",
+  europe: "CA",
+  uae: "CA",
+  australia: "CA",
+  india: "CA",
   other: "CA",
 };
 
