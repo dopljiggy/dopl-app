@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CreditCard, CheckCircle, ExternalLink } from "lucide-react";
 import { DOPL_FEE_PERCENT } from "@/lib/constants";
+import { StripeLoadingOverlay } from "@/components/ui/stripe-loading-overlay";
 
 const FM_CUT_FRACTION = (100 - DOPL_FEE_PERCENT) / 100;
 
@@ -18,6 +19,7 @@ export default function BillingClient({
   mrrCents: number;
 }) {
   const [loading, setLoading] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
 
   const [stripeError, setStripeError] = useState<string | null>(null);
 
@@ -28,6 +30,7 @@ export default function BillingClient({
       const res = await fetch("/api/stripe/connect", { method: "POST" });
       const json = await res.json();
       if (json.url) {
+        setRedirecting(true);
         window.location.href = json.url;
         return;
       }
@@ -118,6 +121,7 @@ export default function BillingClient({
           </div>
         )}
       </div>
+      <StripeLoadingOverlay open={redirecting} />
     </div>
   );
 }

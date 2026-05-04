@@ -12,6 +12,7 @@ import { fireToast } from "@/components/ui/toast";
 import { resolveFm } from "@/lib/fm-resolver";
 import { DOPL_FEE_PERCENT } from "@/lib/constants";
 import { InvestmentCalculator } from "@/components/ui/investment-calculator";
+import { StripeLoadingOverlay } from "@/components/ui/stripe-loading-overlay";
 import type { Portfolio, PortfolioUpdate } from "@/types/database";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -73,6 +74,7 @@ function Inner({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const [stripeRedirecting, setStripeRedirecting] = useState(false);
   const [pulsingIds, setPulsingIds] = useState<Set<string>>(new Set());
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -131,6 +133,9 @@ function Inner({
     });
     const { url, error } = await res.json();
     if (url) {
+      // Branded transition between slide-to-dopl completion and the
+      // Stripe redirect — replaces the white-flash gap.
+      setStripeRedirecting(true);
       window.location.href = url;
       return;
     }
@@ -340,6 +345,8 @@ function Inner({
           </div>
         </section>
       )}
+
+      <StripeLoadingOverlay open={stripeRedirecting} />
     </div>
   );
 }
