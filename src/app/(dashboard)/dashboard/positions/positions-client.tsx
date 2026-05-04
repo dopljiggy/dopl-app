@@ -146,7 +146,7 @@ export default function PositionsClient({
   if (!brokerConnected) {
     return (
       <div>
-        <h1 className="font-display text-3xl font-semibold mb-2">positions</h1>
+        <h1 className="font-display text-3xl font-semibold mb-2">Positions</h1>
         <div className="glass-card p-12 text-center max-w-lg">
           <p className="text-dopl-cream/60 mb-4">
             connect a broker to sync your positions
@@ -191,7 +191,7 @@ export default function PositionsClient({
   return (
     <div>
       <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
-        <h1 className="font-display text-3xl font-semibold">positions</h1>
+        <h1 className="font-display text-3xl font-semibold">Positions</h1>
         <div className="flex items-center gap-2">
           <button
             onClick={exportCsv}
@@ -227,14 +227,17 @@ export default function PositionsClient({
       )}
 
       <div className="grid lg:grid-cols-2 gap-8">
-        {/* Unassigned */}
+        {/* Synced from broker — not yet assigned to a portfolio */}
         <section>
           <h2 className="font-display text-lg font-semibold mb-4 flex items-center gap-2">
-            unassigned
+            From Broker
             <span className="text-xs text-dopl-cream/40 font-mono font-normal">
               {syncing ? "..." : unassigned.length}
             </span>
           </h2>
+          <p className="text-xs text-dopl-cream/45 -mt-2 mb-4">
+            synced from your broker, not yet in a portfolio
+          </p>
           {syncing && synced.length === 0 ? (
             <div className="glass-card p-8 text-center text-sm text-dopl-cream/40">
               <Loader2 size={20} className="animate-spin mx-auto mb-2" />
@@ -306,7 +309,7 @@ export default function PositionsClient({
         {/* Assigned by portfolio */}
         <section>
           <h2 className="font-display text-lg font-semibold mb-4 flex items-center gap-2">
-            assigned
+            In Portfolios
             <span className="text-xs text-dopl-cream/40 font-mono font-normal">
               {assignedPositions.length}
             </span>
@@ -337,24 +340,56 @@ export default function PositionsClient({
                       </p>
                     ) : (
                       <div className="space-y-1.5">
-                        {items.map((it) => (
+                        {items.map((it) => {
+                          const gain = (it.gain_loss_pct ?? 0) >= 0;
+                          return (
                           <div key={it.id}>
-                            <div className="flex items-center gap-3 text-sm">
-                              <TrendingUp
-                                size={12}
-                                className="text-dopl-lime flex-shrink-0"
-                              />
-                              <span className="font-mono font-semibold">
-                                {it.ticker}
-                              </span>
-                              <span className="text-xs text-dopl-cream/40 flex-1 truncate">
-                                {it.name}
-                              </span>
-                              {it.allocation_pct != null && (
-                                <span className="font-mono text-xs text-dopl-cream/60">
-                                  {it.allocation_pct.toFixed(1)}%
-                                </span>
-                              )}
+                            <div className="glass-card-light rounded-xl p-3 flex items-center gap-3 text-sm">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-baseline gap-2">
+                                  <span className="font-mono text-base font-bold text-dopl-cream">
+                                    {it.ticker}
+                                  </span>
+                                  {it.allocation_pct != null && (
+                                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-dopl-lime/15 text-dopl-lime tabular-nums">
+                                      {it.allocation_pct.toFixed(1)}%
+                                    </span>
+                                  )}
+                                </div>
+                                {it.name && (
+                                  <p className="text-[11px] text-dopl-cream/55 truncate">
+                                    {it.name}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="text-right text-[11px] font-mono tabular-nums">
+                                <p className="text-dopl-cream/85">
+                                  {it.current_price != null
+                                    ? `$${Number(it.current_price).toFixed(2)}`
+                                    : "—"}
+                                </p>
+                                <p className="text-dopl-cream/45">
+                                  {it.shares != null ? `${it.shares} sh` : ""}
+                                </p>
+                              </div>
+                              <div className="text-right text-[11px] font-mono tabular-nums w-20">
+                                <p className="text-dopl-cream/85">
+                                  {it.market_value != null
+                                    ? `$${Number(it.market_value).toFixed(0)}`
+                                    : "—"}
+                                </p>
+                                <p
+                                  className={
+                                    gain
+                                      ? "text-dopl-lime"
+                                      : "text-red-400"
+                                  }
+                                >
+                                  {it.gain_loss_pct != null
+                                    ? `${gain ? "+" : ""}${it.gain_loss_pct.toFixed(1)}%`
+                                    : ""}
+                                </p>
+                              </div>
                               <button
                                 onClick={() => {
                                   setPendingRemove({
@@ -363,7 +398,7 @@ export default function PositionsClient({
                                   });
                                   setRemoveThesis("");
                                 }}
-                                className="text-dopl-cream/30 hover:text-red-400 transition-colors"
+                                className="text-dopl-cream/30 hover:text-red-400 transition-colors p-1"
                                 aria-label="remove"
                               >
                                 <Trash2 size={12} />
@@ -412,7 +447,8 @@ export default function PositionsClient({
                               </div>
                             )}
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>

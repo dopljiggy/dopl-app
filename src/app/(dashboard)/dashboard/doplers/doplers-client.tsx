@@ -147,7 +147,7 @@ export default function DoplersClient({
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
-                <tr className="text-[10px] font-mono uppercase tracking-[0.18em] text-[color:var(--dopl-cream)]/40 border-b border-[color:var(--glass-border)]">
+                <tr className="text-[10px] font-mono uppercase tracking-[0.18em] text-[color:var(--dopl-cream)]/60 border-b border-[color:var(--glass-border)]">
                   <SortHeader
                     label="dopler"
                     active={sortKey === "dopler"}
@@ -204,12 +204,12 @@ export default function DoplersClient({
                         {r.fullName ?? r.email ?? "—"}
                       </p>
                       {r.fullName && r.email && (
-                        <p className="text-[11px] text-[color:var(--dopl-cream)]/40 font-mono">
+                        <p className="text-[11px] text-[color:var(--dopl-cream)]/60 font-mono">
                           {r.email}
                         </p>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-sm text-[color:var(--dopl-cream)]/80">
+                    <td className="px-4 py-3 text-sm text-[color:var(--dopl-cream)]/85">
                       {r.portfolioName}
                     </td>
                     <td className="px-4 py-3">
@@ -225,7 +225,7 @@ export default function DoplersClient({
                           ? "free"
                           : `$${(r.priceCents / 100).toFixed(0)}/mo`}
                     </td>
-                    <td className="px-4 py-3 text-right font-mono text-[color:var(--dopl-cream)]/60 text-[11px]">
+                    <td className="px-4 py-3 text-right font-mono text-[color:var(--dopl-cream)]/75 text-[11px]">
                       {timeAgo(r.createdAt)} ago
                     </td>
                   </tr>
@@ -250,7 +250,7 @@ function StatCard({
 }) {
   return (
     <GlassCard className="p-5">
-      <p className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/40 mb-2">
+      <p className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/60 mb-2">
         {label}
       </p>
       <p className="font-mono text-3xl font-bold text-[color:var(--dopl-lime)] leading-none">
