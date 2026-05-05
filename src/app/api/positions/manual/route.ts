@@ -6,6 +6,43 @@ import { fanOutPortfolioUpdate } from "@/lib/notification-fanout";
 import { recalculateAllocations } from "@/lib/recalculate-allocations";
 
 /**
+ * Get-or-create a 'manual' broker_connections row for this FM. Sprint 15:
+ * every manually-entered position gets stamped with this connection's id,
+ * which gives the new positions/connect UIs a consistent way to badge and
+ * group manual entries alongside SnapTrade/SaltEdge ones.
+ */
+async function getOrCreateManualConnection(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  admin: any,
+  userId: string
+): Promise<string | null> {
+  const { data: existing } = await admin
+    .from("broker_connections")
+    .select("id")
+    .eq("fund_manager_id", userId)
+    .eq("provider", "manual")
+    .eq("is_active", true)
+    .maybeSingle();
+  if (existing?.id) return existing.id as string;
+  const { data: created, error } = await admin
+    .from("broker_connections")
+    .insert({
+      fund_manager_id: userId,
+      provider: "manual",
+      provider_auth_id: null,
+      broker_name: "Manual Entry",
+      is_active: true,
+    })
+    .select("id")
+    .single();
+  if (error) {
+    console.warn("manual connection create failed:", error);
+    return null;
+  }
+  return created.id as string;
+}
+
+/**
  * Manual position management.
  *
  * Two modes, discriminated on whether the POST body carries `portfolio_id`:
@@ -165,8 +202,18 @@ export async function POST(request: Request) {
   const market_value =
     shares != null && price != null ? shares * price : null;
 
+  // Sprint 15: stamp manual positions with the FM's manual broker
+  // connection. Used by the new positions page to group + badge them.
+  // Admin client because the row may need to be created in a path where
+  // RLS would otherwise block the lookup.
+  const manualConnectionId = await getOrCreateManualConnection(
+    createAdminClient(),
+    user.id
+  );
+
   const row = {
     portfolio_id: portfolioId,
+    broker_connection_id: manualConnectionId,
     ticker,
     name: body.name ?? null,
     shares,

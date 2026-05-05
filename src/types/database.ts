@@ -39,9 +39,25 @@ export interface Portfolio {
   created_at: string;
 }
 
+export interface BrokerConnection {
+  id: string;
+  fund_manager_id: string;
+  provider: "snaptrade" | "saltedge" | "manual";
+  provider_auth_id: string | null;
+  broker_name: string;
+  is_active: boolean;
+  last_synced: string | null;
+  created_at: string;
+}
+
 export interface Position {
   id: string;
-  portfolio_id: string;
+  // NULL = position is in the centralized pool (synced from broker but
+  // not yet assigned to a subscribable portfolio). Sprint 15.
+  portfolio_id: string | null;
+  // NULL on legacy rows pre-migration-006; backfilled by migration to
+  // point at the connection that originated the position.
+  broker_connection_id: string | null;
   ticker: string;
   name: string | null;
   allocation_pct: number | null;

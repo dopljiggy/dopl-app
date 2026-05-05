@@ -5,6 +5,52 @@ Format: date, description, files, why, impact, testing, risks.
 
 ---
 
+## [2026-05-05] — Sprint 15: Multi-Broker Connections + Centralized Position Pool
+
+**Files changed:**
+- `supabase/migrations/006_multi_broker_connections.sql` — NEW: creates `broker_connections` table (one row per OAuth/manual connection per FM), makes `positions.portfolio_id` nullable (NULL = pool), adds `positions.broker_connection_id` FK with CASCADE, rewrites positions RLS so subscribers only see assigned positions and FMs see both pool (via connection) and assigned (via portfolio) paths. Backfills broker_connections from existing FM data and stamps existing positions.
+- `supabase/schema.sql` — mirrors migration 006 in the canonical schema dump.
+- `src/types/database.ts` — adds `BrokerConnection` interface; `Position.portfolio_id` becomes nullable; new `Position.broker_connection_id` field.
+- `src/app/api/broker/connections/route.ts` — NEW: GET list (with pool/assigned counts) + POST create (idempotent on (FM, provider, auth_id), reactivates soft-deleted rows).
+- `src/app/api/broker/connections/[id]/route.ts` — NEW: PATCH rename/toggle, DELETE soft-disconnect with best-effort upstream revocation.
+- `src/app/api/broker/sync-all/route.ts` — NEW: hits every active connection in one request via `syncAllConnections()`.
+- `src/app/api/snaptrade/callback/route.ts` — enumerates `listBrokerageAuthorizations()` and INSERTs / reactivates one broker_connections row per authorization. Dual-writes legacy `fund_managers` fields.
+- `src/app/api/saltedge/callback/route.ts` — walks `listConnections()` and creates one row per SaltEdge connection_id. Dual-writes legacy fields.
+- `src/app/api/snaptrade/sync/route.ts` — accepts optional `connection_id`; delegates to `syncSnaptradeConnection()`. No `connection_id` = sync all SnapTrade connections.
+- `src/app/api/saltedge/sync/route.ts` — same pattern with `syncSaltedgeConnection()`.
+- `src/app/api/positions/assign/route.ts` — POST supports `{ position_ids, portfolio_id }` (batch assign from pool) AND legacy `{ ticker, portfolio_id }` (AddPositionForm). DELETE supports `{ position_ids }` (batch unassign back to pool) AND legacy `{ id }` (single unassign).
+- `src/app/api/positions/manual/route.ts` — gets-or-creates the FM's manual broker_connections row on every entry and stamps `broker_connection_id` on the position.
+- `src/app/api/broker/disconnect/route.ts` — accepts optional `connection_id`; absent = disconnect every active connection. Soft-deletes; refreshes legacy `fund_managers` fields based on what stays active.
+- `src/lib/sync-connection.ts` — NEW: `syncSnaptradeConnection`, `syncSaltedgeConnection`, `syncAllConnections`. Per-connection upsert to pool, per-connection sold detection (skipped on partial fetch failure to avoid false positives), intra-connection ticker aggregation (same ticker across multiple accounts → sum shares + market_value, latest price), self-heal for migrated rows missing `provider_auth_id`.
+- `src/app/(dashboard)/dashboard/connect/page.tsx` — fetches broker_connections (active) + position counts; passes to client.
+- `src/app/(dashboard)/dashboard/connect/connect-client.tsx` — replaces binary connected/not-connected with connection list + Add Broker modal. Sync All button. Removes legacy SwitchProviderModal.
+- `src/components/connect/broker-connection-card.tsx` — NEW: per-connection card with provider icon, position count, last-synced relative time, sync + disconnect actions.
+- `src/app/(dashboard)/dashboard/positions/page.tsx` — fetches positions via FM's broker_connections; falls back to portfolio_id-based fetch for legacy positions with NULL connection.
+- `src/app/(dashboard)/dashboard/positions/positions-client.tsx` — dual-pane: pool grouped by broker (left) with checkboxes + batch assign; assigned grouped by portfolio (right) with broker badges + per-row unassign.
+- `src/app/(dashboard)/dashboard/portfolios/page.tsx` — joins broker_connections into the per-position read so each row carries `broker_name`.
+- `src/app/(dashboard)/dashboard/portfolios/expandable-portfolio-card.tsx` — adds small broker badge inline with the ticker on each position row.
+- `src/lib/position-diff.ts` + `src/lib/__tests__/position-diff.test.ts` — DELETED. Sold detection now lives in `sync-connection.ts`; the old per-portfolio `computeChanges` helper is no longer reachable.
+- `src/app/api/positions/manual/__tests__/route.test.ts` — admin-client mock grew a chainable `from` so the new manual-connection lookup resolves under unit tests.
+
+**Why:** FMs trading at multiple brokers had to pick one provider per dopl account. The new model lets a single FM run Coinbase + Webull + Robinhood + manual entries simultaneously, with positions landing in a centralized pool grouped by broker, then assigned out to portfolios. Same ticker held at two brokers stays as separate line items so there's no implicit aggregation across accounts. The pool also gives "auto-remove on broker sell" a clean home: position lifecycle is sync→pool→assign→portfolio→(broker sells)→delete+sell-fanout.
+
+**Impact:**
+- New /dashboard/connect UX: list of connection cards + Add Broker → broker type selector → OAuth → new connection card appears.
+- New /dashboard/positions UX: select-and-assign via checkboxes; broker badges on every assigned row; per-row unassign returns to pool (NOT deleted, NOT a sale).
+- Existing FMs are unaffected: migration backfills one broker_connections row per existing single-broker setup, stamps existing positions, and dual-writes keep legacy `fund_managers.broker_connected` / `broker_name` / `broker_provider` populated.
+- AddPositionForm (inline portfolio-card flow) keeps its identical API contract — manual route auto-stamps the FM's manual connection.
+
+**Testing:** 143/143 tests passing (152 → 143 after deleting position-diff tests). Build clean. Manual smoke pending (see plan §Verification — multi-broker, pool, assignment, manual entry, sold-at-broker auto-removal).
+
+**Risks:**
+- RLS rewrite — pool positions need a different access path than assigned. Migration policies cover both; verify on prod that subscribers can't see pool positions.
+- SnapTrade migrated rows lack `provider_auth_id` → `sync-connection.ts` self-heals on first sync via `listBrokerageAuthorizations()` matched by institution name. If institution name has changed, the heal skips and that connection's sync no-ops.
+- Free tier connection limit (5) on SnapTrade — FMs with 6+ broker connections will hit it; not blocked in code.
+- Legacy positions with NULL `broker_connection_id` exist post-migration if a row didn't match its portfolio's FM connection (orphaned row in /dashboard/positions "Other" section); not common but visible.
+- Old `fund_managers.broker_connected` / `broker_name` / `broker_provider` / `saltedge_connection_id` columns kept populated via dual-write; full removal lands in a future sprint.
+
+---
+
 ## [2026-05-04] — Stripe Platform Migration (AE → Canada)
 
 **Files changed:**
