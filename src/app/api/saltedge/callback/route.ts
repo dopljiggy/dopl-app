@@ -6,8 +6,14 @@ import { syncSaltedgePositions } from "../sync/sync";
 
 /**
  * Salt Edge redirects the user back here after finishing Connect.
- * We pick the newest connection for this customer, save the connection_id,
- * run a sync, and bounce back to the dashboard.
+ *
+ * Sprint 15: each new SaltEdge connection becomes one broker_connections
+ * row with provider='saltedge' and provider_auth_id=connection_id. FMs
+ * can return through this callback multiple times to add more banks/
+ * brokers; each lands as a separate connection.
+ *
+ * Backward compat: also dual-writes `fund_managers.broker_connected`,
+ * `broker_name`, `saltedge_connection_id`, and `broker_provider`.
  */
 function isFromOnboarding(request: NextRequest): boolean {
   return /(?:^|; )dopl_onboarding_flow=1(?:;|$)/.test(
@@ -58,15 +64,16 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const admin = createAdminClient();
+
+    // Pull all SaltEdge connections for this customer. Sprint 15: every
+    // connection becomes its own broker_connections row. We walk the full
+    // list (newest first) and INSERT/reactivate one row per connection.
     const connections = await saltedge.listConnections(fm.saltedge_customer_id);
-    // Newest first — the most recently created connection is the one the
-    // user just finished.
     const sorted = [...connections].sort((a, b) =>
       (b.created_at ?? "").localeCompare(a.created_at ?? "")
     );
-    const connection = sorted[0];
-    const connId = connection ? connectionId(connection) : null;
-    if (!connection || !connId) {
+    if (sorted.length === 0) {
       return clearOnboardingCookie(
         NextResponse.redirect(
           `${origin}${returnBase}?error=${encodeURIComponent(
@@ -76,21 +83,65 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const admin = createAdminClient();
+    const { data: existingRows } = await admin
+      .from("broker_connections")
+      .select("id, provider_auth_id, is_active")
+      .eq("fund_manager_id", user.id)
+      .eq("provider", "saltedge");
+    const existingMap = new Map(
+      (existingRows ?? []).map((r) => [r.provider_auth_id as string | null, r])
+    );
+
+    let firstName: string | null = null;
+    let firstConnId: string | null = null;
+    for (const c of sorted) {
+      const cid = connectionId(c);
+      if (!cid) continue;
+      const brokerName = c.provider_name ?? "Bank";
+      if (!firstName) firstName = brokerName;
+      if (!firstConnId) firstConnId = cid;
+
+      const found = existingMap.get(cid);
+      if (found) {
+        if (!found.is_active) {
+          await admin
+            .from("broker_connections")
+            .update({ is_active: true, broker_name: brokerName })
+            .eq("id", found.id);
+        }
+      } else {
+        await admin.from("broker_connections").insert({
+          fund_manager_id: user.id,
+          provider: "saltedge",
+          provider_auth_id: cid,
+          broker_name: brokerName,
+          is_active: true,
+        });
+      }
+    }
+
+    if (!firstConnId) {
+      return clearOnboardingCookie(
+        NextResponse.redirect(
+          `${origin}${returnBase}?error=${encodeURIComponent(
+            "no salt edge connection found"
+          )}`
+        )
+      );
+    }
+
     await admin
       .from("fund_managers")
       .update({
-        saltedge_connection_id: connId,
+        saltedge_connection_id: firstConnId,
         broker_connected: true,
-        broker_name: connection.provider_name ?? "Bank",
+        broker_name: firstName ?? "Bank",
         broker_provider: "saltedge",
       })
       .eq("id", user.id);
 
-    const positionCount = await syncSaltedgePositions(user.id, connId);
+    const positionCount = await syncSaltedgePositions(user.id, firstConnId);
 
-    // Sprint 4: onboarding-flow success lands on the new-tab handoff page;
-    // settings/connect flow keeps its original destination.
     const successUrl = fromOnboarding
       ? `${origin}/oauth-return?provider=saltedge`
       : `${origin}/dashboard/connect?connected=true&positions=${positionCount}`;
