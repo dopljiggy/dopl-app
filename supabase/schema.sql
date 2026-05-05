@@ -47,10 +47,36 @@ create table public.portfolios (
   created_at timestamptz default now()
 );
 
--- Positions within portfolios
+-- Broker connections — one row per OAuth/manual connection. FMs have N.
+-- Migration 006 (2026-05-05). Replaces the single-broker model on
+-- fund_managers. Old fund_managers columns (broker_connected, broker_name,
+-- broker_provider, saltedge_connection_id) stay populated via dual-write
+-- until full removal in a later sprint.
+create table public.broker_connections (
+  id uuid primary key default uuid_generate_v4(),
+  fund_manager_id uuid not null references public.fund_managers(id) on delete cascade,
+  provider text not null check (provider in ('snaptrade', 'saltedge', 'manual')),
+  provider_auth_id text,
+  broker_name text not null,
+  is_active boolean default true,
+  last_synced timestamptz,
+  created_at timestamptz default now()
+);
+
+create index broker_connections_fm_idx on public.broker_connections(fund_manager_id);
+create index broker_connections_active_idx on public.broker_connections(fund_manager_id, is_active);
+create unique index broker_connections_unique_auth
+  on public.broker_connections(fund_manager_id, provider, provider_auth_id)
+  where provider_auth_id is not null;
+
+-- Positions within portfolios.
+-- portfolio_id is NULLABLE — NULL means "in the centralized pool" (synced
+-- from broker but not yet assigned to a portfolio). broker_connection_id
+-- is the source connection; cascades on connection delete.
 create table public.positions (
   id uuid primary key default uuid_generate_v4(),
-  portfolio_id uuid not null references public.portfolios(id) on delete cascade,
+  portfolio_id uuid references public.portfolios(id) on delete cascade,
+  broker_connection_id uuid references public.broker_connections(id) on delete cascade,
   ticker text not null,
   name text,
   allocation_pct decimal,
@@ -64,6 +90,11 @@ create table public.positions (
   last_synced timestamptz,
   created_at timestamptz default now()
 );
+
+create index positions_broker_connection_idx on public.positions(broker_connection_id);
+create unique index positions_connection_ticker_unique
+  on public.positions(broker_connection_id, ticker)
+  where broker_connection_id is not null;
 
 -- Portfolio updates (for notification history)
 create table public.portfolio_updates (
@@ -123,9 +154,15 @@ create policy "Fund managers can insert own" on public.fund_managers for insert 
 create policy "Active portfolios are viewable by everyone" on public.portfolios for select using (is_active = true);
 create policy "Fund managers can manage own portfolios" on public.portfolios for all using (auth.uid() = fund_manager_id);
 
--- Positions: visible to subscribers or if portfolio is free
-create policy "Positions viewable by subscribers or free tier" on public.positions for select using (
-  exists (
+-- Broker connections: FM-only.
+alter table public.broker_connections enable row level security;
+create policy "FMs view own broker connections" on public.broker_connections for select using (auth.uid() = fund_manager_id);
+create policy "FMs manage own broker connections" on public.broker_connections for all using (auth.uid() = fund_manager_id);
+
+-- Positions: subscribers / free-tier viewers see ASSIGNED positions only
+-- (portfolio_id IS NOT NULL). Pool positions are FM-only.
+create policy "Subscribers view assigned positions" on public.positions for select using (
+  portfolio_id is not null and exists (
     select 1 from public.portfolios p
     where p.id = portfolio_id and (
       p.tier = 'free' or
@@ -137,8 +174,20 @@ create policy "Positions viewable by subscribers or free tier" on public.positio
     )
   )
 );
-create policy "Fund managers can manage positions" on public.positions for all using (
-  exists (select 1 from public.portfolios p where p.id = portfolio_id and p.fund_manager_id = auth.uid())
+create policy "FMs manage own positions" on public.positions for all using (
+  (
+    portfolio_id is not null and exists (
+      select 1 from public.portfolios p
+      where p.id = portfolio_id and p.fund_manager_id = auth.uid()
+    )
+  )
+  or
+  (
+    broker_connection_id is not null and exists (
+      select 1 from public.broker_connections bc
+      where bc.id = broker_connection_id and bc.fund_manager_id = auth.uid()
+    )
+  )
 );
 
 -- Portfolio updates: public read
