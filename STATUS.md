@@ -1,6 +1,6 @@
 # dopl-app — Project Status
 
-**Last updated:** 2026-05-04 (Sprint 14 closed, hotfixes pushed, Stripe migrated to CA)
+**Last updated:** 2026-05-05 (Sprint 15 merged, pending migration + smoke)
 **Updated by:** Instance 1 (Architect)
 
 ---
@@ -19,13 +19,13 @@ Production: `dopl-app.vercel.app` — live with fund managers onboarding.
 
 | Metric | Value |
 |--------|-------|
-| Branch | `main` (Sprint 14 + hotfixes + Stripe CA migration merged) |
-| Tests | 152 passing (27 files), build clean |
+| Branch | `main` (Sprint 15 merged) |
+| Tests | 143 passing (26 files), build clean |
 | Framework | Next.js 16.2.3 + React 19.2.4 + Tailwind v4 |
 | Deploy | Vercel (region: cdg1 / Paris) |
 | Pipeline | 3-instance (Architect / Reviewer / Implementer) per PIPELINE.md |
 | Stripe platform | **Canada-based** (migrated from AE, 2026-05-04) |
-| In flight | Sprint 14 hotfixes complete; next sprint TBD |
+| In flight | Sprint 15 merged; **pending migration SQL + smoke test** |
 
 ---
 
@@ -45,64 +45,74 @@ Production: `dopl-app.vercel.app` — live with fund managers onboarding.
 | 13 | FM Doplers page, Calculator, CSV, Profile polish | done | 2026-05-03 |
 | 14 | Team feedback improvements (30 items, 11 tasks) | done | 2026-05-04 |
 | 14-hotfix | Smoke test failures + Stripe CA migration | done | 2026-05-04 |
+| 15 | Multi-broker connections + centralized position pool | done | 2026-05-05 |
 
 ---
 
-## What Sprint 14 shipped
+## What Sprint 15 shipped
 
-**30 improvement items from team page-by-page review:**
+**Multi-Broker Connections + Centralized Position Pool** — 9 commits, 25 files, +2944/-1351
 
-- **P1 fixes:** Undopl modal (portal-based, buttons work), portfolio edit (clickable pencil → centered modal), sparkline artifacts removed, allocation column read-only + auto-computed
-- **Auth:** Forgot/reset password flow end-to-end
-- **Homepage:** Hero subtext removed, gradient buttons, How It Works cards, footer with logo + links
-- **Onboarding:** Subtexts trimmed, compact price input, empty portfolio name default
-- **FM Dashboard:** Share page stripped, profile gradient sections + handle-based links, broker vertical layout + distinct switch/disconnect modals, positions richer tiles
-- **Discover:** Leaderboard → card grid sorted by recent, no ranking, portfolio count shown
-- **Slider:** Apple-quality spring physics, momentum carry, progressive glow, 65% threshold
-- **Stripe overlay:** Branded transition on all Stripe redirects, shows immediately on slide complete
-- **Auto-rebalance:** Server-side on every insert/delete, rounding correction to always sum 100%
-- **Global:** Title Case across all headings + CTAs, green/red destructive button pattern
+**Architecture changes:**
+- New `broker_connections` table — FMs can connect N brokers (any mix of SnapTrade + SaltEdge + manual) simultaneously
+- `positions.portfolio_id` now nullable — NULL means "in the centralized pool (unassigned)"
+- `positions.broker_connection_id` FK tracks which broker each position came from
+- Unique constraint `(broker_connection_id, ticker)` — same ticker at different brokers = separate line items
+- RLS rewritten: pool positions visible only to owning FM, subscribers never see pool
 
-**Sprint 14 Hotfixes (post-smoke):**
+**New files:**
+- `supabase/migrations/006_multi_broker_connections.sql` — schema + data migration
+- `src/lib/sync-connection.ts` — per-connection sync engine with sold-at-broker detection, ticker aggregation, partial-failure safety
+- `src/app/api/broker/connections/route.ts` + `[id]/route.ts` — CRUD for broker connections
+- `src/app/api/broker/sync-all/route.ts` — sync all connections at once
+- `src/components/connect/broker-connection-card.tsx` — per-connection card component
 
-- Undopl modal → `createPortal` to escape framer-motion stacking contexts
-- Portfolio edit pencil → `div[role=button]` header (no nested buttons)
-- Portfolio edit modal → portal to document.body (centered, not buried in card)
-- Allocation column → read-only (removed stale draft state bug showing 100% for older positions)
-- `recalculateAllocations` → rounding correction, always sums to exactly 100%
-- Sparklines → removed entirely (fake placeholder data was confusing)
-- Positions table → single "allocation" column (merged dual broker%/your%)
-- Footer → mobile alignment fixed, Terms/Privacy → homepage
-- Stripe overlay → 800ms min display, then immediate on slide complete
-- Discover → fixed card height + reserved bio space, portfolio count shown
-- Slider → fill reaches full width, softer springs
-- Broker disconnect modal → better close button spacing
+**Modified flows:**
+- **Connect page:** List of connection cards + "Add Broker" button (replaces binary connected/not-connected)
+- **Positions page:** Left panel = centralized pool grouped by broker; right panel = portfolios. Checkbox + "Assign to Portfolio" batch assignment. "Unassign" returns positions to pool.
+- **Sync engine:** Per-connection sync with intra-connection ticker aggregation (handles brokerage + IRA both holding AAPL). Partial sync failure skips sold-detection to prevent false deletions.
+- **Position lifecycle:** Pool (portfolio_id=NULL) → assign (UPDATE portfolio_id) → unassign (SET NULL) → sold (DELETE + fanout)
+- **SnapTrade/SaltEdge callbacks:** Create `broker_connections` rows per authorization
+- **Portfolio cards:** Broker badge on each position row
+- **Backward compat:** Dual-write to old `fund_managers` columns (broker_connected, broker_name, broker_provider). Old assign/delete API shapes still work.
 
-**Stripe Platform Migration:**
-
-- Platform migrated from UAE (AE) to Canada (CA)
-- CA platform supports cross-border Express accounts for US, GB, NL, AU, IN, AE
-- Per-country region mapping restored (each FM gets local onboarding form)
-- Sandbox tested — all regions work without errors
-- **Pending:** Live mode setup (enable countries at dashboard.stripe.com/settings/applications/express, verify Connect active in live mode)
+**Removed:**
+- `src/lib/position-diff.ts` — sold detection moved into sync-connection.ts
+- `SwitchProviderModal` — no longer needed (add connections freely, don't switch)
 
 ---
 
 ## What happens next
 
-1. **Surfer:** Complete Stripe CA live mode setup (enable countries, verify Connect, test with real FM)
-2. **Surfer:** Smoke test remaining items from Sprint 14 hotfix on `dopl-app.vercel.app`
-3. **Surfer:** Add reset-password URLs to Supabase redirect allow-list
-4. **Next sprint:** TBD — waiting for Surfer direction
+1. **Surfer (NOW):** Run migration — paste `supabase/migrations/006_multi_broker_connections.sql` into Supabase SQL editor
+2. **Surfer (NOW):** Smoke test Sprint 15 on `dopl-app.vercel.app` (10-step checklist below)
+3. **Surfer:** Complete Stripe CA live mode setup (enable countries, verify Connect, test with real FM)
+4. **Surfer:** Add reset-password URLs to Supabase redirect allow-list
+5. **Next sprint:** TBD — waiting for Surfer direction
+
+### Sprint 15 Smoke Checklist
+
+1. /dashboard/connect → "Add Broker" button visible
+2. Connect a broker via SnapTrade OAuth → broker card appears with position count
+3. Connect a second broker → two cards on connect page
+4. Sync one card → only that broker syncs
+5. Disconnect one → other stays
+6. /dashboard/positions → pool shows positions grouped by broker
+7. Check positions → "Assign to Portfolio" → positions move to portfolio
+8. "Unassign" on portfolio position → returns to pool
+9. Manual position entry → appears under "Manual Entry" in pool
+10. Portfolio cards show broker badges on positions
 
 ---
 
 ## Outstanding risks + flagged items
 
+- **Migration pending** — Sprint 15 code is deployed but `006_multi_broker_connections.sql` must be run in Supabase before the new features work.
 - **Stripe CA live mode** — sandbox confirmed working; live mode needs countries enabled + Connect activated before production FMs can onboard.
 - **Free subscribe double-click race** — `/api/subscriptions/free` could double-increment `subscriber_count`.
 - **Rate limiting absent** — no per-endpoint rate limits on public routes.
 - **Supabase redirect URLs** — must add reset-password URLs for forgot-password flow to work.
+- **SnapTrade connection limits** — free tier = 5 connections per user. FMs connecting 6+ brokers will hit the limit.
 
 ---
 
@@ -114,5 +124,4 @@ Production: `dopl-app.vercel.app` — live with fund managers onboarding.
 | `CLAUDE-BRAND.md` | Brand + design system |
 | `PIPELINE.md` | 3-instance workflow |
 | `IMPROVEMENT.md` | Sprint 14 feedback collection (30 items) |
-| `plans/2026-05-04-sprint-14-improvements.md` | Sprint 14 plan (implemented) |
 | `docs/CHANGELOG.md` | Reverse-chronological commit log |
