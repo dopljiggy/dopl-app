@@ -1,9 +1,21 @@
 import { NextResponse } from "next/server";
-import { saltedge } from "@/lib/saltedge";
 import { createServerSupabase } from "@/lib/supabase-server";
-import { extractPositions } from "./sync";
+import { createAdminClient } from "@/lib/supabase-admin";
+import {
+  syncSaltedgeConnection,
+  type BrokerConnectionRow,
+} from "@/lib/sync-connection";
 
-export async function POST() {
+/**
+ * SaltEdge per-connection sync.
+ *
+ * POST body (optional): { connection_id?: string }  (broker_connections.id)
+ *   - Provided: syncs that one connection.
+ *   - Absent:   syncs all active SaltEdge connections for the FM.
+ *
+ * Returns: { results: SyncResult[] }
+ */
+export async function POST(request: Request) {
   const supabase = await createServerSupabase();
   const {
     data: { user },
@@ -11,32 +23,63 @@ export async function POST() {
   if (!user)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { data: fm } = await supabase
-    .from("fund_managers")
-    .select("saltedge_customer_id, saltedge_connection_id")
-    .eq("id", user.id)
-    .maybeSingle();
+  const admin = createAdminClient();
 
-  if (!fm?.saltedge_connection_id) {
-    return NextResponse.json({ error: "Not connected" }, { status: 400 });
+  let connectionId: string | undefined;
+  try {
+    const body = (await request.json().catch(() => ({}))) as {
+      connection_id?: string;
+    };
+    connectionId = body.connection_id;
+  } catch {
+    connectionId = undefined;
+  }
+
+  let connections: BrokerConnectionRow[] = [];
+  if (connectionId) {
+    const { data: row } = await admin
+      .from("broker_connections")
+      .select(
+        "id, fund_manager_id, provider, provider_auth_id, broker_name, is_active"
+      )
+      .eq("id", connectionId)
+      .maybeSingle();
+    if (
+      !row ||
+      row.fund_manager_id !== user.id ||
+      row.provider !== "saltedge"
+    ) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    connections = [row as BrokerConnectionRow];
+  } else {
+    const { data: rows } = await admin
+      .from("broker_connections")
+      .select(
+        "id, fund_manager_id, provider, provider_auth_id, broker_name, is_active"
+      )
+      .eq("fund_manager_id", user.id)
+      .eq("provider", "saltedge")
+      .eq("is_active", true);
+    connections = (rows ?? []) as BrokerConnectionRow[];
+    if (connections.length === 0) {
+      return NextResponse.json({ error: "Not connected" }, { status: 400 });
+    }
   }
 
   try {
-    const accounts = await saltedge.listAccounts(fm.saltedge_connection_id);
-    const positions = extractPositions(accounts);
+    const results = [];
+    for (const c of connections) {
+      results.push(await syncSaltedgeConnection(admin, user.id, c));
+    }
 
-    const accountSummary = accounts.map((a) => ({
-      id: a.account_id ?? a.id,
-      name: a.name,
-      nature: a.nature,
-      balance: a.balance,
-      currency: a.currency_code,
-    }));
+    const upserted = results.reduce((a, r) => a + r.upserted, 0);
+    const sold = results.reduce((a, r) => a + r.sold, 0);
 
     return NextResponse.json({
-      positions,
-      count: positions.length,
-      accounts: accountSummary,
+      results,
+      count: upserted,
+      sold,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "sync failed";
