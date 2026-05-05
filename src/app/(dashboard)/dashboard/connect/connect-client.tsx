@@ -1,83 +1,67 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Link2, CheckCircle, Loader2, RefreshCw, AlertCircle, Unplug, X, AlertTriangle, ArrowLeft, Repeat } from "lucide-react";
+import {
+  Loader2,
+  Plus,
+  RefreshCw,
+  X,
+  AlertCircle,
+} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { GlassCard } from "@/components/ui/glass-card";
-import { BrokerTypeSelector } from "@/components/connect/broker-type-selector";
-import { ManualEntry } from "@/components/connect/manual-entry";
+import { fireToast } from "@/components/ui/toast";
+import {
+  BrokerConnectionCard,
+  type ConnectionCardData,
+} from "@/components/connect/broker-connection-card";
+import {
+  BrokerTypeSelector,
+  type BrokerChoice,
+} from "@/components/connect/broker-type-selector";
 
-type Status = "idle" | "starting" | "syncing" | "done" | "error";
-type Provider = "snaptrade" | "saltedge" | "manual" | null;
-
+/**
+ * Sprint 15: multi-broker connect page.
+ *
+ * Renders a list of active broker_connections plus an "Add Broker" button
+ * that opens BrokerTypeSelector in a modal. SnapTrade / SaltEdge picks
+ * fire the existing register + connect flow; manual entry routes to
+ * /dashboard/portfolios where the inline AddPositionForm covers it.
+ *
+ * Per-connection sync + disconnect lives on each card. The "Sync All"
+ * button hits /api/broker/sync-all for a single multi-provider sweep.
+ */
 export default function ConnectClient({
-  alreadyConnected,
-  brokerName,
+  connections,
   hasSnaptradeUser,
   hasSaltedgeCustomer,
-  region: initialRegion,
-  provider: initialProvider,
-  positionCount: initialCount,
   subscriberCount,
   justConnected,
   errorMessage,
 }: {
-  alreadyConnected: boolean;
-  brokerName: string | null;
+  connections: ConnectionCardData[];
   hasSnaptradeUser: boolean;
   hasSaltedgeCustomer: boolean;
-  region: string | null;
-  provider: Provider;
-  positionCount: number;
   subscriberCount: number;
   justConnected: boolean;
   errorMessage: string | null;
 }) {
   const router = useRouter();
-  const [status, setStatus] = useState<Status>(
-    errorMessage ? "error" : alreadyConnected ? "done" : "idle"
-  );
-  // `activeChoice` is session-only: starts null every page load so the
-  // three-card selector is always the first thing a non-connected fund
-  // manager sees, regardless of any persisted region from a prior visit.
-  const [activeChoice, setActiveChoice] = useState<Provider>(null);
-  const [positionCount, setPositionCount] = useState(initialCount);
+  const [showAdd, setShowAdd] = useState(connections.length === 0 && !errorMessage);
+  const [adding, setAdding] = useState<"snaptrade" | "saltedge" | null>(null);
   const [error, setError] = useState<string | null>(errorMessage);
-  const [isConnected, setIsConnected] = useState(alreadyConnected);
-  const [showDisconnect, setShowDisconnect] = useState(false);
-  const [showSwitch, setShowSwitch] = useState(false);
-  const [disconnecting, setDisconnecting] = useState(false);
+  const [syncingAll, setSyncingAll] = useState(false);
 
-  // Unused but retained to satisfy the server-provided props without
-  // cluttering the consumer site.
-  void initialRegion;
-  void initialProvider;
+  // Suppress unused props — Sprint 15 doesn't need them but keeping the
+  // signature lets future flows (e.g. pre-checking customer existence
+  // before showing the SaltEdge connect button) plug in cleanly.
+  void hasSnaptradeUser;
+  void hasSaltedgeCustomer;
+  void subscriberCount;
 
-  const disconnect = async () => {
-    setDisconnecting(true);
-    try {
-      const res = await fetch("/api/broker/disconnect", { method: "DELETE" });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setError(json.error ?? "could not disconnect");
-        setShowDisconnect(false);
-        setDisconnecting(false);
-        return;
-      }
-      setShowDisconnect(false);
-      setDisconnecting(false);
-      setIsConnected(false);
-      setStatus("idle");
-      // Back to the three-card selector.
-      setActiveChoice(null);
-      router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "disconnect failed");
-      setDisconnecting(false);
-    }
-  };
-
+  // Strip success/error query params after mount so a refresh doesn't
+  // re-fire the toast / alert.
   useEffect(() => {
     if (justConnected || errorMessage) {
       const url = new URL(window.location.href);
@@ -85,515 +69,202 @@ export default function ConnectClient({
       url.searchParams.delete("positions");
       url.searchParams.delete("error");
       window.history.replaceState({}, "", url.toString());
+      if (justConnected) {
+        fireToast({ title: "broker connected" });
+      }
     }
   }, [justConnected, errorMessage]);
 
-  const handleSnaptradeConnect = async () => {
+  const handlePicked = async (choice: BrokerChoice) => {
     setError(null);
-    setStatus("starting");
 
-    if (!hasSnaptradeUser) {
-      const regRes = await fetch("/api/snaptrade/register", { method: "POST" });
-      if (!regRes.ok) {
-        const j = await regRes.json().catch(() => ({}));
-        setError(j.error ?? "failed to register with snaptrade");
-        setStatus("error");
-        return;
+    if (choice.key === "manual") {
+      // BrokerTypeSelector navigates manual to /dashboard/portfolios for
+      // inline entry; we don't need a connection row here. The selector
+      // already calls router.push.
+      setShowAdd(false);
+      return;
+    }
+
+    setAdding(choice.key);
+    try {
+      if (choice.key === "snaptrade") {
+        if (!hasSnaptradeUser) {
+          const reg = await fetch("/api/snaptrade/register", { method: "POST" });
+          if (!reg.ok) {
+            const j = await reg.json().catch(() => ({}));
+            throw new Error(j.error ?? "snaptrade register failed");
+          }
+        }
+        const conn = await fetch("/api/snaptrade/connect", { method: "POST" });
+        const { redirectUrl, error: connErr } = await conn.json();
+        if (!redirectUrl)
+          throw new Error(connErr ?? "could not start broker connection");
+        window.location.href = redirectUrl;
+      } else if (choice.key === "saltedge") {
+        const reg = await fetch("/api/saltedge/register", { method: "POST" });
+        if (!reg.ok) {
+          const j = await reg.json().catch(() => ({}));
+          throw new Error(j.error ?? "salt edge register failed");
+        }
+        const conn = await fetch("/api/saltedge/connect", { method: "POST" });
+        const j = await conn.json().catch(() => ({}));
+        if (!conn.ok || !j.redirectUrl)
+          throw new Error(j.error ?? "could not start salt edge connection");
+        window.location.href = j.redirectUrl;
       }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "could not start connection");
+      setAdding(null);
     }
-
-    const connRes = await fetch("/api/snaptrade/connect", { method: "POST" });
-    const { redirectUrl, error: connErr } = await connRes.json();
-    if (!redirectUrl) {
-      setError(connErr ?? "could not start broker connection");
-      setStatus("error");
-      return;
-    }
-    window.location.href = redirectUrl;
   };
 
-  const handleSaltedgeConnect = async () => {
+  const syncAll = async () => {
+    setSyncingAll(true);
     setError(null);
-    setStatus("starting");
-
-    // Register is idempotent — safe to call every time. It will either
-    // return the existing customer_id from the DB, match it from
-    // Salt Edge's customers list, or create a new one.
-    const regRes = await fetch("/api/saltedge/register", { method: "POST" });
-    const regJson = await regRes.json().catch(() => ({}));
-    if (!regRes.ok || !regJson.customer_id) {
-      setError(regJson.error ?? "failed to register with salt edge");
-      setStatus("error");
-      return;
+    try {
+      const res = await fetch("/api/broker/sync-all", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "sync failed");
+      const upserted = data.count ?? 0;
+      const sold = data.sold ?? 0;
+      fireToast({
+        title: "synced all brokers",
+        body: `${upserted} positions updated${
+          sold > 0 ? ` · ${sold} removed` : ""
+        }`,
+      });
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "sync failed");
+    } finally {
+      setSyncingAll(false);
     }
-
-    const connRes = await fetch("/api/saltedge/connect", { method: "POST" });
-    const connJson = await connRes.json().catch(() => ({}));
-    if (!connRes.ok || !connJson.redirectUrl) {
-      setError(connJson.error ?? "could not start salt edge connection");
-      setStatus("error");
-      return;
-    }
-    window.location.href = connJson.redirectUrl;
   };
-
-  const runResync = async () => {
-    setStatus("syncing");
-    setError(null);
-    const endpoint =
-      activeChoice === "saltedge"
-        ? "/api/saltedge/sync"
-        : "/api/snaptrade/sync";
-    const res = await fetch(endpoint, { method: "POST" });
-    const data = await res.json();
-    if (!res.ok) {
-      setError(data.error ?? "sync failed");
-      setStatus("error");
-      return;
-    }
-    setPositionCount(data.count ?? 0);
-    setStatus("done");
-    router.refresh();
-  };
-
-  // SELECTOR — shown whenever the fund manager has NOT connected yet and
-  // hasn't clicked into a provider on this visit. This is the default
-  // landing view every time they open the page.
-  if (!isConnected && !activeChoice) {
-    return (
-      <div>
-        <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight mb-2">
-          Connect Broker
-        </h1>
-        <p className="text-[color:var(--dopl-cream)]/50 text-sm mb-8">
-          pick how you want to link your portfolio. dopl reads positions —
-          read-only, never executes trades.
-        </p>
-        <BrokerTypeSelector
-          persist={false}
-          onSelected={(c) => setActiveChoice(c.key)}
-        />
-      </div>
-    );
-  }
-
-  // CONNECTED — show the success state with disconnect + change provider.
-  if (isConnected) {
-    return (
-      <div>
-        <div className="flex items-start justify-between gap-4 mb-8">
-          <div>
-            <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight mb-2">
-              Connect Broker
-            </h1>
-            <p className="text-[color:var(--dopl-cream)]/50 text-sm">
-              your portfolio is linked.
-            </p>
-          </div>
-        </div>
-
-        <GlassCard className="p-8 md:p-10 max-w-lg">
-          <div className="text-center py-2">
-            <CheckCircle
-              size={48}
-              className="text-[color:var(--dopl-lime)] mx-auto mb-4"
-            />
-            <h2 className="font-display text-xl font-semibold mb-2">
-              {brokerName ? `${brokerName} connected` : "broker connected"}
-            </h2>
-            <p className="text-[color:var(--dopl-cream)]/55 text-sm mb-6">
-              <span className="font-mono text-[color:var(--dopl-lime)] font-semibold">
-                {positionCount}
-              </span>{" "}
-              position{positionCount === 1 ? "" : "s"} synced
-            </p>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <button
-                onClick={runResync}
-                className="flex-1 glass-card-light py-2.5 text-sm hover:bg-[color:var(--dopl-sage)]/40 transition-colors flex items-center justify-center gap-2 rounded-xl"
-              >
-                <RefreshCw size={14} />
-                resync
-              </button>
-              <a
-                href="/dashboard/positions"
-                className="flex-1 btn-lime text-sm py-2.5 inline-flex items-center justify-center"
-              >
-                assign positions →
-              </a>
-            </div>
-            <div className="mt-6 pt-5 border-t border-[color:var(--glass-border)] flex flex-col sm:flex-row gap-2 justify-center">
-              <button
-                onClick={() => setShowSwitch(true)}
-                className="text-xs text-[color:var(--dopl-cream)]/50 hover:text-[color:var(--dopl-cream)] transition-colors inline-flex items-center justify-center gap-1.5 px-3 py-2"
-              >
-                <Repeat size={12} />
-                change provider
-              </button>
-              <button
-                onClick={() => setShowDisconnect(true)}
-                className="text-xs text-[color:var(--dopl-cream)]/40 hover:text-red-300 transition-colors inline-flex items-center justify-center gap-1.5 px-3 py-2"
-              >
-                <Unplug size={12} />
-                disConnect Broker
-              </button>
-            </div>
-          </div>
-        </GlassCard>
-
-        <DisconnectModal
-          open={showDisconnect}
-          subscriberCount={subscriberCount}
-          disconnecting={disconnecting}
-          onClose={() => !disconnecting && setShowDisconnect(false)}
-          onConfirm={disconnect}
-        />
-
-        <SwitchProviderModal
-          open={showSwitch}
-          working={disconnecting}
-          onClose={() => !disconnecting && setShowSwitch(false)}
-          onConfirm={async () => {
-            await disconnect();
-            setShowSwitch(false);
-          }}
-        />
-      </div>
-    );
-  }
-
-  // PROVIDER-SPECIFIC SCREEN — the fund manager has picked a card.
-  const activeProvider: Provider = activeChoice;
 
   return (
     <div>
-      <div className="flex items-start justify-between gap-4 mb-8">
+      <div className="flex items-start justify-between gap-4 mb-2 flex-wrap">
         <div>
           <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight mb-2">
-            Connect Broker
+            Connected Brokers
           </h1>
           <p className="text-[color:var(--dopl-cream)]/50 text-sm">
-            {activeProvider === "manual"
-              ? "manual entry — your positions, your rules."
-              : activeProvider === "saltedge"
-              ? "secure bank/broker linking via salt edge. read-only."
-              : "secure connect via snaptrade. read-only — we never execute trades."}
+            link as many brokers as you trade with — read-only, never
+            executes trades.
           </p>
         </div>
-        <button
-          onClick={() => {
-            setActiveChoice(null);
-            setStatus("idle");
-            setError(null);
-          }}
-          className="text-xs text-[color:var(--dopl-cream)]/50 hover:text-[color:var(--dopl-cream)] shrink-0 inline-flex items-center gap-1.5"
-        >
-          <ArrowLeft size={12} />
-          change provider
-        </button>
+        {connections.length > 0 && (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={syncAll}
+              disabled={syncingAll}
+              className="glass-card-light rounded-xl px-3 py-2 text-xs flex items-center gap-2 hover:bg-[color:var(--dopl-sage)]/40 transition-colors disabled:opacity-50"
+            >
+              {syncingAll ? (
+                <Loader2 size={13} className="animate-spin" />
+              ) : (
+                <RefreshCw size={13} />
+              )}
+              {syncingAll ? "syncing…" : "sync all"}
+            </button>
+            <button
+              onClick={() => {
+                setShowAdd(true);
+                setError(null);
+              }}
+              className="btn-lime text-xs px-4 py-2 inline-flex items-center gap-2"
+            >
+              <Plus size={13} />
+              add broker
+            </button>
+          </div>
+        )}
       </div>
 
-      {activeProvider === "manual" && <ManualEntry />}
-
-      {activeProvider !== "manual" && (
-        <GlassCard className="p-8 md:p-10 max-w-lg">
-          {status === "idle" && (
-            <div className="text-center">
-              <div className="w-16 h-16 rounded-2xl bg-[color:var(--dopl-lime)]/12 border border-[color:var(--dopl-lime)]/25 flex items-center justify-center mx-auto mb-6">
-                <Link2 size={26} className="text-[color:var(--dopl-lime)]" />
-              </div>
-              <h2 className="font-display text-xl font-semibold mb-2">
-                connect your brokerage
-              </h2>
-              <p className="text-[color:var(--dopl-cream)]/55 text-sm mb-5">
-                {activeProvider === "saltedge"
-                  ? "securely connect via salt edge. read-only — we never execute trades."
-                  : "securely connect via snaptrade. read-only — we never execute trades."}
-              </p>
-              <p className="text-xs text-[color:var(--dopl-cream)]/30 mb-6">
-                {activeProvider === "saltedge"
-                  ? "supports 5,000+ banks and brokers across UK, EU and the middle east"
-                  : "supports Webull, Interactive Brokers, Robinhood, Schwab, Fidelity, E*Trade, and 15+ more"}
-              </p>
-              <button
-                onClick={
-                  activeProvider === "saltedge"
-                    ? handleSaltedgeConnect
-                    : handleSnaptradeConnect
-                }
-                className="btn-lime w-full text-sm py-3"
-              >
-                Connect Broker
-              </button>
-            </div>
-          )}
-
-          {(status === "starting" || status === "syncing") && (
-            <div className="text-center py-6">
-              <Loader2
-                size={30}
-                className="text-[color:var(--dopl-lime)] animate-spin mx-auto mb-4"
-              />
-              <p className="text-sm text-[color:var(--dopl-cream)]/70">
-                {status === "starting" &&
-                  (activeProvider === "saltedge"
-                    ? "redirecting to salt edge..."
-                    : "redirecting to snaptrade...")}
-                {status === "syncing" && "syncing your positions..."}
-              </p>
-            </div>
-          )}
-
-          {status === "done" && (
-            <div className="text-center py-2">
-              <CheckCircle
-                size={48}
-                className="text-[color:var(--dopl-lime)] mx-auto mb-4"
-              />
-              <h2 className="font-display text-xl font-semibold mb-2">
-                {brokerName ? `${brokerName} connected` : "broker connected"}
-              </h2>
-              <p className="text-[color:var(--dopl-cream)]/55 text-sm mb-6">
-                <span className="font-mono text-[color:var(--dopl-lime)] font-semibold">
-                  {positionCount}
-                </span>{" "}
-                position{positionCount === 1 ? "" : "s"} synced
-              </p>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <button
-                  onClick={runResync}
-                  className="flex-1 glass-card-light py-2.5 text-sm hover:bg-[color:var(--dopl-sage)]/40 transition-colors flex items-center justify-center gap-2 rounded-xl"
-                >
-                  <RefreshCw size={14} />
-                  resync
-                </button>
-                <a
-                  href="/dashboard/positions"
-                  className="flex-1 btn-lime text-sm py-2.5 inline-flex items-center justify-center"
-                >
-                  assign positions →
-                </a>
-              </div>
-              <button
-                onClick={() => setShowDisconnect(true)}
-                className="mt-5 text-xs text-[color:var(--dopl-cream)]/40 hover:text-red-300 transition-colors inline-flex items-center gap-1.5"
-              >
-                <Unplug size={12} />
-                disConnect Broker
-              </button>
-            </div>
-          )}
-
-          {status === "error" && (
-            <div className="text-center py-2">
-              <AlertCircle size={40} className="text-red-400 mx-auto mb-4" />
-              <h2 className="font-display text-lg font-semibold mb-2">
-                something went wrong
-              </h2>
-              <p className="text-xs text-[color:var(--dopl-cream)]/50 font-mono mb-6 break-words">
-                {error ?? "unknown error"}
-              </p>
-              <button
-                onClick={
-                  activeProvider === "saltedge"
-                    ? handleSaltedgeConnect
-                    : handleSnaptradeConnect
-                }
-                className="btn-lime text-sm px-6 py-2.5"
-              >
-                try again
-              </button>
-            </div>
-          )}
-        </GlassCard>
+      {error && (
+        <div className="glass-card-light rounded-xl p-3 mb-4 mt-4 border border-red-500/30 text-xs font-mono text-red-300 flex items-start gap-2">
+          <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
+          <span className="break-words">{error}</span>
+        </div>
       )}
 
-      <DisconnectModal
-        open={showDisconnect}
-        subscriberCount={subscriberCount}
-        disconnecting={disconnecting}
-        onClose={() => !disconnecting && setShowDisconnect(false)}
-        onConfirm={disconnect}
-      />
+      {/* Empty state — no connections yet. Show selector inline. */}
+      {connections.length === 0 ? (
+        <div className="mt-6">
+          <BrokerTypeSelector
+            persist={false}
+            onSelected={handlePicked}
+          />
+          {adding && (
+            <div className="mt-4 text-xs text-[color:var(--dopl-cream)]/50 font-mono inline-flex items-center gap-2">
+              <Loader2 size={12} className="animate-spin" />
+              redirecting to {adding === "saltedge" ? "salt edge" : "snaptrade"}…
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-3 mt-6">
+          {connections.map((c) => (
+            <BrokerConnectionCard
+              key={c.id}
+              connection={c}
+              onSynced={() => router.refresh()}
+              onDisconnected={() => router.refresh()}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Add-broker modal — shown when FM clicks "Add Broker" with at
+          least one connection already present. Empty-state path renders
+          the selector inline above instead. */}
+      <AnimatePresence>
+        {showAdd && connections.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[80] flex items-center justify-center p-5"
+            onClick={() => !adding && setShowAdd(false)}
+          >
+            <div
+              aria-hidden
+              className="absolute inset-0 bg-[color:var(--dopl-deep)]/70 backdrop-blur-md"
+            />
+            <motion.div
+              initial={{ opacity: 0, y: 20, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.97 }}
+              transition={{ duration: 0.25, ease: [0.2, 0.7, 0.2, 1] }}
+              onClick={(e) => e.stopPropagation()}
+              className="glass-card glass-card-strong relative w-full max-w-2xl rounded-2xl p-6 md:p-7 z-[81] max-h-[88vh] overflow-y-auto"
+            >
+              <button
+                type="button"
+                onClick={() => !adding && setShowAdd(false)}
+                disabled={!!adding}
+                className="absolute top-5 right-5 p-1 rounded-lg text-[color:var(--dopl-cream)]/40 hover:text-[color:var(--dopl-cream)] hover:bg-[color:var(--dopl-sage)]/30 transition-colors"
+                aria-label="close"
+              >
+                <X size={16} />
+              </button>
+              <BrokerTypeSelector
+                heading="add another broker"
+                subheading="connect each brokerage you want positions synced from."
+                persist={false}
+                onSelected={handlePicked}
+              />
+              {adding && (
+                <p className="mt-4 text-xs text-[color:var(--dopl-cream)]/50 font-mono inline-flex items-center gap-2">
+                  <Loader2 size={12} className="animate-spin" />
+                  redirecting to {adding === "saltedge" ? "salt edge" : "snaptrade"}…
+                </p>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
-  );
-}
-
-function DisconnectModal({
-  open,
-  subscriberCount,
-  disconnecting,
-  onClose,
-  onConfirm,
-}: {
-  open: boolean;
-  subscriberCount: number;
-  disconnecting: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-}) {
-  const hasDoplers = subscriberCount > 0;
-  return (
-    <AnimatePresence>
-      {open && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[80] flex items-center justify-center p-5"
-          onClick={onClose}
-        >
-          <div
-            className="absolute inset-0 bg-[color:var(--dopl-deep)]/70 backdrop-blur-md"
-            aria-hidden
-          />
-          <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 10, scale: 0.97 }}
-            transition={{ duration: 0.25, ease: [0.2, 0.7, 0.2, 1] }}
-            onClick={(e) => e.stopPropagation()}
-            className="glass-card glass-card-strong relative w-full max-w-md rounded-2xl p-6 md:p-7 z-[81]"
-          >
-            <button
-              onClick={onClose}
-              disabled={disconnecting}
-              className="absolute top-5 right-5 p-1 rounded-lg text-[color:var(--dopl-cream)]/40 hover:text-[color:var(--dopl-cream)] hover:bg-[color:var(--dopl-sage)]/30 transition-colors"
-              aria-label="close"
-            >
-              <X size={16} />
-            </button>
-
-            <h3 className="font-display text-xl font-semibold mb-3 pr-8">
-              Disconnect Broker?
-            </h3>
-
-            {hasDoplers ? (
-              <>
-                <p className="text-sm text-[color:var(--dopl-cream)]/65 leading-relaxed mb-4">
-                  you have{" "}
-                  <span className="font-mono font-semibold text-red-300">
-                    {subscriberCount}
-                  </span>{" "}
-                  dopler{subscriberCount === 1 ? "" : "s"} following your
-                  portfolios. disconnecting your broker will stop position
-                  updates for all of them.
-                </p>
-                <p className="text-xs text-[color:var(--dopl-cream)]/45 mb-5">
-                  your portfolios and last known positions stay live — only
-                  sync stops. are you sure?
-                </p>
-              </>
-            ) : (
-              <p className="text-sm text-[color:var(--dopl-cream)]/65 leading-relaxed mb-5">
-                disconnect your broker? your positions will stop updating.
-                you can reconnect anytime.
-              </p>
-            )}
-
-            <div className="flex flex-col sm:flex-row gap-3 mt-2">
-              <button
-                onClick={onClose}
-                disabled={disconnecting}
-                className="btn-lime flex-1 py-2.5 text-sm disabled:opacity-50"
-              >
-                Keep Connected
-              </button>
-              <button
-                onClick={onConfirm}
-                disabled={disconnecting}
-                className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 text-sm rounded-xl border border-red-500/55 text-red-300 hover:bg-red-500/12 transition-colors disabled:opacity-50"
-              >
-                {disconnecting ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <Unplug size={14} />
-                )}
-                {disconnecting ? "Disconnecting…" : "Disconnect"}
-              </button>
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
-}
-
-function SwitchProviderModal({
-  open,
-  working,
-  onClose,
-  onConfirm,
-}: {
-  open: boolean;
-  working: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-}) {
-  return (
-    <AnimatePresence>
-      {open && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[80] flex items-center justify-center p-5"
-          onClick={onClose}
-        >
-          <div
-            className="absolute inset-0 bg-[color:var(--dopl-deep)]/70 backdrop-blur-md"
-            aria-hidden
-          />
-          <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 10, scale: 0.97 }}
-            transition={{ duration: 0.25, ease: [0.2, 0.7, 0.2, 1] }}
-            onClick={(e) => e.stopPropagation()}
-            className="glass-card glass-card-strong relative w-full max-w-md rounded-2xl p-6 md:p-7 z-[81]"
-          >
-            <button
-              onClick={onClose}
-              disabled={working}
-              className="absolute top-4 right-4 text-[color:var(--dopl-cream)]/40 hover:text-[color:var(--dopl-cream)]"
-              aria-label="close"
-            >
-              <X size={16} />
-            </button>
-
-            <h3 className="font-display text-xl font-semibold mb-3 pr-6">
-              Switch Broker?
-            </h3>
-            <p className="text-sm text-[color:var(--dopl-cream)]/65 leading-relaxed mb-5">
-              this will disconnect your current broker and let you connect a
-              new one. your portfolios and last-known positions stay live —
-              only sync stops until you finish the new connection.
-            </p>
-
-            <div className="flex flex-col sm:flex-row gap-3 mt-2">
-              <button
-                onClick={onClose}
-                disabled={working}
-                className="btn-lime flex-1 py-2.5 text-sm disabled:opacity-50"
-              >
-                Keep Current
-              </button>
-              <button
-                onClick={onConfirm}
-                disabled={working}
-                className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 text-sm rounded-xl border border-amber-400/55 text-amber-200 hover:bg-amber-400/10 transition-colors disabled:opacity-50"
-              >
-                {working ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <Repeat size={14} />
-                )}
-                {working ? "Switching…" : "Switch"}
-              </button>
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
   );
 }
