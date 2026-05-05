@@ -14,10 +14,40 @@ vi.mock('@/lib/notification-fanout', () => ({
   fanOutPortfolioUpdate,
 }))
 
-// The route passes `createAdminClient()` to the fanout helper. Since the
-// helper is mocked, the client argument is never touched — a stub is fine.
+// The route passes `createAdminClient()` to the fanout helper (mocked, so
+// untouched) and to `getOrCreateManualConnection` (Sprint 15) which queries
+// broker_connections directly. The shared chainable stub satisfies both.
+const adminTableResponses: Record<
+  string,
+  { maybeSingle?: unknown; single?: unknown }
+> = {
+  broker_connections: {
+    maybeSingle: { id: 'bc-manual-1' },
+  },
+}
 vi.mock('@/lib/supabase-admin', () => ({
-  createAdminClient: () => ({}),
+  createAdminClient: () => ({
+    from: (tableName: string) => {
+      const state = adminTableResponses[tableName] ?? {}
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const chain: any = {
+        select: () => chain,
+        insert: () => chain,
+        update: () => chain,
+        delete: () => chain,
+        eq: () => chain,
+        order: () => chain,
+        maybeSingle: async () => ({
+          data: state.maybeSingle ?? null,
+          error: null,
+        }),
+        single: async () => ({ data: state.single ?? null, error: null }),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        then: (resolve: any) => resolve({ data: null, error: null }),
+      }
+      return chain
+    },
+  }),
 }))
 
 const mockUser = { id: 'fm-uuid-1', email: 'alice@example.com' }
