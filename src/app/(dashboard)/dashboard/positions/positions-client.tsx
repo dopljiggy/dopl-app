@@ -52,6 +52,12 @@ const PROVIDER_ICON = {
   manual: PencilLine,
 } as const;
 
+// Compact money label used on the stats strip + every section header.
+// Whole-dollar precision — penny-level noise is irrelevant for at-a-glance
+// totals and forces wider columns on mobile.
+const formatMoney = (n: number) =>
+  `$${Math.round(n).toLocaleString("en-US")}`;
+
 /**
  * Sprint 15 positions page.
  *
@@ -123,6 +129,33 @@ export default function PositionsClient({
     }
     return map;
   }, [assigned, portfolios]);
+
+  // Sprint 16: dollar totals power the stats strip + per-section header
+  // value labels. market_value is normalised in the sync engine so these
+  // sums are in account currency (USD for now). null/undefined coerces to
+  // 0 — a position without a price yet contributes nothing.
+  const poolTotal = useMemo(
+    () => pool.reduce((s, p) => s + (Number(p.market_value) || 0), 0),
+    [pool]
+  );
+  const assignedTotal = useMemo(
+    () => assigned.reduce((s, p) => s + (Number(p.market_value) || 0), 0),
+    [assigned]
+  );
+  const activeConnectionCount = useMemo(
+    () => connections.filter((c) => c.is_active).length,
+    [connections]
+  );
+  const portfolioTotals = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const [pid, items] of assignedByPortfolio) {
+      map.set(
+        pid,
+        items.reduce((s, p) => s + (Number(p.market_value) || 0), 0)
+      );
+    }
+    return map;
+  }, [assignedByPortfolio]);
 
   const toggle = (id: string) => {
     setSelected((prev) => {
@@ -296,10 +329,51 @@ export default function PositionsClient({
           </button>
         </div>
       </div>
-      <p className="text-[color:var(--dopl-cream)]/50 text-sm mb-6">
+      <p className="text-[color:var(--dopl-cream)]/50 text-sm mb-4">
         positions land in the pool from each broker. select them and assign
         to a portfolio — doplers see the assignment instantly.
       </p>
+
+      {/* Summary stats strip — gives the page focal points without
+          duplicating the donut chart on the portfolios page. Three
+          glass pills: pool size, assigned size, active broker count.
+          Each pill carries a left-edge accent border so the eye picks
+          up the difference between pool / assigned / connections. */}
+      <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-6">
+        <div className="glass-card-light rounded-2xl px-3 py-3 sm:px-4 border-l-2 border-[color:var(--dopl-lime)]/55">
+          <p className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/45 mb-1">
+            pool
+          </p>
+          <p className="font-display text-xl sm:text-2xl font-semibold tabular-nums leading-none">
+            {pool.length}
+          </p>
+          <p className="text-[10px] sm:text-[11px] text-[color:var(--dopl-lime)]/85 font-mono mt-1 tabular-nums">
+            {formatMoney(poolTotal)}
+          </p>
+        </div>
+        <div className="glass-card-light rounded-2xl px-3 py-3 sm:px-4 border-l-2 border-[color:var(--dopl-cream)]/40">
+          <p className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/45 mb-1">
+            assigned
+          </p>
+          <p className="font-display text-xl sm:text-2xl font-semibold tabular-nums leading-none">
+            {assigned.length}
+          </p>
+          <p className="text-[10px] sm:text-[11px] text-[color:var(--dopl-cream)]/75 font-mono mt-1 tabular-nums">
+            {formatMoney(assignedTotal)}
+          </p>
+        </div>
+        <div className="glass-card-light rounded-2xl px-3 py-3 sm:px-4 border-l-2 border-[color:var(--dopl-sage)]/70">
+          <p className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/45 mb-1">
+            connections
+          </p>
+          <p className="font-display text-xl sm:text-2xl font-semibold tabular-nums leading-none">
+            {activeConnectionCount}
+          </p>
+          <p className="text-[10px] sm:text-[11px] text-[color:var(--dopl-cream)]/45 font-mono mt-1">
+            active
+          </p>
+        </div>
+      </div>
 
       {error && (
         <div className="glass-card-light p-3 border border-red-500/30 text-sm text-red-300 mb-6 rounded-xl">
@@ -427,18 +501,43 @@ export default function PositionsClient({
             <div className="space-y-5">
               {portfolios.map((pf) => {
                 const items = assignedByPortfolio.get(pf.id) ?? [];
+                const isFreeTier = pf.tier === "free" || pf.price_cents === 0;
+                const total = portfolioTotals.get(pf.id) ?? 0;
                 return (
                   <div
                     key={pf.id}
                     className="glass-card rounded-2xl p-4"
                   >
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="font-display text-base font-semibold">
-                        {pf.name}
-                      </h3>
-                      <span className="text-xs text-[color:var(--dopl-cream)]/40 font-mono">
-                        {items.length} position{items.length === 1 ? "" : "s"}
-                      </span>
+                    <div className="flex items-center justify-between gap-3 mb-3">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        {/* Tier badge mirrors the expandable portfolio card
+                            (free + vip in lime, others in sage). Anchors
+                            the row visually so the eye groups by tier. */}
+                        <span
+                          className={`text-[10px] font-mono font-semibold px-2 py-0.5 rounded uppercase tracking-wider flex-shrink-0 ${
+                            isFreeTier
+                              ? "bg-[color:var(--dopl-lime)]/15 text-[color:var(--dopl-lime)]"
+                              : pf.tier === "vip"
+                              ? "bg-[color:var(--dopl-lime)]/20 text-[color:var(--dopl-lime)]"
+                              : "bg-[color:var(--dopl-sage)]/40 text-[color:var(--dopl-cream)]/80"
+                          }`}
+                        >
+                          {isFreeTier
+                            ? "free"
+                            : `$${(pf.price_cents / 100).toFixed(0)}`}
+                        </span>
+                        <h3 className="font-display text-base font-semibold truncate">
+                          {pf.name}
+                        </h3>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <p className="font-mono text-sm text-[color:var(--dopl-lime)] tabular-nums leading-none">
+                          {formatMoney(total)}
+                        </p>
+                        <p className="text-[10px] text-[color:var(--dopl-cream)]/40 font-mono mt-1">
+                          {items.length} position{items.length === 1 ? "" : "s"}
+                        </p>
+                      </div>
                     </div>
                     {items.length === 0 ? (
                       <p className="text-xs text-[color:var(--dopl-cream)]/30">
@@ -561,6 +660,10 @@ function PoolSection({
 }) {
   const allSelected = items.length > 0 && items.every((p) => selected.has(p.id));
   const someSelected = items.some((p) => selected.has(p.id));
+  const sectionTotal = items.reduce(
+    (s, p) => s + (Number(p.market_value) || 0),
+    0
+  );
   return (
     <div className="glass-card rounded-2xl p-4">
       <div className="flex items-center gap-3 mb-3">
@@ -580,18 +683,23 @@ function PoolSection({
             <Check size={12} className="text-[color:var(--dopl-deep)]" strokeWidth={3} />
           )}
         </button>
-        <div className="w-8 h-8 rounded-lg bg-[color:var(--dopl-lime)]/12 border border-[color:var(--dopl-lime)]/25 flex items-center justify-center text-[color:var(--dopl-lime)]">
-          <Icon size={14} />
+        <div className="w-9 h-9 rounded-xl bg-[color:var(--dopl-lime)]/12 border border-[color:var(--dopl-lime)]/25 flex items-center justify-center text-[color:var(--dopl-lime)] flex-shrink-0">
+          <Icon size={15} />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-display text-sm font-semibold">{label}</p>
+          <p className="font-display text-sm font-semibold truncate">{label}</p>
           <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[color:var(--dopl-cream)]/40">
             {sublabel}
           </p>
         </div>
-        <span className="text-xs text-[color:var(--dopl-cream)]/40 font-mono">
-          {items.length}
-        </span>
+        <div className="text-right flex-shrink-0">
+          <p className="font-mono text-sm text-[color:var(--dopl-lime)] tabular-nums leading-none">
+            {formatMoney(sectionTotal)}
+          </p>
+          <p className="text-[10px] text-[color:var(--dopl-cream)]/40 font-mono mt-1">
+            {items.length} pos
+          </p>
+        </div>
       </div>
 
       <div className="space-y-1.5">
@@ -649,7 +757,17 @@ function PoolSection({
               </div>
               <div className="text-right text-[11px] font-mono tabular-nums w-16">
                 {p.market_value != null && (
-                  <p>${Number(p.market_value).toFixed(0)}</p>
+                  <p
+                    className={
+                      p.gain_loss_pct == null
+                        ? "text-[color:var(--dopl-cream)]/85"
+                        : p.gain_loss_pct >= 0
+                        ? "text-[color:var(--dopl-lime)]/85"
+                        : "text-red-400/75"
+                    }
+                  >
+                    ${Number(p.market_value).toFixed(0)}
+                  </p>
                 )}
               </div>
             </label>
