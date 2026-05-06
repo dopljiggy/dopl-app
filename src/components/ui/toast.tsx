@@ -65,20 +65,23 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <Ctx.Provider value={value}>
       {children}
-      <div className="fixed top-20 right-4 z-[90] flex flex-col gap-2 pointer-events-none w-[min(360px,calc(100vw-2rem))]">
+      {/* Bottom-right placement keeps toasts clear of dashboard action
+          buttons (Sprint 16 — was top-20 / overlapped sync + export
+          buttons). flex-col-reverse so the newest toast sits at the
+          bottom of the stack — sonner / react-hot-toast convention. */}
+      <div className="fixed bottom-24 md:bottom-8 right-4 z-[90] flex flex-col-reverse gap-2 pointer-events-none w-[min(360px,calc(100vw-2rem))]">
         <AnimatePresence initial={false}>
           {toasts.map((t, i) => (
             <motion.div
               key={t.id}
               layout
-              initial={{ opacity: 0, x: 60, scale: 0.96 }}
+              initial={{ opacity: 0, y: 20, scale: 0.96 }}
               animate={{
                 opacity: 1,
-                x: 0,
-                scale: 1 - i * 0.02,
                 y: i * -2,
+                scale: 1 - i * 0.02,
               }}
-              exit={{ opacity: 0, x: 60, scale: 0.96 }}
+              exit={{ opacity: 0, y: 20, scale: 0.96 }}
               transition={{ type: "spring", damping: 22, stiffness: 240 }}
               className="glass-card glass-card-strong p-4 pointer-events-auto cursor-pointer relative"
               onClick={() => {
