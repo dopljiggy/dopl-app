@@ -75,7 +75,10 @@ create unique index broker_connections_unique_auth
 -- is the source connection; cascades on connection delete.
 create table public.positions (
   id uuid primary key default uuid_generate_v4(),
-  portfolio_id uuid references public.portfolios(id) on delete cascade,
+  -- Sprint 16: was ON DELETE CASCADE — deleting a portfolio now returns
+  -- its positions to the centralized pool (portfolio_id = NULL) instead
+  -- of destroying them. Migration 007 alters the FK on existing DBs.
+  portfolio_id uuid references public.portfolios(id) on delete set null,
   broker_connection_id uuid references public.broker_connections(id) on delete cascade,
   ticker text not null,
   name text,

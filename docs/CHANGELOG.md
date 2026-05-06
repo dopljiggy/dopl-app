@@ -5,6 +5,35 @@ Format: date, description, files, why, impact, testing, risks.
 
 ---
 
+## [2026-05-06] — Sprint 16: Post-Smoke Polish — Toast, Scroll, Positions UX, Portfolio Delete, Market Value
+
+**Files changed:**
+- `src/components/ui/toast.tsx` — toast container moves from `top-20 right-4` to `bottom-24 md:bottom-8 right-4` and gains `flex-col-reverse` so the newest toast sits at the bottom of the stack (sonner / react-hot-toast convention). Animation switches from x-axis slide-in to a y-axis slide-up so new toasts rise into the bottom slot naturally.
+- `src/components/dopler-shell.tsx` — bumps mobile content padding from `pb-32` to `pb-40` (128 → 160 px) so the discover/feed cards keep ~44 px of clearance above the fixed bottom nav during inertial scroll.
+- `src/app/(dashboard)/dashboard/positions/positions-client.tsx` — adds a 3-pill summary stats strip (pool count + dollar total in lime, assigned count + dollar total in cream, active connection count in sage), bumps the per-broker pool section header to surface a dollar total and the position count side-by-side, gives each "In Portfolios" card a tier badge (free / $price) and a per-portfolio dollar total + position count block, and tints each pool row's market value lime/red/cream by `gain_loss_pct`. New module-local `formatMoney(n)` keeps every label whole-dollar + comma-separated.
+- `supabase/migrations/007_portfolio_delete_set_null.sql` — NEW: `DROP CONSTRAINT IF EXISTS positions_portfolio_id_fkey` followed by `ADD CONSTRAINT … ON DELETE SET NULL`. Mirrors migration 006's idempotency pattern.
+- `supabase/schema.sql` — `positions.portfolio_id` declares `on delete set null` (was `on delete cascade`) so a fresh DB built from the canonical dump matches the migrated state.
+- `src/app/(dashboard)/dashboard/portfolios/expandable-portfolio-card.tsx` — drops the per-row allocation column from the expanded position table and replaces it with a VALUE column showing whole-dollar `market_value`. Grid stays `grid-cols-12`: ticker(3) + price(2) + value(2) + P/L(2) + actions(3). P/L kept at col-span-2 to avoid clipping `-200.0%` on narrow viewports (Instance 2 review note).
+
+**Why:** Sprint 15 smoke surfaced five issues that were too small to block the merge but degraded the polish bar — three visual (toast overlap, scroll overlap, monochromatic positions page), one schema-level data-loss bug (portfolio delete cascaded positions, permanently destroying manual entries), and one missing data point (no dollar value in portfolio position tables). Sprint 16 ships them as a single batch.
+
+**Impact:**
+- Toasts no longer overlap dashboard action buttons on any page; mobile placement clears the bottom nav.
+- Mobile discover/feed cards no longer slide under the bottom nav while scrolling.
+- Positions page reads as a richer dashboard surface — at-a-glance dollar totals + tier badges + gain/loss tinting — without overlapping the portfolios page's chart identity.
+- Deleting a portfolio now returns its positions to the centralized pool instead of destroying them. Manual entries survive deletes; broker-synced positions don't need a re-sync to recover.
+- Portfolio expanded view shows dollar value per position next to price, P/L, and ticker.
+
+**Testing:** 143/143 tests passing across 26 files. Build compiles cleanly with no new warnings or type errors. Manual smoke pending on `dopl-app.vercel.app` after merge + migration (see plan §Verification — toast positioning across pages, mobile nav clearance, stats strip + tier badges + value totals on positions, portfolio-delete returns to pool, VALUE column in expanded portfolio cards).
+
+**Risks:**
+- Migration 007 must run in Supabase before the portfolio-delete-returns-to-pool behaviour activates on prod. Until it runs, deletes still cascade.
+- Toast bottom placement on iOS PWA — the `bottom-24` (96 px) value assumes the standard ~80 px bottom nav + safe-area; if a future shell change increases the nav height, toasts may clip.
+- Stats-strip dollar totals depend on `market_value` being populated; positions synced before the price was fetched contribute zero (rare, transient).
+- Expanded portfolio table no longer shows per-row allocation%. The donut + AllocationSumBadge above stay authoritative; if a future review wants per-row allocation back, it'll need its own column rather than displacing VALUE.
+
+---
+
 ## [2026-05-05] — Sprint 15: Multi-Broker Connections + Centralized Position Pool
 
 **Files changed:**

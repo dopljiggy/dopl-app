@@ -442,12 +442,18 @@ export default function ExpandablePortfolioCard({
                   </div>
                 ) : (
                   <div className="glass-card-light rounded-2xl overflow-hidden">
+                    {/* Sprint 16: dropped the per-row allocation column —
+                        the donut + AllocationSumBadge above already
+                        carry that info. The freed space goes to a new
+                        VALUE column so the FM can see dollars-per-line
+                        at a glance. P/L stays at col-span-2 to avoid
+                        clipping "-200.0%" on narrow viewports. */}
                     <div className="grid grid-cols-12 gap-2 px-4 py-2.5 text-[10px] uppercase tracking-wider text-[color:var(--dopl-cream)]/40 border-b border-[color:var(--glass-border)]">
                       <div className="col-span-3">ticker</div>
                       <div className="col-span-2 text-right">price</div>
+                      <div className="col-span-2 text-right">value</div>
                       <div className="col-span-2 text-right">P/L</div>
-                      <div className="col-span-3 text-right">allocation</div>
-                      <div className="col-span-2 text-right" aria-label="actions" />
+                      <div className="col-span-3 text-right" aria-label="actions" />
                     </div>
                     {positions.map((pos) => {
                       const gain = (pos.gain_loss_pct ?? 0) >= 0;
@@ -489,6 +495,11 @@ export default function ExpandablePortfolioCard({
                                 </p>
                               )}
                             </div>
+                            <div className="col-span-2 text-right font-mono text-sm tabular-nums text-[color:var(--dopl-cream)]/85">
+                              {pos.market_value != null
+                                ? `$${Number(pos.market_value).toFixed(0)}`
+                                : "—"}
+                            </div>
                             <div
                               className={`col-span-2 text-right font-mono text-sm tabular-nums ${
                                 gain
@@ -500,12 +511,7 @@ export default function ExpandablePortfolioCard({
                                 ? `${gain ? "+" : ""}${pos.gain_loss_pct.toFixed(1)}%`
                                 : "—"}
                             </div>
-                            <div className="col-span-3 text-right font-mono text-sm tabular-nums">
-                              {pos.allocation_pct != null
-                                ? `${Number(pos.allocation_pct).toFixed(1)}%`
-                                : "—"}
-                            </div>
-                            <div className="col-span-2 flex items-center justify-end gap-1">
+                            <div className="col-span-3 flex items-center justify-end gap-1">
                               <button
                                 onClick={() => openAdjust(pos)}
                                 aria-label={`adjust ${pos.ticker}`}
