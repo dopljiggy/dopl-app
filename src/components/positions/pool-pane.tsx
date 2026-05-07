@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Building2,
@@ -77,6 +77,21 @@ export function PoolPane({
   const [assignTargetId, setAssignTargetId] = useState<string>("");
   const [assigning, setAssigning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+  const prevPoolRef = useRef(pool);
+
+  // Clear optimistic hidden state when server-refreshed pool arrives.
+  useEffect(() => {
+    if (prevPoolRef.current !== pool) {
+      prevPoolRef.current = pool;
+      if (hiddenIds.size > 0) setHiddenIds(new Set());
+    }
+  }, [pool, hiddenIds.size]);
+
+  const visiblePool = useMemo(
+    () => (hiddenIds.size === 0 ? pool : pool.filter((p) => !hiddenIds.has(p.id))),
+    [pool, hiddenIds]
+  );
 
   // Group pool by connection. Insertion order preserved by iterating
   // connections in the order the server returned them.
@@ -84,14 +99,14 @@ export function PoolPane({
     const map = new Map<string, PoolPosition[]>();
     for (const c of connections) map.set(c.id, []);
     map.set("__orphan__", []);
-    for (const p of pool) {
+    for (const p of visiblePool) {
       const key = p.broker_connection_id ?? "__orphan__";
       const list = map.get(key) ?? [];
       list.push(p);
       map.set(key, list);
     }
     return map;
-  }, [pool, connections]);
+  }, [visiblePool, connections]);
 
   const toggle = (id: string) => {
     setSelected((prev) => {
@@ -132,6 +147,7 @@ export function PoolPane({
       const portfolioName =
         portfolios.find((p) => p.id === assignTargetId)?.name ?? "portfolio";
       fireToast({ title: `assigned ${selected.size} to ${portfolioName}` });
+      setHiddenIds(new Set([...hiddenIds, ...selected]));
       setSelected(new Set());
       setAssignTargetId("");
       onChanged();
@@ -148,7 +164,7 @@ export function PoolPane({
         <h2 className="font-display text-lg font-semibold flex items-center gap-2">
           Centralized Pool
           <span className="text-xs text-[color:var(--dopl-cream)]/40 font-mono font-normal">
-            {pool.length}
+            {visiblePool.length}
           </span>
         </h2>
         {selected.size > 0 && (
@@ -205,7 +221,7 @@ export function PoolPane({
         </div>
       )}
 
-      {pool.length === 0 ? (
+      {visiblePool.length === 0 ? (
         <div className="glass-card p-8 text-center text-sm text-[color:var(--dopl-cream)]/40 rounded-2xl">
           {connections.length === 0
             ? "connect a broker to sync positions"
