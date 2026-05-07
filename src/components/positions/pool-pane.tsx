@@ -286,7 +286,7 @@ function PoolSection({
     0
   );
   return (
-    <div className="glass-card rounded-2xl p-4">
+    <div className="glass-card rounded-2xl p-4 border border-[color:var(--dopl-sage)]/30">
       <div className="flex items-center gap-3 mb-3">
         <button
           type="button"
@@ -332,7 +332,7 @@ function PoolSection({
               className={`glass-card-light rounded-xl p-3 flex items-center gap-3 text-sm cursor-pointer transition-colors ${
                 checked
                   ? "border border-[color:var(--dopl-lime)]/40 bg-[color:var(--dopl-lime)]/[0.04]"
-                  : "border border-[color:var(--dopl-sage)]/20 hover:border-[color:var(--dopl-sage)]/40"
+                  : "border border-[color:var(--dopl-sage)]/35 hover:border-[color:var(--dopl-sage)]/50"
               }`}
             >
               <input
