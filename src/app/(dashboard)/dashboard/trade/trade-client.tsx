@@ -14,6 +14,11 @@ import {
 import ExpandablePortfolioCard, {
   type PositionRow as AssignedPositionRow,
 } from "../portfolios/expandable-portfolio-card";
+import {
+  PortfolioSortDropdown,
+  sortPortfolios,
+  type PortfolioSortKey,
+} from "@/components/portfolios/portfolio-sort";
 import type { Portfolio } from "@/types/database";
 
 type TabKey = "portfolios" | "pool";
@@ -47,6 +52,7 @@ export default function TradeClient({
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<PortfolioSortKey>("date");
 
   // Suppress unused — kept on the props surface for future tier-gating
   // hooks (the portfolio cards already render a stripe-not-onboarded
@@ -63,6 +69,23 @@ export default function TradeClient({
     }
     return map;
   }, [assigned]);
+
+  const totalsByPortfolio = useMemo(() => {
+    const map = new Map<string, { value: number; count: number }>();
+    for (const [pid, list] of positionsByPortfolio) {
+      const value = list.reduce(
+        (s, p) => s + (Number(p.market_value) || 0),
+        0
+      );
+      map.set(pid, { value, count: list.length });
+    }
+    return map;
+  }, [positionsByPortfolio]);
+
+  const sortedPortfolios = useMemo(
+    () => sortPortfolios(portfolios, sortKey, totalsByPortfolio),
+    [portfolios, sortKey, totalsByPortfolio]
+  );
 
   // Stats-strip totals — same shape as the positions page for visual
   // continuity.
@@ -126,21 +149,26 @@ export default function TradeClient({
     <div>
       <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
         <h1 className="font-display text-3xl font-semibold">Trade</h1>
-        <button
-          onClick={syncAll}
-          disabled={
-            syncing ||
-            connections.filter((c) => c.provider !== "manual").length === 0
-          }
-          className="glass-card-light px-4 py-2 text-sm flex items-center gap-2 hover:bg-[color:var(--dopl-sage)]/40 transition-colors disabled:opacity-40"
-        >
-          {syncing ? (
-            <Loader2 size={14} className="animate-spin" />
-          ) : (
-            <RefreshCw size={14} />
+        <div className="flex items-center gap-3 flex-wrap">
+          {portfolios.length > 1 && (
+            <PortfolioSortDropdown value={sortKey} onChange={setSortKey} />
           )}
-          {syncing ? "syncing…" : "sync all"}
-        </button>
+          <button
+            onClick={syncAll}
+            disabled={
+              syncing ||
+              connections.filter((c) => c.provider !== "manual").length === 0
+            }
+            className="glass-card-light px-4 py-2 text-sm flex items-center gap-2 hover:bg-[color:var(--dopl-sage)]/40 transition-colors disabled:opacity-40"
+          >
+            {syncing ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <RefreshCw size={14} />
+            )}
+            {syncing ? "syncing…" : "sync all"}
+          </button>
+        </div>
       </div>
       <p className="text-[color:var(--dopl-cream)]/50 text-sm mb-4">
         portfolios on the left, broker pool on the right — assign in one
@@ -243,7 +271,7 @@ export default function TradeClient({
             </div>
           ) : (
             <div className="space-y-4">
-              {portfolios.map((p) => (
+              {sortedPortfolios.map((p) => (
                 <ExpandablePortfolioCard
                   key={p.id}
                   portfolio={p}

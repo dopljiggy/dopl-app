@@ -44,6 +44,10 @@ create table public.portfolios (
   price_cents integer not null default 0,
   is_active boolean default true,
   subscriber_count integer default 0,
+  -- Sprint 17: persists the FM's custom drag-to-reorder sequence. New
+  -- portfolios get max(existing) + 1 so they land at the end. Migration
+  -- 008 alters the FK on existing DBs.
+  display_order integer not null default 0,
   created_at timestamptz default now()
 );
 

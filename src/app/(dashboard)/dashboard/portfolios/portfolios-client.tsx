@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Briefcase, Lock } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -11,6 +11,11 @@ import ExpandablePortfolioCard, {
 } from "./expandable-portfolio-card";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { InlineError } from "@/components/ui/inline-error";
+import {
+  PortfolioSortDropdown,
+  sortPortfolios,
+  type PortfolioSortKey,
+} from "@/components/portfolios/portfolio-sort";
 
 interface NewPortfolio {
   name: string;
@@ -41,6 +46,7 @@ export default function PortfoliosClient({
   const [showCreate, setShowCreate] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<PortfolioSortKey>("date");
   const [newPortfolio, setNewPortfolio] = useState<NewPortfolio>({
     name: "",
     description: "",
@@ -88,12 +94,32 @@ export default function PortfoliosClient({
     }
   };
 
-  const positionsByPortfolio = new Map<string, PositionRow[]>();
-  for (const p of positions) {
-    const list = positionsByPortfolio.get(p.portfolio_id) ?? [];
-    list.push(p);
-    positionsByPortfolio.set(p.portfolio_id, list);
-  }
+  const positionsByPortfolio = useMemo(() => {
+    const map = new Map<string, PositionRow[]>();
+    for (const p of positions) {
+      const list = map.get(p.portfolio_id) ?? [];
+      list.push(p);
+      map.set(p.portfolio_id, list);
+    }
+    return map;
+  }, [positions]);
+
+  const totalsByPortfolio = useMemo(() => {
+    const map = new Map<string, { value: number; count: number }>();
+    for (const [pid, list] of positionsByPortfolio) {
+      const value = list.reduce(
+        (s, p) => s + (Number(p.market_value) || 0),
+        0
+      );
+      map.set(pid, { value, count: list.length });
+    }
+    return map;
+  }, [positionsByPortfolio]);
+
+  const sortedPortfolios = useMemo(
+    () => sortPortfolios(portfolios, sortKey, totalsByPortfolio),
+    [portfolios, sortKey, totalsByPortfolio]
+  );
 
   // Auto-refresh when the user returns from the Stripe tab so the lock
   // icon flips to unlocked once stripe_onboarded=true is persisted via
@@ -163,17 +189,22 @@ export default function PortfoliosClient({
           />
         </div>
       )}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-8 gap-3 flex-wrap">
         <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight">
           Portfolios
         </h1>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="btn-lime text-sm px-5 py-2.5 flex items-center gap-2"
-        >
-          <Plus size={16} />
-          New Portfolio
-        </button>
+        <div className="flex items-center gap-3">
+          {portfolios.length > 1 && (
+            <PortfolioSortDropdown value={sortKey} onChange={setSortKey} />
+          )}
+          <button
+            onClick={() => setShowCreate(true)}
+            className="btn-lime text-sm px-5 py-2.5 flex items-center gap-2"
+          >
+            <Plus size={16} />
+            New Portfolio
+          </button>
+        </div>
       </div>
 
       {portfolios.length === 0 ? (
@@ -197,7 +228,7 @@ export default function PortfoliosClient({
         </GlassCard>
       ) : (
         <div className="space-y-4">
-          {portfolios.map((p) => (
+          {sortedPortfolios.map((p) => (
             <div key={p.id}>
               {p.tier !== "free" && !stripeOnboarded && (
                 <button

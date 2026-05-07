@@ -9,6 +9,20 @@ export async function POST(request: Request) {
 
   const body = await request.json();
 
+  // Sprint 17: stamp display_order = max(existing FM-owned) + 1 so new
+  // portfolios land at the end of any custom-order list. With every row
+  // defaulting to 0 from migration 008, the first new portfolio created
+  // post-migration becomes 1 and subsequent ones increment from there
+  // — preserving the FM's custom sort across creations.
+  const { data: maxRow } = await supabase
+    .from("portfolios")
+    .select("display_order")
+    .eq("fund_manager_id", user.id)
+    .order("display_order", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const nextOrder = ((maxRow?.display_order as number | null) ?? 0) + 1;
+
   // Paid portfolios are allowed pre-Stripe. Doplers see the "finalizing
   // setup" lock on paid tiers until the FM's stripe_onboarded flips true;
   // the /api/stripe/checkout handler is the final gate (it fails when
@@ -21,6 +35,7 @@ export async function POST(request: Request) {
       description: body.description,
       tier: body.tier,
       price_cents: body.price_cents,
+      display_order: nextOrder,
     })
     .select()
     .single();
