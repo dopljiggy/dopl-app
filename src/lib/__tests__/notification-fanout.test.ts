@@ -211,6 +211,92 @@ describe('fanOutPortfolioUpdate', () => {
     });
   });
 
+  it('sell with cost basis → enriched body + buy_price/realized_pnl_pct in meta (Sprint 17)', async () => {
+    const { client, inserted } = makeFakeSupabase({
+      portfolio,
+      subscriptions: [
+        { user_id: 'u1', portfolio_id: 'p-techgrowth', status: 'active' },
+      ],
+      positions: [],
+    });
+    await fanOutPortfolioUpdate(client, {
+      portfolio_id: 'p-techgrowth',
+      fund_manager_id: 'fm-alice',
+      changes: [
+        {
+          type: 'sell',
+          ticker: 'AAPL',
+          prevShares: 5,
+          price: 189.5,
+          buy_price: 142.3,
+          realized_pnl_pct: 33.1,
+        },
+      ],
+    });
+    const row = inserted.find((i) => i.table === 'notifications')!.rows[0];
+    // Body must surface all three values in the order described in the
+    // describeOneChange comment.
+    expect(row.body).toBe(
+      'sold AAPL · $189.50 · bought at $142.30 · +33.1% P&L'
+    );
+    expect(row.meta).toMatchObject({
+      buy_price: 142.3,
+      realized_pnl_pct: 33.1,
+      price: 189.5,
+    });
+  });
+
+  it('sell without cost basis → graceful body, no buy_price in meta (Sprint 17)', async () => {
+    const { client, inserted } = makeFakeSupabase({
+      portfolio,
+      subscriptions: [
+        { user_id: 'u1', portfolio_id: 'p-techgrowth', status: 'active' },
+      ],
+      positions: [],
+    });
+    await fanOutPortfolioUpdate(client, {
+      portfolio_id: 'p-techgrowth',
+      fund_manager_id: 'fm-alice',
+      changes: [
+        { type: 'sell', ticker: 'AAPL', prevShares: 5, price: 189.5 },
+      ],
+    });
+    const row = inserted.find((i) => i.table === 'notifications')!.rows[0];
+    expect(row.body).toBe('sold AAPL · $189.50');
+    expect((row.meta as Record<string, unknown>).buy_price).toBeUndefined();
+    expect(
+      (row.meta as Record<string, unknown>).realized_pnl_pct
+    ).toBeUndefined();
+  });
+
+  it('sell with negative P&L → minus sign formatted correctly (Sprint 17)', async () => {
+    const { client, inserted } = makeFakeSupabase({
+      portfolio,
+      subscriptions: [
+        { user_id: 'u1', portfolio_id: 'p-techgrowth', status: 'active' },
+      ],
+      positions: [],
+    });
+    await fanOutPortfolioUpdate(client, {
+      portfolio_id: 'p-techgrowth',
+      fund_manager_id: 'fm-alice',
+      changes: [
+        {
+          type: 'sell',
+          ticker: 'AAPL',
+          prevShares: 5,
+          price: 100,
+          buy_price: 142.3,
+          realized_pnl_pct: -29.7,
+        },
+      ],
+    });
+    const row = inserted.find((i) => i.table === 'notifications')!.rows[0];
+    expect(row.body).toBe(
+      'sold AAPL · $100.00 · bought at $142.30 · -29.7% P&L'
+    );
+  });
+
   it('sell on a ticker the dopler DOES hold elsewhere → actionable=true', async () => {
     const { client, inserted } = makeFakeSupabase({
       portfolio,

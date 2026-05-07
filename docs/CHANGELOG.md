@@ -5,6 +5,51 @@ Format: date, description, files, why, impact, testing, risks.
 
 ---
 
+## [2026-05-07] — Sprint 17: SnapTrade Cleanup + P&L + Trade Page + Sorting
+
+**Files changed:**
+- `src/app/api/snaptrade/cleanup/route.ts` — NEW: POST/GET. POST self-heals NULL `provider_auth_id` rows by matching `broker_name` against SnapTrade's `listBrokerageAuthorizations()` *before* the diff so a legitimate-but-unhealed migration-006 row isn't mistaken for a ghost. Then revokes any SnapTrade auth without a matching active `broker_connections` row. Returns `{ total, removed, remaining, healed }`. GET is a no-mutation diagnostic.
+- `src/app/api/snaptrade/connect/route.ts` — pre-flight `listBrokerageAuthorizations()` count check. Returns 429 with `{ error, limit: 5, current }` before bouncing the FM through OAuth when at the free-tier cap.
+- `src/app/api/broker/disconnect/route.ts` + `src/app/api/broker/connections/[id]/route.ts` — track upstream-revocation failure and return `{ ok: true, warning }` so the FM gets a toast hint to use the cleanup tool when the SnapTrade slot didn't free.
+- `src/components/connect/broker-connection-card.tsx` — reads `warning` from disconnect response and surfaces via `fireToast`.
+- `src/app/(dashboard)/dashboard/connect/connect-client.tsx` — adds a "clean up stale" button next to "sync all" + "add broker"; fires POST `/api/snaptrade/cleanup` and shows the count via toast.
+- `src/lib/sync-connection.ts` — `LiveHolding` gains `entry_price: number | null`. SnapTrade holdings loop captures `average_purchase_price` and weight-averages it across same-ticker accounts using running shares from BEFORE the bump (null on either side falls back to the known value). SaltEdge path sets `entry_price = null`. `existingByTicker` SELECT picks up `entry_price` + `current_price` so UPDATE branch can use `h.entry_price ?? found.entry_price ?? null` and never overwrite stored cost basis with null. Both INSERT and UPDATE compute `gain_loss_pct = ((current - entry) / entry) * 100`. Sold-detection passes sell `price`, `buy_price`, and `realized_pnl_pct` into the fanout change.
+- `src/lib/notification-fanout.ts` — `FanoutChange` sell variant gains optional `buy_price` + `realized_pnl_pct`. `describeOneChange` enriches sell body to "sold AAPL · $189.50 · bought at $142.30 · +33.1% P&L". Notification meta picks up `buy_price` + `realized_pnl_pct` for richer display later.
+- `src/app/api/positions/assign/route.ts` — DELETE handler's positions SELECT picks up `current_price` + `entry_price` so the unassign sell fanout carries cost basis through.
+- `src/app/(dashboard)/dashboard/positions/page.tsx` — positions SELECT + `PositionRow` type pick up `entry_price`.
+- `src/app/(dashboard)/dashboard/positions/positions-client.tsx` — refactored to import shared `PoolPane`. Page-level chrome (sync-all + export CSV + stats strip + assigned column) stays here. Pool entry-price hint + P/L% line now live in `pool-pane.tsx`.
+- `src/components/positions/pool-pane.tsx` — NEW: extracted from positions-client. Exports `PoolPane`, `formatMoney`, and the `PoolPosition` / `PoolConnection` / `PoolPortfolio` types. Manages its own `selected` / `assignTargetId` / `assigning` state and emits an `onChanged` callback after a successful assign.
+- `src/app/(dashboard)/dashboard/trade/page.tsx` + `trade-client.tsx` — NEW: unified Trade page. Server component fetches portfolios + active broker_connections + positions in parallel and splits into pool / assigned with `broker_name` lookup. Client renders portfolio list (left, reusing `ExpandablePortfolioCard`) and `PoolPane` (right). Mobile collapses to a "Portfolios | Pool" tab bar.
+- `src/app/(dashboard)/dashboard-chrome.tsx` — adds "trade" sidebar nav item with `ArrowLeftRight` icon, slotted between "overview" and "portfolios".
+- `supabase/migrations/008_portfolio_display_order.sql` — NEW: `ADD COLUMN IF NOT EXISTS display_order integer NOT NULL DEFAULT 0`. Idempotent; existing rows backfill via `DEFAULT 0`.
+- `supabase/schema.sql` + `src/types/database.ts` — `portfolios.display_order` declared in canonical schema and on the TypeScript interface.
+- `src/app/api/portfolios/route.ts` — POST stamps `display_order = max(existing for FM) + 1` so new portfolios land at the end of any custom-order list.
+- `src/app/api/portfolios/reorder/route.ts` — NEW: PATCH `{ order: [{ id, display_order }] }` with per-row ownership check. Bulk re-stamps `display_order`.
+- `src/components/portfolios/portfolio-sort.tsx` — NEW: exports `sortPortfolios()` + `<PortfolioSortDropdown>` + `usePortfolioReorder()` hook + `<PortfolioReorderArrows>`. Five sorts: date / value / positions / subscribers / custom. Custom mode tiebreaker is `display_order ASC, created_at ASC`. Reorder hook keeps an in-memory `display_order` override Map for instant optimistic swaps and persists to `/api/portfolios/reorder`.
+- `src/app/(dashboard)/dashboard/portfolios/portfolios-client.tsx` + `src/app/(dashboard)/dashboard/trade/trade-client.tsx` — both render the sort dropdown when N > 1 and the up/down arrow pair next to each card when sortKey === "custom".
+- `src/lib/__tests__/notification-fanout.test.ts` — three new tests covering enriched-body / no-cost-basis / negative-P&L sell variants.
+- `src/app/api/portfolios/reorder/__tests__/route.test.ts` — NEW: 401/400/403/200 coverage for the reorder endpoint, including the missing-row attack guard.
+
+**Why:** Sprint 15/16 multi-broker testing was blocked by SnapTrade's free-tier "Connection Limit Reached" — ghost authorizations accumulated because our disconnect flow swallowed upstream revocation failures. Sprint 17 fixes the trap (cleanup tool + pre-flight + warning surface), then layers in three product asks the team raised during the same smoke pass: cost-basis tracking + enriched sell notifications, a unified Trade page that co-locates portfolios and pool, and persistent custom sorting on the portfolio list.
+
+**Impact:**
+- FMs hitting "Connection Limit Reached" can clean up ghost auths from the connect page; pre-flight catches the cap before OAuth; failed upstream revokes surface a "use the cleanup tool" toast.
+- SnapTrade-synced positions now carry cost basis + computed gain/loss. Pool rows show "5 sh @ $142.30" + a P/L% line. Portfolio cards (existing) inherit the same data automatically because `current_price` and `gain_loss_pct` were already in their query.
+- Sell notifications upgrade from "sold AAPL" / "sold AAPL · $189.50" to "sold AAPL · $189.50 · bought at $142.30 · +33.1% P&L" when cost basis is known. Graceful degradation when it isn't.
+- New `/dashboard/trade` page co-locates portfolios + pool. Sidebar nav gets "trade" as the second item; `/portfolios` and `/positions` stay as focused single-pane views.
+- Sort dropdown on both Trade and Portfolios pages (5 options). Custom mode shows up/down arrow buttons next to each card and persists order via `display_order`.
+
+**Testing:** 151/151 tests passing across 27 files (143 → 151). Build compiles cleanly. Manual smoke pending on `dopl-app.vercel.app` after merge + migration 008.
+
+**Risks:**
+- Migration 008 must run in Supabase before the sort dropdown's "custom" mode persists order on prod. Without it, the reorder PATCH still writes `display_order`, but every column resolves to 0 (the previous default) so order won't survive a refresh.
+- SnapTrade SDK type cast: `average_purchase_price` is read via `(pos as { average_purchase_price?: number })` because the SDK shape we have doesn't expose it on `Position`. If SnapTrade changes the field name in a future SDK rev, cost basis silently goes back to null — the UPDATE branch's fallback to stored `entry_price` keeps existing data intact.
+- Cleanup tool revokes SnapTrade authorizations. A bug in the self-heal step would orphan a legitimate connection; the bug class is "treating an unhealed row as a ghost." Mitigations: self-heal runs BEFORE the diff; revoke happens via `removeBrokerageAuthorization` with explicit logging; manual smoke verifies on prod with a known-multi-connection FM.
+- `@hello-pangea/dnd` deferred — Task 8b (cross-list drag) skipped per the plan's scope guard. Up/down arrows cover Task 8a; revisit drag if the team needs it.
+- Trade page composes existing client components — the bundle picks up `recharts` (donut) on first nav even when the FM is on the pool tab. If this hurts mobile load, code-split `ExpandablePortfolioCard` later.
+
+---
+
 ## [2026-05-06] — Sprint 16: Post-Smoke Polish — Toast, Scroll, Positions UX, Portfolio Delete, Market Value
 
 **Files changed:**
