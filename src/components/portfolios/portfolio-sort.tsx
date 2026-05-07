@@ -100,8 +100,7 @@ export function PortfolioSortDropdown({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value as PortfolioSortKey)}
-        className="glass-card-light rounded-xl px-3 py-1.5 text-xs text-[color:var(--dopl-cream)] focus:outline-none focus:border-[color:var(--dopl-lime)]/50 appearance-none bg-[length:12px] bg-[right_8px_center] bg-no-repeat"
-        style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23F3EFE8' stroke-opacity='0.4' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, paddingRight: '24px' }}
+        className="glass-card-light rounded-xl px-3 py-1.5 pr-7 text-xs text-[color:var(--dopl-cream)] focus:outline-none focus:border-[color:var(--dopl-lime)]/50"
       >
         {PORTFOLIO_SORT_OPTIONS.map((o) => (
           <option key={o.value} value={o.value}>
