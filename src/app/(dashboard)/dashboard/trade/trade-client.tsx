@@ -151,9 +151,9 @@ export default function TradeClient({
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
-        <h1 className="font-display text-3xl font-semibold">Trade</h1>
-        <div className="flex items-center gap-3 flex-wrap">
+      <div className="mb-4">
+        <h1 className="font-display text-3xl font-semibold mb-3">Trade</h1>
+        <div className="flex items-center gap-2 flex-wrap">
           {portfolios.length > 1 && (
             <PortfolioSortDropdown value={sortKey} onChange={setSortKey} />
           )}
@@ -163,21 +163,17 @@ export default function TradeClient({
               syncing ||
               connections.filter((c) => c.provider !== "manual").length === 0
             }
-            className="glass-card-light px-4 py-2 text-sm flex items-center gap-2 hover:bg-[color:var(--dopl-sage)]/40 transition-colors disabled:opacity-40"
+            className="glass-card-light rounded-xl px-3 py-1.5 text-xs flex items-center gap-1.5 hover:bg-[color:var(--dopl-sage)]/40 transition-colors disabled:opacity-40"
           >
             {syncing ? (
-              <Loader2 size={14} className="animate-spin" />
+              <Loader2 size={12} className="animate-spin" />
             ) : (
-              <RefreshCw size={14} />
+              <RefreshCw size={12} />
             )}
-            {syncing ? "syncing…" : "sync all"}
+            {syncing ? "syncing…" : "sync"}
           </button>
         </div>
       </div>
-      <p className="text-[color:var(--dopl-cream)]/50 text-sm mb-4">
-        portfolios on the left, broker pool on the right — assign in one
-        place.
-      </p>
 
       <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-6">
         <button
@@ -185,9 +181,8 @@ export default function TradeClient({
           onClick={() => setShowMobilePool(true)}
           className="glass-card-light rounded-2xl px-3 py-3 sm:px-4 border-l-2 border-[color:var(--dopl-lime)]/55 text-left lg:cursor-default lg:pointer-events-none"
         >
-          <p className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/45 mb-1 flex items-center gap-1.5">
+          <p className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/45 mb-1">
             pool
-            <span className="lg:hidden text-[color:var(--dopl-lime)]/60">tap to view ↗</span>
           </p>
           <p className="font-display text-xl sm:text-2xl font-semibold tabular-nums leading-none">
             {pool.length}
@@ -300,7 +295,7 @@ export default function TradeClient({
         </section>
       </div>
 
-      {/* Mobile: bottom-sheet triggered by pool stat card */}
+      {/* Mobile: centered pool modal triggered by pool stat card */}
       <div className="lg:hidden">
         <AnimatePresence>
           {showMobilePool && (
@@ -308,21 +303,20 @@ export default function TradeClient({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[70]"
+              className="fixed inset-0 z-[70] flex items-center justify-center p-4"
               onClick={() => setShowMobilePool(false)}
             >
               <div className="absolute inset-0 bg-[color:var(--dopl-deep)]/70 backdrop-blur-sm" />
               <motion.div
-                initial={{ y: "100%" }}
-                animate={{ y: 0 }}
-                exit={{ y: "100%" }}
-                transition={{ type: "spring", damping: 28, stiffness: 300 }}
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.97, y: 10 }}
+                transition={{ duration: 0.25, ease: [0.2, 0.7, 0.2, 1] }}
                 onClick={(e) => e.stopPropagation()}
-                className="absolute bottom-0 left-0 right-0 max-h-[85vh] overflow-y-auto rounded-t-2xl glass-card glass-card-strong p-5 pt-3"
+                className="relative w-full max-w-lg max-h-[80vh] overflow-y-auto rounded-2xl glass-card glass-card-strong p-5"
               >
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-1 rounded-full bg-[color:var(--dopl-cream)]/20 mx-auto absolute top-2 left-1/2 -translate-x-1/2" />
                     <h2 className="font-display text-lg font-semibold">Pool</h2>
                     <span className="text-xs text-[color:var(--dopl-cream)]/40 font-mono">
                       {pool.length} positions

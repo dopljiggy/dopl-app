@@ -40,6 +40,7 @@ const sideNav = [
 
 const bottomNav = [
   { href: "/dashboard", icon: Home, label: "home" },
+  { href: "/dashboard/trade", icon: ArrowLeftRight, label: "trade" },
   { href: "/dashboard/portfolios", icon: Briefcase, label: "portfolios" },
   { href: "/dashboard/share", icon: Share2, label: "share" },
   { href: "/dashboard/profile", icon: Settings, label: "settings" },
