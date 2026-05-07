@@ -175,22 +175,24 @@ export function usePortfolioReorder<P extends SortablePortfolio>(
   return { effective, move };
 }
 
-/** Up/down arrow pair shown beside a portfolio card in custom-order mode. */
+/** Up/down arrow pair with position badge shown beside a portfolio card in custom-order mode. */
 export function PortfolioReorderArrows({
   onUp,
   onDown,
   canUp,
   canDown,
+  position,
 }: {
   onUp: () => void;
   onDown: () => void;
   canUp: boolean;
   canDown: boolean;
+  position: number;
 }) {
   const baseBtn =
     "w-8 h-8 rounded-lg flex items-center justify-center transition-colors disabled:opacity-30 disabled:cursor-not-allowed";
   return (
-    <div className="flex flex-col gap-1 self-start mt-2 flex-shrink-0">
+    <div className="flex flex-col items-center gap-1 self-start mt-2 flex-shrink-0">
       <button
         type="button"
         onClick={onUp}
@@ -200,6 +202,9 @@ export function PortfolioReorderArrows({
       >
         <ChevronUp size={14} />
       </button>
+      <span className="w-6 h-6 rounded-full bg-[color:var(--dopl-sage)]/30 text-[10px] font-mono flex items-center justify-center text-[color:var(--dopl-cream)]/60">
+        {position}
+      </span>
       <button
         type="button"
         onClick={onDown}

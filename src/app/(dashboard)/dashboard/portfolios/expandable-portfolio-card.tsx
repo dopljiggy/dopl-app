@@ -341,7 +341,7 @@ export default function ExpandablePortfolioCard({
                               data={donutData}
                               innerRadius={45}
                               outerRadius={80}
-                              paddingAngle={2}
+                              paddingAngle={0.5}
                               dataKey="value"
                               stroke="none"
                             >

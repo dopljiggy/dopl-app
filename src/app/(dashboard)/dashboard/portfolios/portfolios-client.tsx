@@ -267,6 +267,7 @@ export default function PortfoliosClient({
                       onDown={() => void move(sortedPortfolios, p.id, "down")}
                       canUp={idx > 0}
                       canDown={idx < sortedPortfolios.length - 1}
+                      position={idx + 1}
                     />
                     <div className="flex-1 min-w-0">{card}</div>
                   </div>
