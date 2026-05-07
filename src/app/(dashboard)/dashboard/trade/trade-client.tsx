@@ -179,7 +179,7 @@ export default function TradeClient({
         <button
           type="button"
           onClick={() => setShowMobilePool(true)}
-          className="glass-card-light rounded-2xl px-3 py-3 sm:px-4 border-l-2 border-[color:var(--dopl-lime)]/55 text-left lg:cursor-default lg:pointer-events-none max-lg:border max-lg:border-[color:var(--dopl-lime)]/30 max-lg:hover:border-[color:var(--dopl-lime)]/50 transition-colors"
+          className="rounded-2xl px-3 py-3 sm:px-4 text-left lg:cursor-default lg:pointer-events-none border border-[color:var(--dopl-lime)]/30 bg-[color:var(--dopl-lime)]/[0.04] transition-colors"
         >
           <p className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/45 mb-1">
             pool
