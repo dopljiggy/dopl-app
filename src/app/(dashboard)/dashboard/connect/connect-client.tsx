@@ -5,6 +5,7 @@ import {
   Loader2,
   Plus,
   RefreshCw,
+  Sparkles,
   X,
   AlertCircle,
 } from "lucide-react";
@@ -52,6 +53,7 @@ export default function ConnectClient({
   const [adding, setAdding] = useState<"snaptrade" | "saltedge" | null>(null);
   const [error, setError] = useState<string | null>(errorMessage);
   const [syncingAll, setSyncingAll] = useState(false);
+  const [cleaningUp, setCleaningUp] = useState(false);
 
   // Suppress unused props — Sprint 15 doesn't need them but keeping the
   // signature lets future flows (e.g. pre-checking customer existence
@@ -142,6 +144,44 @@ export default function ConnectClient({
     }
   };
 
+  // Sprint 17: ghost SnapTrade authorizations accumulate when disconnects
+  // fail upstream. Cleanup diffs SnapTrade's auth list against our active
+  // broker_connections rows and revokes anything we don't own — frees
+  // slots so FMs hitting "Connection Limit Reached" can connect again.
+  const cleanupSnaptrade = async () => {
+    setCleaningUp(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/snaptrade/cleanup", { method: "POST" });
+      const data = (await res.json()) as {
+        total?: number;
+        removed?: number;
+        remaining?: number;
+        healed?: number;
+        error?: string;
+      };
+      if (!res.ok) throw new Error(data.error ?? "cleanup failed");
+      const removed = data.removed ?? 0;
+      const remaining = data.remaining ?? 0;
+      const healed = data.healed ?? 0;
+      fireToast({
+        title:
+          removed > 0
+            ? `cleaned up ${removed} stale connection${removed === 1 ? "" : "s"}`
+            : "no stale connections found",
+        body:
+          healed > 0
+            ? `${remaining} active · healed ${healed} migrated row${healed === 1 ? "" : "s"}`
+            : `${remaining} active connection${remaining === 1 ? "" : "s"} remain`,
+      });
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "cleanup failed");
+    } finally {
+      setCleaningUp(false);
+    }
+  };
+
   return (
     <div>
       <div className="flex items-start justify-between gap-4 mb-2 flex-wrap">
@@ -155,10 +195,23 @@ export default function ConnectClient({
           </p>
         </div>
         {connections.length > 0 && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={cleanupSnaptrade}
+              disabled={cleaningUp || syncingAll}
+              title="revoke ghost SnapTrade authorizations to free a slot"
+              className="glass-card-light rounded-xl px-3 py-2 text-xs flex items-center gap-2 hover:bg-[color:var(--dopl-sage)]/40 transition-colors disabled:opacity-50"
+            >
+              {cleaningUp ? (
+                <Loader2 size={13} className="animate-spin" />
+              ) : (
+                <Sparkles size={13} />
+              )}
+              {cleaningUp ? "cleaning…" : "clean up stale"}
+            </button>
             <button
               onClick={syncAll}
-              disabled={syncingAll}
+              disabled={syncingAll || cleaningUp}
               className="glass-card-light rounded-xl px-3 py-2 text-xs flex items-center gap-2 hover:bg-[color:var(--dopl-sage)]/40 transition-colors disabled:opacity-50"
             >
               {syncingAll ? (

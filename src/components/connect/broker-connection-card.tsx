@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { GlassCard } from "@/components/ui/glass-card";
+import { fireToast } from "@/components/ui/toast";
 
 export type ConnectionCardData = {
   id: string;
@@ -109,9 +110,20 @@ export function BrokerConnectionCard({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ connection_id: connection.id }),
       });
+      const j = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        warning?: string;
+      };
       if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
         throw new Error(j.error ?? "disconnect failed");
+      }
+      // Sprint 17: surface upstream-revoke failures so FMs know to run
+      // the cleanup tool instead of assuming the SnapTrade slot is free.
+      if (j.warning) {
+        fireToast({
+          title: "disconnected — upstream cleanup pending",
+          body: j.warning,
+        });
       }
       onDisconnected();
     } catch (e) {
