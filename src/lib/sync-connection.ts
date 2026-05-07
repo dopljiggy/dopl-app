@@ -51,6 +51,11 @@ interface LiveHolding {
   shares: number | null;
   current_price: number | null;
   market_value: number | null;
+  // Sprint 17: cost basis from SnapTrade `average_purchase_price`. Null
+  // when the broker doesn't expose it (SaltEdge, manual entries, or a
+  // sync round where SnapTrade omits it for a given account). Aggregated
+  // across same-ticker accounts using a shares-weighted mean.
+  entry_price: number | null;
   asset_type: "stock" | "etf" | "crypto" | "option" | "other";
 }
 
@@ -149,9 +154,27 @@ export async function syncSnaptradeConnection(
         // so the unique(broker_connection_id, ticker) constraint never trips.
         const shares = pos.units ?? 0;
         const price = pos.price ?? null;
+        const entryPrice =
+          (pos as { average_purchase_price?: number }).average_purchase_price ??
+          null;
         const market = price != null && shares != null ? shares * price : null;
         if (existing) {
-          existing.shares = (existing.shares ?? 0) + shares;
+          // Weight-average entry price using existing shares BEFORE the
+          // bump. Null on either side falls back to the known value
+          // rather than treating null as 0.
+          const oldShares = existing.shares ?? 0;
+          if (
+            existing.entry_price != null &&
+            entryPrice != null &&
+            oldShares + shares > 0
+          ) {
+            existing.entry_price =
+              (existing.entry_price * oldShares + entryPrice * shares) /
+              (oldShares + shares);
+          } else {
+            existing.entry_price = existing.entry_price ?? entryPrice;
+          }
+          existing.shares = oldShares + shares;
           existing.market_value =
             (existing.market_value ?? 0) + (market ?? 0);
           existing.current_price = price ?? existing.current_price;
@@ -162,6 +185,7 @@ export async function syncSnaptradeConnection(
             shares,
             current_price: price,
             market_value: market,
+            entry_price: entryPrice,
             asset_type: "stock",
           });
         }
@@ -207,6 +231,9 @@ export async function syncSaltedgeConnection(
     const accounts = await saltedge.listAccounts(seConnId);
     const positions = extractPositions(accounts);
     // Aggregate intra-connection by ticker (same as SnapTrade path).
+    // SaltEdge doesn't expose cost basis at the position level — we
+    // leave entry_price null and let UPDATE branch fall back to any
+    // value already stored from a previous sync.
     for (const p of positions) {
       const norm = p.ticker.trim().toUpperCase();
       const existing = live.get(norm);
@@ -222,6 +249,7 @@ export async function syncSaltedgeConnection(
           shares: p.shares,
           current_price: p.current_price,
           market_value: p.market_value,
+          entry_price: null,
           asset_type: p.asset_type,
         });
       }
@@ -251,9 +279,13 @@ async function applySync(
 
   // Pull existing positions for this connection to drive both the
   // INSERT-vs-UPDATE branch and the sold-detection diff in one query.
+  // Sprint 17: pull entry_price + current_price too so we can fall
+  // back to stored values when SnapTrade omits average_purchase_price
+  // for a sync round, and so the sold-detection branch has the data
+  // it needs to populate buy_price + realized P&L on the sell fanout.
   const { data: existing } = await admin
     .from("positions")
-    .select("id, ticker, portfolio_id, shares")
+    .select("id, ticker, portfolio_id, shares, entry_price, current_price")
     .eq("broker_connection_id", connection.id);
 
   const existingByTicker = new Map<
@@ -263,6 +295,8 @@ async function applySync(
       portfolio_id: string | null;
       shares: number | null;
       ticker: string;
+      entry_price: number | null;
+      current_price: number | null;
     }
   >();
   for (const row of (existing ?? []) as {
@@ -270,12 +304,16 @@ async function applySync(
     ticker: string;
     portfolio_id: string | null;
     shares: number | null;
+    entry_price: number | null;
+    current_price: number | null;
   }[]) {
     existingByTicker.set(row.ticker.trim().toUpperCase(), {
       id: row.id,
       portfolio_id: row.portfolio_id,
       shares: row.shares,
       ticker: row.ticker,
+      entry_price: row.entry_price,
+      current_price: row.current_price,
     });
   }
 
@@ -283,6 +321,10 @@ async function applySync(
   for (const [norm, h] of live) {
     const found = existingByTicker.get(norm);
     if (found) {
+      // h.entry_price ?? found.entry_price keeps a previously-stored
+      // cost basis intact when this round's broker payload omits it.
+      const resolvedEntry = h.entry_price ?? found.entry_price ?? null;
+      const resolvedPrice = h.current_price ?? found.current_price ?? null;
       await admin
         .from("positions")
         .update({
@@ -290,6 +332,11 @@ async function applySync(
           current_price: h.current_price,
           market_value: h.market_value,
           name: h.name || undefined,
+          entry_price: resolvedEntry,
+          gain_loss_pct:
+            resolvedEntry && resolvedPrice
+              ? ((resolvedPrice - resolvedEntry) / resolvedEntry) * 100
+              : null,
           last_synced: now,
         })
         .eq("id", found.id);
@@ -303,6 +350,11 @@ async function applySync(
         current_price: h.current_price,
         market_value: h.market_value,
         asset_type: h.asset_type,
+        entry_price: h.entry_price,
+        gain_loss_pct:
+          h.entry_price && h.current_price
+            ? ((h.current_price - h.entry_price) / h.entry_price) * 100
+            : null,
         last_synced: now,
       });
     }

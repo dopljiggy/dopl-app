@@ -41,6 +41,8 @@ interface PositionRow {
   market_value: number | null;
   allocation_pct: number | null;
   gain_loss_pct: number | null;
+  // Sprint 17: cost basis (SnapTrade `average_purchase_price`).
+  entry_price: number | null;
   portfolio_id: string | null;
   broker_connection_id: string | null;
   last_synced: string | null;
@@ -752,10 +754,13 @@ function PoolSection({
                 {p.shares != null && (
                   <p className="text-[color:var(--dopl-cream)]/45">
                     {p.shares} sh
+                    {p.entry_price != null
+                      ? ` @ $${Number(p.entry_price).toFixed(2)}`
+                      : ""}
                   </p>
                 )}
               </div>
-              <div className="text-right text-[11px] font-mono tabular-nums w-16">
+              <div className="text-right text-[11px] font-mono tabular-nums w-20">
                 {p.market_value != null && (
                   <p
                     className={
@@ -767,6 +772,18 @@ function PoolSection({
                     }
                   >
                     ${Number(p.market_value).toFixed(0)}
+                  </p>
+                )}
+                {p.gain_loss_pct != null && (
+                  <p
+                    className={
+                      p.gain_loss_pct >= 0
+                        ? "text-[color:var(--dopl-lime)]/65"
+                        : "text-red-400/55"
+                    }
+                  >
+                    {p.gain_loss_pct >= 0 ? "+" : ""}
+                    {p.gain_loss_pct.toFixed(1)}%
                   </p>
                 )}
               </div>
