@@ -303,11 +303,13 @@ export async function DELETE(request: Request) {
   const admin = createAdminClient();
 
   // Pull positions + their portfolio's FM id in one shot for ownership +
-  // the per-portfolio recalc/fanout pass.
+  // the per-portfolio recalc/fanout pass. Sprint 17: also fetch
+  // current_price + entry_price so the unassign sell fanout carries
+  // sell price + buy price + realized P&L into the dopler push.
   const { data: positions } = await admin
     .from("positions")
     .select(
-      "id, ticker, shares, portfolio_id, broker_connection_id, portfolios(fund_manager_id)"
+      "id, ticker, shares, current_price, entry_price, portfolio_id, broker_connection_id, portfolios(fund_manager_id)"
     )
     .in("id", ids);
 
@@ -365,14 +367,28 @@ export async function DELETE(request: Request) {
 
   // Sell fanout — emits sell change per ticker so subscribers get a
   // per-ticker push. The position is NOT deleted (lives in pool now)
-  // but for subscribers it's "gone from this portfolio".
+  // but for subscribers it's "gone from this portfolio". Sprint 17:
+  // pass current_price + entry_price + realized P&L so the dopler
+  // push reads "sold AAPL · $189 · bought at $142 · +33.1% P&L".
   for (const pos of positions as Array<{
     id: string;
     ticker: string;
     shares: number | null;
+    current_price: number | null;
+    entry_price: number | null;
     portfolio_id: string | null;
   }>) {
     if (!pos.portfolio_id) continue; // pool→pool noop
+    const sellPrice =
+      pos.current_price != null ? Number(pos.current_price) : undefined;
+    const buyPrice =
+      pos.entry_price != null ? Number(pos.entry_price) : undefined;
+    const realized =
+      pos.entry_price != null && pos.current_price != null
+        ? ((Number(pos.current_price) - Number(pos.entry_price)) /
+            Number(pos.entry_price)) *
+          100
+        : undefined;
     try {
       await fanOutPortfolioUpdate(admin, {
         portfolio_id: pos.portfolio_id,
@@ -382,6 +398,9 @@ export async function DELETE(request: Request) {
             type: "sell",
             ticker: pos.ticker,
             prevShares: Number(pos.shares) || 0,
+            price: sellPrice,
+            buy_price: buyPrice,
+            realized_pnl_pct: realized,
           },
         ],
         description: `removed ${pos.ticker}`,

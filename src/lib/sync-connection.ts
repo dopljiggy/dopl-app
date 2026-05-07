@@ -368,6 +368,19 @@ async function applySync(
       if (live.has(norm)) continue;
       // Position no longer at broker. Delete + (if assigned) fanout sell.
       if (prev.portfolio_id) {
+        // Sprint 17: enrich sell fanout with the position's last known
+        // cost basis + price so doplers see "sold AAPL · $189 · bought
+        // at $142 · +33.1% P&L" instead of the bare ticker line.
+        const sellPrice =
+          prev.current_price != null ? Number(prev.current_price) : undefined;
+        const buyPrice =
+          prev.entry_price != null ? Number(prev.entry_price) : undefined;
+        const realized =
+          prev.entry_price != null && prev.current_price != null
+            ? ((Number(prev.current_price) - Number(prev.entry_price)) /
+                Number(prev.entry_price)) *
+              100
+            : undefined;
         try {
           await fanOutPortfolioUpdate(admin, {
             portfolio_id: prev.portfolio_id,
@@ -377,6 +390,9 @@ async function applySync(
                 type: "sell",
                 ticker: prev.ticker,
                 prevShares: Number(prev.shares) || 0,
+                price: sellPrice,
+                buy_price: buyPrice,
+                realized_pnl_pct: realized,
               },
             ],
             description: `removed ${prev.ticker}`,

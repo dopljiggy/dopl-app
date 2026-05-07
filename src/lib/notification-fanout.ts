@@ -17,7 +17,18 @@ export type FanoutChange =
       price?: number;
       allocation_pct?: number;
     }
-  | { type: "sell"; ticker: string; prevShares: number; price?: number }
+  | {
+      type: "sell";
+      ticker: string;
+      prevShares: number;
+      price?: number;
+      // Sprint 17: cost basis + realized P&L surfaced on sell
+      // notifications. Optional so callers without cost-basis data
+      // (legacy positions, SaltEdge, manual entries with no entry
+      // price) still produce a clean "sold X · $Y" body.
+      buy_price?: number;
+      realized_pnl_pct?: number;
+    }
   | {
       type: "rebalance";
       ticker: string;
@@ -155,6 +166,10 @@ export async function fanOutPortfolioUpdate(
           price: "price" in change ? change.price : undefined,
           allocation_pct:
             "allocation_pct" in change ? change.allocation_pct : undefined,
+          // Sprint 17: cost basis + realized P&L on sell notifications.
+          buy_price: "buy_price" in change ? change.buy_price : undefined,
+          realized_pnl_pct:
+            "realized_pnl_pct" in change ? change.realized_pnl_pct : undefined,
           portfolio_id: input.portfolio_id,
           ...(input.meta_extend ?? {}),
         },
@@ -302,6 +317,18 @@ function describeOneChange(
   if (change.price != null) parts.push(`$${change.price.toFixed(2)}`);
   if (change.type === "buy" && change.allocation_pct != null) {
     parts.push(`${change.allocation_pct.toFixed(0)}% allocation`);
+  }
+  // Sprint 17: enriched sell body — "sold AAPL · $189.50 · bought at
+  // $142.30 · +33.1% P&L". Each clause is optional so callers without
+  // cost basis still get a clean string.
+  if (change.type === "sell") {
+    if (change.buy_price != null) {
+      parts.push(`bought at $${change.buy_price.toFixed(2)}`);
+    }
+    if (change.realized_pnl_pct != null) {
+      const sign = change.realized_pnl_pct >= 0 ? "+" : "";
+      parts.push(`${sign}${change.realized_pnl_pct.toFixed(1)}% P&L`);
+    }
   }
   let body = parts.join(" · ");
   const thesis = thesisNote?.trim();
