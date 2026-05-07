@@ -12,8 +12,10 @@ import ExpandablePortfolioCard, {
 import { SubmitButton } from "@/components/ui/submit-button";
 import { InlineError } from "@/components/ui/inline-error";
 import {
+  PortfolioReorderArrows,
   PortfolioSortDropdown,
   sortPortfolios,
+  usePortfolioReorder,
   type PortfolioSortKey,
 } from "@/components/portfolios/portfolio-sort";
 
@@ -116,9 +118,12 @@ export default function PortfoliosClient({
     return map;
   }, [positionsByPortfolio]);
 
+  const { effective: effectivePortfolios, move } = usePortfolioReorder(
+    portfolios
+  );
   const sortedPortfolios = useMemo(
-    () => sortPortfolios(portfolios, sortKey, totalsByPortfolio),
-    [portfolios, sortKey, totalsByPortfolio]
+    () => sortPortfolios(effectivePortfolios, sortKey, totalsByPortfolio),
+    [effectivePortfolios, sortKey, totalsByPortfolio]
   );
 
   // Auto-refresh when the user returns from the Stripe tab so the lock
@@ -228,19 +233,8 @@ export default function PortfoliosClient({
         </GlassCard>
       ) : (
         <div className="space-y-4">
-          {sortedPortfolios.map((p) => (
-            <div key={p.id}>
-              {p.tier !== "free" && !stripeOnboarded && (
-                <button
-                  type="button"
-                  onClick={launchStripe}
-                  disabled={stripeLaunching}
-                  className="text-[10px] uppercase tracking-[0.2em] text-amber-300/70 hover:text-amber-200 font-mono mb-1 flex items-center gap-1.5 transition-colors disabled:opacity-60"
-                >
-                  <Lock size={10} />
-                  {stripeLaunching ? "opening stripe..." : "set up stripe to publish →"}
-                </button>
-              )}
+          {sortedPortfolios.map((p, idx) => {
+            const card = (
               <ExpandablePortfolioCard
                 portfolio={p}
                 positions={positionsByPortfolio.get(p.id) ?? []}
@@ -251,8 +245,37 @@ export default function PortfoliosClient({
                 onDelete={() => handleDelete(p.id)}
                 brokerProvider={brokerProvider}
               />
-            </div>
-          ))}
+            );
+            const showArrows = sortKey === "custom" && sortedPortfolios.length > 1;
+            return (
+              <div key={p.id}>
+                {p.tier !== "free" && !stripeOnboarded && (
+                  <button
+                    type="button"
+                    onClick={launchStripe}
+                    disabled={stripeLaunching}
+                    className="text-[10px] uppercase tracking-[0.2em] text-amber-300/70 hover:text-amber-200 font-mono mb-1 flex items-center gap-1.5 transition-colors disabled:opacity-60"
+                  >
+                    <Lock size={10} />
+                    {stripeLaunching ? "opening stripe..." : "set up stripe to publish →"}
+                  </button>
+                )}
+                {showArrows ? (
+                  <div className="flex items-stretch gap-2">
+                    <PortfolioReorderArrows
+                      onUp={() => void move(sortedPortfolios, p.id, "up")}
+                      onDown={() => void move(sortedPortfolios, p.id, "down")}
+                      canUp={idx > 0}
+                      canDown={idx < sortedPortfolios.length - 1}
+                    />
+                    <div className="flex-1 min-w-0">{card}</div>
+                  </div>
+                ) : (
+                  card
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 

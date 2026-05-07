@@ -15,8 +15,10 @@ import ExpandablePortfolioCard, {
   type PositionRow as AssignedPositionRow,
 } from "../portfolios/expandable-portfolio-card";
 import {
+  PortfolioReorderArrows,
   PortfolioSortDropdown,
   sortPortfolios,
+  usePortfolioReorder,
   type PortfolioSortKey,
 } from "@/components/portfolios/portfolio-sort";
 import type { Portfolio } from "@/types/database";
@@ -82,9 +84,12 @@ export default function TradeClient({
     return map;
   }, [positionsByPortfolio]);
 
+  const { effective: effectivePortfolios, move } = usePortfolioReorder(
+    portfolios
+  );
   const sortedPortfolios = useMemo(
-    () => sortPortfolios(portfolios, sortKey, totalsByPortfolio),
-    [portfolios, sortKey, totalsByPortfolio]
+    () => sortPortfolios(effectivePortfolios, sortKey, totalsByPortfolio),
+    [effectivePortfolios, sortKey, totalsByPortfolio]
   );
 
   // Stats-strip totals — same shape as the positions page for visual
@@ -271,19 +276,41 @@ export default function TradeClient({
             </div>
           ) : (
             <div className="space-y-4">
-              {sortedPortfolios.map((p) => (
-                <ExpandablePortfolioCard
-                  key={p.id}
-                  portfolio={p}
-                  positions={positionsByPortfolio.get(p.id) ?? []}
-                  isExpanded={expandedId === p.id}
-                  onToggle={() =>
-                    setExpandedId(expandedId === p.id ? null : p.id)
-                  }
-                  onDelete={() => handleDelete(p.id)}
-                  brokerProvider={brokerProvider}
-                />
-              ))}
+              {sortedPortfolios.map((p, idx) => {
+                const showArrows =
+                  sortKey === "custom" && sortedPortfolios.length > 1;
+                const card = (
+                  <ExpandablePortfolioCard
+                    portfolio={p}
+                    positions={positionsByPortfolio.get(p.id) ?? []}
+                    isExpanded={expandedId === p.id}
+                    onToggle={() =>
+                      setExpandedId(expandedId === p.id ? null : p.id)
+                    }
+                    onDelete={() => handleDelete(p.id)}
+                    brokerProvider={brokerProvider}
+                  />
+                );
+                return (
+                  <div key={p.id}>
+                    {showArrows ? (
+                      <div className="flex items-stretch gap-2">
+                        <PortfolioReorderArrows
+                          onUp={() => void move(sortedPortfolios, p.id, "up")}
+                          onDown={() =>
+                            void move(sortedPortfolios, p.id, "down")
+                          }
+                          canUp={idx > 0}
+                          canDown={idx < sortedPortfolios.length - 1}
+                        />
+                        <div className="flex-1 min-w-0">{card}</div>
+                      </div>
+                    ) : (
+                      card
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </section>
