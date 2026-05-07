@@ -14,6 +14,7 @@ import {
   TrendingUp,
   Home,
   Settings,
+  ArrowLeftRight,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import PageTransition from "@/components/ui/page-transition";
@@ -25,6 +26,9 @@ import FmNotificationBell from "@/components/ui/fm-notification-bell";
 
 const sideNav = [
   { href: "/dashboard", icon: LayoutDashboard, label: "overview" },
+  // Sprint 17: trade page consolidates portfolios + pool on one screen.
+  // The standalone /portfolios + /positions pages stay for focused views.
+  { href: "/dashboard/trade", icon: ArrowLeftRight, label: "trade" },
   { href: "/dashboard/portfolios", icon: Briefcase, label: "portfolios" },
   { href: "/dashboard/positions", icon: TrendingUp, label: "positions" },
   { href: "/dashboard/doplers", icon: Users, label: "doplers" },
