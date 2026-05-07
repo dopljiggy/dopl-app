@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Loader2, RefreshCw, Wallet, X } from "lucide-react";
+import { Loader2, RefreshCw, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { fireToast } from "@/components/ui/toast";
@@ -180,9 +180,14 @@ export default function TradeClient({
       </p>
 
       <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-6">
-        <div className="glass-card-light rounded-2xl px-3 py-3 sm:px-4 border-l-2 border-[color:var(--dopl-lime)]/55">
-          <p className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/45 mb-1">
+        <button
+          type="button"
+          onClick={() => setShowMobilePool(true)}
+          className="glass-card-light rounded-2xl px-3 py-3 sm:px-4 border-l-2 border-[color:var(--dopl-lime)]/55 text-left lg:cursor-default lg:pointer-events-none"
+        >
+          <p className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/45 mb-1 flex items-center gap-1.5">
             pool
+            <span className="lg:hidden text-[color:var(--dopl-lime)]/60">tap to view ↗</span>
           </p>
           <p className="font-display text-xl sm:text-2xl font-semibold tabular-nums leading-none">
             {pool.length}
@@ -190,7 +195,7 @@ export default function TradeClient({
           <p className="text-[10px] sm:text-[11px] text-[color:var(--dopl-lime)]/85 font-mono mt-1 tabular-nums">
             {formatMoney(poolTotal)}
           </p>
-        </div>
+        </button>
         <div className="glass-card-light rounded-2xl px-3 py-3 sm:px-4 border-l-2 border-[color:var(--dopl-cream)]/40">
           <p className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/45 mb-1">
             assigned
@@ -295,16 +300,8 @@ export default function TradeClient({
         </section>
       </div>
 
-      {/* Mobile: floating pool button + bottom-sheet */}
+      {/* Mobile: bottom-sheet triggered by pool stat card */}
       <div className="lg:hidden">
-        <button
-          onClick={() => setShowMobilePool(true)}
-          className="fixed bottom-20 right-4 z-[60] btn-lime rounded-full px-4 py-3 text-xs font-semibold flex items-center gap-2 shadow-lg"
-        >
-          <Wallet size={14} />
-          pool · {pool.length}
-        </button>
-
         <AnimatePresence>
           {showMobilePool && (
             <motion.div
