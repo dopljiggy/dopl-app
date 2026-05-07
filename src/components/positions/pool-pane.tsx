@@ -332,7 +332,7 @@ function PoolSection({
               className={`glass-card-light rounded-xl p-3 flex items-center gap-3 text-sm cursor-pointer transition-colors ${
                 checked
                   ? "border border-[color:var(--dopl-lime)]/40 bg-[color:var(--dopl-lime)]/[0.04]"
-                  : "border border-transparent hover:border-[color:var(--dopl-sage)]/30"
+                  : "border border-[color:var(--dopl-sage)]/20 hover:border-[color:var(--dopl-sage)]/40"
               }`}
             >
               <input
