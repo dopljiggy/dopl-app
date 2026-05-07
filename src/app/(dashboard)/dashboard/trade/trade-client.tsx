@@ -251,7 +251,7 @@ export default function TradeClient({
         </div>
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-8">
+      <div className="grid lg:grid-cols-[7fr_3fr] gap-6">
         <section
           className={tab === "portfolios" ? "block" : "hidden lg:block"}
         >
