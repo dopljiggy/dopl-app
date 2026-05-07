@@ -65,7 +65,11 @@ export async function DELETE(request: Request) {
   }
 
   // Best-effort upstream revocation. Per-row try/catch — one provider
-  // hiccup shouldn't block the others or the local soft-delete.
+  // hiccup shouldn't block the others or the local soft-delete. Sprint
+  // 17: track revocation failure and surface via `warning` on the
+  // response so the FM knows to use the cleanup tool if they hit a
+  // SnapTrade slot limit later.
+  let revocationFailed = false;
   if (rows.length > 0) {
     const { data: fm } = await admin
       .from("fund_managers")
@@ -89,6 +93,7 @@ export async function DELETE(request: Request) {
           await saltedge.deleteConnection(c.provider_auth_id);
         }
       } catch (err) {
+        revocationFailed = true;
         console.warn(`upstream disconnect failed for ${c.id}:`, err);
       }
     }
@@ -135,5 +140,11 @@ export async function DELETE(request: Request) {
   return NextResponse.json({
     ok: true,
     disconnected: rows.length,
+    ...(revocationFailed
+      ? {
+          warning:
+            "disconnected locally but broker-side cleanup failed — use the cleanup tool if you hit connection limits",
+        }
+      : {}),
   });
 }

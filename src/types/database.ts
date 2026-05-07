@@ -36,6 +36,9 @@ export interface Portfolio {
   price_cents: number;
   is_active: boolean;
   subscriber_count: number;
+  // Sprint 17: persisted custom-sort order for the FM's portfolio list.
+  // New portfolios POST sets this to max(existing) + 1.
+  display_order: number;
   created_at: string;
 }
 

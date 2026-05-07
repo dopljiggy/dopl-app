@@ -1,14 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import {
-  Building2,
-  Check,
   Download,
-  Landmark,
   Loader2,
-  PencilLine,
   RefreshCw,
   TrendingDown,
   TrendingUp,
@@ -17,82 +12,47 @@ import {
 import { useRouter } from "next/navigation";
 import { downloadCsv } from "@/lib/csv";
 import { fireToast } from "@/components/ui/toast";
+import {
+  PoolPane,
+  formatMoney,
+  type PoolPosition,
+  type PoolConnection,
+  type PoolPortfolio,
+} from "@/components/positions/pool-pane";
 
-interface PortfolioStub {
-  id: string;
-  name: string;
-  tier: string;
-  price_cents: number;
-}
-
-interface ConnectionStub {
-  id: string;
-  provider: "snaptrade" | "saltedge" | "manual";
-  broker_name: string;
-  is_active: boolean;
-}
-
-interface PositionRow {
-  id: string;
-  ticker: string;
-  name: string | null;
-  shares: number | null;
-  current_price: number | null;
-  market_value: number | null;
+interface PositionRow extends PoolPosition {
   allocation_pct: number | null;
-  gain_loss_pct: number | null;
   portfolio_id: string | null;
-  broker_connection_id: string | null;
   last_synced: string | null;
 }
 
-const PROVIDER_ICON = {
-  snaptrade: Building2,
-  saltedge: Landmark,
-  manual: PencilLine,
-} as const;
-
-// Compact money label used on the stats strip + every section header.
-// Whole-dollar precision — penny-level noise is irrelevant for at-a-glance
-// totals and forces wider columns on mobile.
-const formatMoney = (n: number) =>
-  `$${Math.round(n).toLocaleString("en-US")}`;
-
 /**
- * Sprint 15 positions page.
+ * Sprint 17 positions page.
  *
- * Left:  centralized pool — pool positions grouped by broker_connection.
- *        Checkbox per position, batch "Assign to Portfolio" when any selected.
- * Right: assigned positions grouped by portfolio, broker badge per row.
- *        Per-row unassign returns the position to the pool (not deleted).
- *
- * Sync All hits /api/broker/sync-all so the FM doesn't have to bounce
- * back to the connect page just to refresh.
+ * Pool rendering moved to <PoolPane> (`src/components/positions/pool-pane
+ * .tsx`) so /dashboard/positions and /dashboard/trade share the same
+ * component. This page keeps the page-level chrome — stats strip,
+ * sync-all + export CSV controls, and the assigned half on the right.
  */
 export default function PositionsClient({
   portfolios,
   connections,
   positions,
 }: {
-  portfolios: PortfolioStub[];
-  connections: ConnectionStub[];
+  portfolios: PoolPortfolio[];
+  connections: PoolConnection[];
   positions: PositionRow[];
 }) {
   const router = useRouter();
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [assignTargetId, setAssignTargetId] = useState<string>("");
-  const [assigning, setAssigning] = useState(false);
   const [unassigningId, setUnassigningId] = useState<string | null>(null);
 
-  // Connection lookup for badges + section headers.
   const connById = useMemo(
     () => new Map(connections.map((c) => [c.id, c])),
     [connections]
   );
 
-  // Split positions into pool / assigned based on portfolio_id.
   const pool = useMemo(
     () => positions.filter((p) => p.portfolio_id == null),
     [positions]
@@ -101,22 +61,6 @@ export default function PositionsClient({
     () => positions.filter((p) => p.portfolio_id != null),
     [positions]
   );
-
-  // Group pool by connection. Insertion order preserved by iterating
-  // connections in the order the server returned them (created_at asc).
-  const poolByConnection = useMemo(() => {
-    const map = new Map<string, PositionRow[]>();
-    for (const c of connections) map.set(c.id, []);
-    // Bucket for legacy/orphaned positions with no connection.
-    map.set("__orphan__", []);
-    for (const p of pool) {
-      const key = p.broker_connection_id ?? "__orphan__";
-      const list = map.get(key) ?? [];
-      list.push(p);
-      map.set(key, list);
-    }
-    return map;
-  }, [pool, connections]);
 
   const assignedByPortfolio = useMemo(() => {
     const map = new Map<string, PositionRow[]>();
@@ -130,10 +74,8 @@ export default function PositionsClient({
     return map;
   }, [assigned, portfolios]);
 
-  // Sprint 16: dollar totals power the stats strip + per-section header
-  // value labels. market_value is normalised in the sync engine so these
-  // sums are in account currency (USD for now). null/undefined coerces to
-  // 0 — a position without a price yet contributes nothing.
+  // Stats-strip totals. market_value is normalised in the sync engine,
+  // so a missing value contributes 0 rather than NaN.
   const poolTotal = useMemo(
     () => pool.reduce((s, p) => s + (Number(p.market_value) || 0), 0),
     [pool]
@@ -157,27 +99,6 @@ export default function PositionsClient({
     return map;
   }, [assignedByPortfolio]);
 
-  const toggle = (id: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const toggleConnection = (connectionId: string, checked: boolean) => {
-    const ids = (poolByConnection.get(connectionId) ?? []).map((p) => p.id);
-    setSelected((prev) => {
-      const next = new Set(prev);
-      for (const id of ids) {
-        if (checked) next.add(id);
-        else next.delete(id);
-      }
-      return next;
-    });
-  };
-
   const syncAll = async () => {
     setSyncing(true);
     setError(null);
@@ -196,36 +117,6 @@ export default function PositionsClient({
       setError(e instanceof Error ? e.message : "sync failed");
     } finally {
       setSyncing(false);
-    }
-  };
-
-  const assignSelected = async () => {
-    if (!assignTargetId || selected.size === 0) return;
-    setAssigning(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/positions/assign", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          portfolio_id: assignTargetId,
-          position_ids: Array.from(selected),
-        }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error ?? "assign failed");
-      const portfolioName =
-        portfolios.find((p) => p.id === assignTargetId)?.name ?? "portfolio";
-      fireToast({
-        title: `assigned ${selected.size} to ${portfolioName}`,
-      });
-      setSelected(new Set());
-      setAssignTargetId("");
-      router.refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "assign failed");
-    } finally {
-      setAssigning(false);
     }
   };
 
@@ -280,9 +171,6 @@ export default function PositionsClient({
     );
   };
 
-  // Empty state: no broker connections and no portfolios — render the
-  // "connect a broker" CTA. Existing FMs with portfolios but zero
-  // connections see the regular layout with empty pool sections.
   if (connections.length === 0 && portfolios.length === 0) {
     return (
       <div>
@@ -317,7 +205,10 @@ export default function PositionsClient({
           </button>
           <button
             onClick={syncAll}
-            disabled={syncing || connections.filter((c) => c.provider !== "manual").length === 0}
+            disabled={
+              syncing ||
+              connections.filter((c) => c.provider !== "manual").length === 0
+            }
             className="glass-card-light px-4 py-2 text-sm flex items-center gap-2 hover:bg-[color:var(--dopl-sage)]/40 transition-colors disabled:opacity-40"
           >
             {syncing ? (
@@ -334,11 +225,6 @@ export default function PositionsClient({
         to a portfolio — doplers see the assignment instantly.
       </p>
 
-      {/* Summary stats strip — gives the page focal points without
-          duplicating the donut chart on the portfolios page. Three
-          glass pills: pool size, assigned size, active broker count.
-          Each pill carries a left-edge accent border so the eye picks
-          up the difference between pool / assigned / connections. */}
       <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-6">
         <div className="glass-card-light rounded-2xl px-3 py-3 sm:px-4 border-l-2 border-[color:var(--dopl-lime)]/55">
           <p className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/45 mb-1">
@@ -382,107 +268,13 @@ export default function PositionsClient({
       )}
 
       <div className="grid lg:grid-cols-2 gap-8">
-        {/* ─── LEFT: pool ─── */}
-        <section>
-          <header className="flex items-center justify-between mb-4 gap-2">
-            <h2 className="font-display text-lg font-semibold flex items-center gap-2">
-              Centralized Pool
-              <span className="text-xs text-[color:var(--dopl-cream)]/40 font-mono font-normal">
-                {pool.length}
-              </span>
-            </h2>
-            {selected.size > 0 && (
-              <span className="text-xs text-[color:var(--dopl-lime)] font-mono">
-                {selected.size} selected
-              </span>
-            )}
-          </header>
+        <PoolPane
+          pool={pool}
+          connections={connections}
+          portfolios={portfolios}
+          onChanged={() => router.refresh()}
+        />
 
-          {/* Batch assign controls — only show when any selected. */}
-          <AnimatePresence>
-            {selected.size > 0 && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-                className="overflow-hidden mb-4"
-              >
-                <div className="glass-card-light rounded-xl p-3 flex items-center gap-2 flex-wrap">
-                  <select
-                    value={assignTargetId}
-                    onChange={(e) => setAssignTargetId(e.target.value)}
-                    className="bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/30 rounded-lg px-3 py-2 text-xs text-[color:var(--dopl-cream)] focus:outline-none focus:border-[color:var(--dopl-lime)]/50"
-                  >
-                    <option value="" disabled>
-                      assign to portfolio…
-                    </option>
-                    {portfolios.map((pf) => (
-                      <option key={pf.id} value={pf.id}>
-                        {pf.name} ({pf.tier})
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    onClick={assignSelected}
-                    disabled={!assignTargetId || assigning}
-                    className="btn-lime text-xs px-4 py-2 disabled:opacity-50"
-                  >
-                    {assigning ? "assigning…" : `assign ${selected.size}`}
-                  </button>
-                  <button
-                    onClick={() => setSelected(new Set())}
-                    className="text-xs px-3 py-2 text-[color:var(--dopl-cream)]/50 hover:text-[color:var(--dopl-cream)]"
-                  >
-                    clear
-                  </button>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {pool.length === 0 ? (
-            <div className="glass-card p-8 text-center text-sm text-[color:var(--dopl-cream)]/40 rounded-2xl">
-              {connections.length === 0
-                ? "connect a broker to sync positions"
-                : "all positions assigned · sync to refresh"}
-            </div>
-          ) : (
-            <div className="space-y-5">
-              {/* Render a section per connection that has pool items, in
-                  the connections-array order, then the orphan bucket
-                  last (only if non-empty). */}
-              {connections.map((c) => {
-                const items = poolByConnection.get(c.id) ?? [];
-                if (items.length === 0) return null;
-                return (
-                  <PoolSection
-                    key={c.id}
-                    label={c.broker_name}
-                    sublabel={c.provider === "manual" ? "manual entry" : `via ${c.provider}`}
-                    icon={PROVIDER_ICON[c.provider]}
-                    items={items}
-                    selected={selected}
-                    onToggle={toggle}
-                    onToggleAll={(v) => toggleConnection(c.id, v)}
-                  />
-                );
-              })}
-              {(poolByConnection.get("__orphan__") ?? []).length > 0 && (
-                <PoolSection
-                  label="Other"
-                  sublabel="legacy positions"
-                  icon={PencilLine}
-                  items={poolByConnection.get("__orphan__") ?? []}
-                  selected={selected}
-                  onToggle={toggle}
-                  onToggleAll={(v) => toggleConnection("__orphan__", v)}
-                />
-              )}
-            </div>
-          )}
-        </section>
-
-        {/* ─── RIGHT: assigned ─── */}
         <section>
           <header className="flex items-center justify-between mb-4">
             <h2 className="font-display text-lg font-semibold flex items-center gap-2">
@@ -510,9 +302,6 @@ export default function PositionsClient({
                   >
                     <div className="flex items-center justify-between gap-3 mb-3">
                       <div className="flex items-center gap-2 min-w-0 flex-1">
-                        {/* Tier badge mirrors the expandable portfolio card
-                            (free + vip in lime, others in sage). Anchors
-                            the row visually so the eye groups by tier. */}
                         <span
                           className={`text-[10px] font-mono font-semibold px-2 py-0.5 rounded uppercase tracking-wider flex-shrink-0 ${
                             isFreeTier
@@ -634,145 +423,6 @@ export default function PositionsClient({
             </div>
           )}
         </section>
-      </div>
-    </div>
-  );
-}
-
-// --------------------------------------------------------------------------
-
-function PoolSection({
-  label,
-  sublabel,
-  icon: Icon,
-  items,
-  selected,
-  onToggle,
-  onToggleAll,
-}: {
-  label: string;
-  sublabel: string;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
-  items: PositionRow[];
-  selected: Set<string>;
-  onToggle: (id: string) => void;
-  onToggleAll: (v: boolean) => void;
-}) {
-  const allSelected = items.length > 0 && items.every((p) => selected.has(p.id));
-  const someSelected = items.some((p) => selected.has(p.id));
-  const sectionTotal = items.reduce(
-    (s, p) => s + (Number(p.market_value) || 0),
-    0
-  );
-  return (
-    <div className="glass-card rounded-2xl p-4">
-      <div className="flex items-center gap-3 mb-3">
-        <button
-          type="button"
-          onClick={() => onToggleAll(!allSelected)}
-          aria-label={allSelected ? "deselect all" : "select all"}
-          className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors flex-shrink-0 ${
-            allSelected
-              ? "bg-[color:var(--dopl-lime)] border-[color:var(--dopl-lime)]"
-              : someSelected
-              ? "bg-[color:var(--dopl-lime)]/30 border-[color:var(--dopl-lime)]/60"
-              : "border-[color:var(--dopl-sage)]/40 hover:border-[color:var(--dopl-cream)]/40"
-          }`}
-        >
-          {allSelected && (
-            <Check size={12} className="text-[color:var(--dopl-deep)]" strokeWidth={3} />
-          )}
-        </button>
-        <div className="w-9 h-9 rounded-xl bg-[color:var(--dopl-lime)]/12 border border-[color:var(--dopl-lime)]/25 flex items-center justify-center text-[color:var(--dopl-lime)] flex-shrink-0">
-          <Icon size={15} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-display text-sm font-semibold truncate">{label}</p>
-          <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[color:var(--dopl-cream)]/40">
-            {sublabel}
-          </p>
-        </div>
-        <div className="text-right flex-shrink-0">
-          <p className="font-mono text-sm text-[color:var(--dopl-lime)] tabular-nums leading-none">
-            {formatMoney(sectionTotal)}
-          </p>
-          <p className="text-[10px] text-[color:var(--dopl-cream)]/40 font-mono mt-1">
-            {items.length} pos
-          </p>
-        </div>
-      </div>
-
-      <div className="space-y-1.5">
-        {items.map((p) => {
-          const checked = selected.has(p.id);
-          return (
-            <label
-              key={p.id}
-              className={`glass-card-light rounded-xl p-3 flex items-center gap-3 text-sm cursor-pointer transition-colors ${
-                checked
-                  ? "border border-[color:var(--dopl-lime)]/40 bg-[color:var(--dopl-lime)]/[0.04]"
-                  : "border border-transparent hover:border-[color:var(--dopl-sage)]/30"
-              }`}
-            >
-              <input
-                type="checkbox"
-                checked={checked}
-                onChange={() => onToggle(p.id)}
-                className="sr-only"
-              />
-              <div
-                className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors flex-shrink-0 ${
-                  checked
-                    ? "bg-[color:var(--dopl-lime)] border-[color:var(--dopl-lime)]"
-                    : "border-[color:var(--dopl-sage)]/40"
-                }`}
-              >
-                {checked && (
-                  <Check
-                    size={12}
-                    className="text-[color:var(--dopl-deep)]"
-                    strokeWidth={3}
-                  />
-                )}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="font-mono font-semibold text-sm text-[color:var(--dopl-cream)]">
-                  {p.ticker}
-                </p>
-                {p.name && (
-                  <p className="text-[11px] text-[color:var(--dopl-cream)]/45 truncate">
-                    {p.name}
-                  </p>
-                )}
-              </div>
-              <div className="text-right text-[11px] font-mono tabular-nums">
-                {p.current_price != null && (
-                  <p>${Number(p.current_price).toFixed(2)}</p>
-                )}
-                {p.shares != null && (
-                  <p className="text-[color:var(--dopl-cream)]/45">
-                    {p.shares} sh
-                  </p>
-                )}
-              </div>
-              <div className="text-right text-[11px] font-mono tabular-nums w-16">
-                {p.market_value != null && (
-                  <p
-                    className={
-                      p.gain_loss_pct == null
-                        ? "text-[color:var(--dopl-cream)]/85"
-                        : p.gain_loss_pct >= 0
-                        ? "text-[color:var(--dopl-lime)]/85"
-                        : "text-red-400/75"
-                    }
-                  >
-                    ${Number(p.market_value).toFixed(0)}
-                  </p>
-                )}
-              </div>
-            </label>
-          );
-        })}
       </div>
     </div>
   );

@@ -99,7 +99,10 @@ export async function DELETE(
 
   // Best-effort upstream revocation. Don't block local soft-delete on
   // upstream errors — the FM intent is "disconnect from dopl", not
-  // "fix the upstream provider".
+  // "fix the upstream provider". Sprint 17: track failure and surface
+  // via `warning` so the FM can use the cleanup tool if they hit slot
+  // limits later.
+  let revocationFailed = false;
   if (connection.is_active) {
     try {
       if (connection.provider === "snaptrade" && connection.provider_auth_id) {
@@ -122,6 +125,7 @@ export async function DELETE(
         await saltedge.deleteConnection(connection.provider_auth_id);
       }
     } catch (err) {
+      revocationFailed = true;
       console.warn("upstream revoke failed (continuing):", err);
     }
   }
@@ -134,7 +138,15 @@ export async function DELETE(
 
   await syncLegacyBrokerFlag(admin, user.id);
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({
+    ok: true,
+    ...(revocationFailed
+      ? {
+          warning:
+            "disconnected locally but broker-side cleanup failed — use the cleanup tool if you hit connection limits",
+        }
+      : {}),
+  });
 }
 
 /**

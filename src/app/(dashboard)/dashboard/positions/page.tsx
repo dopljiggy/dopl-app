@@ -34,7 +34,7 @@ export default async function PositionsPage() {
     const { data } = await admin
       .from("positions")
       .select(
-        "id, ticker, name, shares, current_price, market_value, allocation_pct, gain_loss_pct, portfolio_id, broker_connection_id, last_synced"
+        "id, ticker, name, shares, current_price, market_value, allocation_pct, gain_loss_pct, entry_price, portfolio_id, broker_connection_id, last_synced"
       )
       .in("broker_connection_id", connectionIds);
     positions = (data ?? []) as PositionRow[];
@@ -48,7 +48,7 @@ export default async function PositionsPage() {
     const { data: legacyPositions } = await admin
       .from("positions")
       .select(
-        "id, ticker, name, shares, current_price, market_value, allocation_pct, gain_loss_pct, portfolio_id, broker_connection_id, last_synced"
+        "id, ticker, name, shares, current_price, market_value, allocation_pct, gain_loss_pct, entry_price, portfolio_id, broker_connection_id, last_synced"
       )
       .in("portfolio_id", portfolioIds)
       .is("broker_connection_id", null);
@@ -82,6 +82,7 @@ interface PositionRow {
   market_value: number | null;
   allocation_pct: number | null;
   gain_loss_pct: number | null;
+  entry_price: number | null;
   portfolio_id: string | null;
   broker_connection_id: string | null;
   last_synced: string | null;
