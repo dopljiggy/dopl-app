@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Briefcase, Loader2, RefreshCw, Wallet } from "lucide-react";
+import { Loader2, RefreshCw, Wallet, X } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { fireToast } from "@/components/ui/toast";
 import {
@@ -22,8 +23,6 @@ import {
   type PortfolioSortKey,
 } from "@/components/portfolios/portfolio-sort";
 import type { Portfolio } from "@/types/database";
-
-type TabKey = "portfolios" | "pool";
 
 /**
  * Sprint 17 Trade page client. Desktop renders both halves side by side;
@@ -50,7 +49,7 @@ export default function TradeClient({
   stripeOnboarded: boolean;
 }) {
   const router = useRouter();
-  const [tab, setTab] = useState<TabKey>("portfolios");
+  const [showMobilePool, setShowMobilePool] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -222,39 +221,8 @@ export default function TradeClient({
         </div>
       )}
 
-      {/* Mobile tab bar — picks one half at a time. Desktop hides this and
-          renders both halves side by side below. */}
-      <div className="lg:hidden mb-5">
-        <div className="grid grid-cols-2 gap-1 glass-card-light rounded-xl p-1">
-          <button
-            onClick={() => setTab("portfolios")}
-            className={`flex items-center justify-center gap-2 py-2 text-xs rounded-lg transition-colors ${
-              tab === "portfolios"
-                ? "bg-[color:var(--dopl-lime)]/15 text-[color:var(--dopl-lime)]"
-                : "text-[color:var(--dopl-cream)]/55 hover:text-[color:var(--dopl-cream)]"
-            }`}
-          >
-            <Briefcase size={13} />
-            portfolios
-          </button>
-          <button
-            onClick={() => setTab("pool")}
-            className={`flex items-center justify-center gap-2 py-2 text-xs rounded-lg transition-colors ${
-              tab === "pool"
-                ? "bg-[color:var(--dopl-lime)]/15 text-[color:var(--dopl-lime)]"
-                : "text-[color:var(--dopl-cream)]/55 hover:text-[color:var(--dopl-cream)]"
-            }`}
-          >
-            <Wallet size={13} />
-            pool
-          </button>
-        </div>
-      </div>
-
       <div className="grid lg:grid-cols-[7fr_3fr] gap-6">
-        <section
-          className={tab === "portfolios" ? "block" : "hidden lg:block"}
-        >
+        <section>
           <header className="hidden lg:flex items-center justify-between mb-4">
             <h2 className="font-display text-lg font-semibold flex items-center gap-2">
               Portfolios
@@ -316,7 +284,8 @@ export default function TradeClient({
           )}
         </section>
 
-        <section className={tab === "pool" ? "block" : "hidden lg:block"}>
+        {/* Desktop: pool inline on the right */}
+        <section className="hidden lg:block">
           <PoolPane
             pool={pool}
             connections={connections}
@@ -324,6 +293,64 @@ export default function TradeClient({
             onChanged={() => router.refresh()}
           />
         </section>
+      </div>
+
+      {/* Mobile: floating pool button + bottom-sheet */}
+      <div className="lg:hidden">
+        <button
+          onClick={() => setShowMobilePool(true)}
+          className="fixed bottom-20 right-4 z-[60] btn-lime rounded-full px-4 py-3 text-xs font-semibold flex items-center gap-2 shadow-lg"
+        >
+          <Wallet size={14} />
+          pool · {pool.length}
+        </button>
+
+        <AnimatePresence>
+          {showMobilePool && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[70]"
+              onClick={() => setShowMobilePool(false)}
+            >
+              <div className="absolute inset-0 bg-[color:var(--dopl-deep)]/70 backdrop-blur-sm" />
+              <motion.div
+                initial={{ y: "100%" }}
+                animate={{ y: 0 }}
+                exit={{ y: "100%" }}
+                transition={{ type: "spring", damping: 28, stiffness: 300 }}
+                onClick={(e) => e.stopPropagation()}
+                className="absolute bottom-0 left-0 right-0 max-h-[85vh] overflow-y-auto rounded-t-2xl glass-card glass-card-strong p-5 pt-3"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-1 rounded-full bg-[color:var(--dopl-cream)]/20 mx-auto absolute top-2 left-1/2 -translate-x-1/2" />
+                    <h2 className="font-display text-lg font-semibold">Pool</h2>
+                    <span className="text-xs text-[color:var(--dopl-cream)]/40 font-mono">
+                      {pool.length} positions
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setShowMobilePool(false)}
+                    className="p-1.5 rounded-lg text-[color:var(--dopl-cream)]/40 hover:text-[color:var(--dopl-cream)] hover:bg-[color:var(--dopl-sage)]/30 transition-colors"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+                <PoolPane
+                  pool={pool}
+                  connections={connections}
+                  portfolios={portfolioStubs}
+                  onChanged={() => {
+                    router.refresh();
+                    setShowMobilePool(false);
+                  }}
+                />
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
