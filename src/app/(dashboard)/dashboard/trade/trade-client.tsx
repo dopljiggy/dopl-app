@@ -196,8 +196,14 @@ export default function TradeClient({
             <button
               type="button"
               onClick={() => setShowMobilePool(true)}
-              className="rounded-2xl px-3 py-3 sm:px-4 text-left lg:cursor-default lg:pointer-events-none border border-[color:var(--dopl-lime)]/30 bg-[color:var(--dopl-lime)]/[0.04] transition-colors"
+              className="relative rounded-2xl px-3 py-3 sm:px-4 text-left lg:cursor-default lg:pointer-events-none border border-[color:var(--dopl-lime)]/30 bg-[color:var(--dopl-lime)]/[0.04] transition-colors"
             >
+              {effectivePool.length > 0 && (
+                <span className="absolute top-2.5 right-2.5 lg:hidden flex h-2.5 w-2.5">
+                  <span className="absolute inset-0 rounded-full bg-blue-400 opacity-60 animate-ping" />
+                  <span className="relative rounded-full h-2.5 w-2.5 bg-blue-400" />
+                </span>
+              )}
               <p className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/45 mb-1">
                 unassigned
               </p>
