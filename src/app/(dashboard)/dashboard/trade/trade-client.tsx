@@ -54,16 +54,13 @@ export default function TradeClient({
 
   useEffect(() => {
     if (!showMobilePool) return;
+    const html = document.documentElement;
     const scrollY = window.scrollY;
-    document.body.style.position = "fixed";
-    document.body.style.top = `-${scrollY}px`;
-    document.body.style.left = "0";
-    document.body.style.right = "0";
+    html.style.setProperty("--sheet-scroll", `-${scrollY}px`);
+    html.classList.add("sheet-open");
     return () => {
-      document.body.style.position = "";
-      document.body.style.top = "";
-      document.body.style.left = "";
-      document.body.style.right = "";
+      html.classList.remove("sheet-open");
+      html.style.removeProperty("--sheet-scroll");
       window.scrollTo(0, scrollY);
     };
   }, [showMobilePool]);
@@ -371,12 +368,13 @@ export default function TradeClient({
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
               transition={{ duration: 0.35, ease: [0.32, 0.72, 0, 1] }}
-              className="fixed bottom-0 left-0 right-0 z-[71] max-h-[55vh] rounded-t-2xl glass-card glass-card-strong p-5 pb-8 flex flex-col overscroll-contain"
+              style={{ touchAction: "pan-y" }}
+              className="fixed bottom-0 left-0 right-0 z-[71] max-h-[55vh] overflow-y-auto overscroll-contain rounded-t-2xl glass-card glass-card-strong p-5 pb-8"
             >
-              <div className="flex justify-center mb-3 flex-shrink-0">
+              <div className="flex justify-center mb-3">
                 <div className="w-10 h-1 rounded-full bg-[color:var(--dopl-cream)]/20" />
               </div>
-              <div className="flex items-center justify-between mb-4 flex-shrink-0">
+              <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
                   <h2 className="font-display text-lg font-semibold">Unassigned</h2>
                   <span className="text-xs text-[color:var(--dopl-cream)]/40 font-mono">
@@ -390,17 +388,15 @@ export default function TradeClient({
                   <X size={16} />
                 </button>
               </div>
-              <div className="overflow-y-auto flex-1 min-h-0 overscroll-contain">
-                <PoolPane
-                  pool={effectivePool}
-                  connections={connections}
-                  portfolios={portfolioStubs}
-                  onChanged={() => {
-                    router.refresh();
-                    setShowMobilePool(false);
-                  }}
-                />
-              </div>
+              <PoolPane
+                pool={effectivePool}
+                connections={connections}
+                portfolios={portfolioStubs}
+                onChanged={() => {
+                  router.refresh();
+                  setShowMobilePool(false);
+                }}
+              />
             </motion.div>
           )}
         </AnimatePresence>
