@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Copy, Check, Download } from "lucide-react";
-import { motion } from "framer-motion";
+
 
 interface Props {
   handle: string;
@@ -99,16 +99,12 @@ export default function ShareClient({
   return (
     <div className="max-w-xl mx-auto">
       <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight mb-8 text-center">
-        Share your dopl
+        Share
       </h1>
 
       {/* Card preview */}
-      <div ref={wrapperRef} className="w-full mb-8" style={{ maxWidth: CARD_W, margin: "0 auto" }}>
-        <motion.div
-          animate={{ y: [0, -4, 0] }}
-          transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-          className="relative"
-        >
+      <div ref={wrapperRef} className="w-full mb-10" style={{ maxWidth: CARD_W, margin: "0 auto" }}>
+        <div className="relative">
           <div style={{ height: (CARD_H + 2) * cardScale }}>
             <div style={{ transform: `scale(${cardScale})`, transformOrigin: "top left" }}>
               <div className="share-card-shell" style={{ borderRadius: 22, padding: 1 }}>
@@ -273,7 +269,7 @@ export default function ShareClient({
               </div>
             </div>
           </div>
-        </motion.div>
+        </div>
       </div>
 
       {/* Link bar */}
@@ -306,7 +302,7 @@ export default function ShareClient({
           onClick={shareDopl}
           className="w-full btn-lime text-base font-semibold py-4 rounded-xl"
         >
-          share your dopl
+          share
         </button>
       </div>
 
