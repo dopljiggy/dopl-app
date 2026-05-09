@@ -1,5 +1,5 @@
 import { ImageResponse } from "next/og";
-import { createServerSupabase } from "@/lib/supabase-server";
+import { createAdminClient } from "@/lib/supabase-admin";
 
 export const runtime = "nodejs";
 
@@ -8,22 +8,22 @@ export async function GET(
   { params }: { params: Promise<{ handle: string }> }
 ) {
   const { handle } = await params;
-  const supabase = await createServerSupabase();
+  const admin = createAdminClient();
 
-  const { data: fm } = await supabase
+  const { data: fm } = await admin
     .from("fund_managers")
-    .select("handle, display_name, subscriber_count, avatar_url, bio")
-    .eq("handle", handle)
+    .select("id, handle, display_name, subscriber_count, avatar_url, bio")
+    .ilike("handle", handle)
     .maybeSingle();
 
   if (!fm) {
     return new Response("not found", { status: 404 });
   }
 
-  const { count: portfolioCount } = await supabase
+  const { count: portfolioCount } = await admin
     .from("portfolios")
     .select("id", { count: "exact", head: true })
-    .eq("fund_manager_id", (await supabase.from("fund_managers").select("id").eq("handle", handle).single()).data?.id)
+    .eq("fund_manager_id", fm.id)
     .eq("is_active", true);
 
   return new ImageResponse(
@@ -93,7 +93,7 @@ export async function GET(
                 marginTop: 4,
               }}
             >
-              @{handle}
+              @{fm.handle}
             </div>
           </div>
         </div>
@@ -176,7 +176,7 @@ export async function GET(
                 fontWeight: 600,
               }}
             >
-              dopl.com/{handle}
+              dopl-app.vercel.app/{fm.handle}
             </div>
             <div
               style={{
