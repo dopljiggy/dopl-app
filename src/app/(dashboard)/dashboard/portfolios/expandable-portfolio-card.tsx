@@ -62,6 +62,7 @@ export default function ExpandablePortfolioCard({
   onToggle,
   onDelete,
   brokerProvider,
+  onUnassigned,
 }: {
   portfolio: Portfolio;
   positions: PositionRow[];
@@ -69,6 +70,7 @@ export default function ExpandablePortfolioCard({
   onToggle: () => void;
   onDelete: () => void;
   brokerProvider?: string | null;
+  onUnassigned?: (position: PositionRow) => void;
 }) {
   const router = useRouter();
   const [showManualUpdate, setShowManualUpdate] = useState(false);
@@ -200,8 +202,9 @@ export default function ExpandablePortfolioCard({
     const thesis = removeThesis.trim() || null;
     closeInlineEdit();
     setRemovedIds((prev) => new Set([...prev, pos.id]));
+    onUnassigned?.(pos);
     setSubmitting(false);
-    const res = await fetch("/api/positions/manual", {
+    const res = await fetch("/api/positions/assign", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: pos.id, thesis_note: thesis }),

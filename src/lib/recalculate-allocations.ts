@@ -44,12 +44,26 @@ export async function recalculateAllocations(supabase: any, portfolioId: string)
     largest.pct = Number((largest.pct + drift).toFixed(2));
   }
 
-  await Promise.all(
-    allocations.map((a: { id: string; pct: number }) =>
-      supabase
-        .from("positions")
-        .update({ allocation_pct: a.pct })
-        .eq("id", a.id)
-    )
-  );
+  // Single upsert instead of N individual UPDATEs.
+  const { error } = await supabase
+    .from("positions")
+    .upsert(
+      allocations.map((a: { id: string; pct: number }) => ({
+        id: a.id,
+        allocation_pct: a.pct,
+      })),
+      { onConflict: "id", ignoreDuplicates: false }
+    );
+
+  // Fallback: if upsert fails (e.g. NOT NULL constraints), use parallel updates.
+  if (error) {
+    await Promise.all(
+      allocations.map((a: { id: string; pct: number }) =>
+        supabase
+          .from("positions")
+          .update({ allocation_pct: a.pct })
+          .eq("id", a.id)
+      )
+    );
+  }
 }

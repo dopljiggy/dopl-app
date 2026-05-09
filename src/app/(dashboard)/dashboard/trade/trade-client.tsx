@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, RefreshCw, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
@@ -55,6 +55,21 @@ export default function TradeClient({
   const [error, setError] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<PortfolioSortKey>("date");
 
+  // Optimistic pool: positions just unassigned appear here instantly
+  // before router.refresh() completes.
+  const [optimisticPool, setOptimisticPool] = useState<PoolPosition[]>([]);
+  const prevPoolRef = useRef(pool);
+  useEffect(() => {
+    if (prevPoolRef.current !== pool) {
+      prevPoolRef.current = pool;
+      if (optimisticPool.length > 0) setOptimisticPool([]);
+    }
+  }, [pool, optimisticPool.length]);
+  const effectivePool = useMemo(
+    () => [...pool, ...optimisticPool],
+    [pool, optimisticPool]
+  );
+
   // Suppress unused — kept on the props surface for future tier-gating
   // hooks (the portfolio cards already render a stripe-not-onboarded
   // amber CTA via brokerProvider; stripeOnboarded is reserved for the
@@ -94,8 +109,8 @@ export default function TradeClient({
   // Stats-strip totals — same shape as the positions page for visual
   // continuity.
   const poolTotal = useMemo(
-    () => pool.reduce((s, p) => s + (Number(p.market_value) || 0), 0),
-    [pool]
+    () => effectivePool.reduce((s, p) => s + (Number(p.market_value) || 0), 0),
+    [effectivePool]
   );
   const assignedTotal = useMemo(
     () => assigned.reduce((s, p) => s + (Number(p.market_value) || 0), 0),
@@ -187,7 +202,7 @@ export default function TradeClient({
                 unassigned
               </p>
               <p className="font-display text-xl sm:text-2xl font-semibold tabular-nums leading-none">
-                {pool.length}
+                {effectivePool.length}
               </p>
               <p className="text-[10px] sm:text-[11px] text-[color:var(--dopl-lime)]/85 font-mono mt-1 tabular-nums">
                 {formatMoney(poolTotal)}
@@ -258,6 +273,22 @@ export default function TradeClient({
                       }
                       onDelete={() => handleDelete(p.id)}
                       brokerProvider={brokerProvider}
+                      onUnassigned={(pos) => {
+                        setOptimisticPool((prev) => [
+                          ...prev,
+                          {
+                            id: pos.id,
+                            ticker: pos.ticker,
+                            name: pos.name,
+                            shares: pos.shares,
+                            current_price: pos.current_price,
+                            market_value: pos.market_value,
+                            gain_loss_pct: pos.gain_loss_pct ?? null,
+                            entry_price: null,
+                            broker_connection_id: null,
+                          },
+                        ]);
+                      }}
                     />
                   );
                   return (
@@ -289,7 +320,7 @@ export default function TradeClient({
         {/* Desktop: pool inline on the right, aligned with stat cards */}
         <section className="hidden lg:block">
           <PoolPane
-            pool={pool}
+            pool={effectivePool}
             connections={connections}
             portfolios={portfolioStubs}
             onChanged={() => router.refresh()}
@@ -321,7 +352,7 @@ export default function TradeClient({
                   <div className="flex items-center gap-3">
                     <h2 className="font-display text-lg font-semibold">Unassigned</h2>
                     <span className="text-xs text-[color:var(--dopl-cream)]/40 font-mono">
-                      {pool.length} positions
+                      {effectivePool.length} positions
                     </span>
                   </div>
                   <button
@@ -332,7 +363,7 @@ export default function TradeClient({
                   </button>
                 </div>
                 <PoolPane
-                  pool={pool}
+                  pool={effectivePool}
                   connections={connections}
                   portfolios={portfolioStubs}
                   onChanged={() => {

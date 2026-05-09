@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { createServerSupabase } from "@/lib/supabase-server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { fanOutPortfolioUpdate } from "@/lib/notification-fanout";
@@ -217,55 +217,56 @@ async function batchAssign(
     .update({ portfolio_id: portfolioId })
     .in("id", positionIds);
 
-  // Recalc on source + destination.
-  for (const pid of sourcePortfolioIds) {
-    await recalculateAllocations(admin, pid);
-  }
-  await recalculateAllocations(admin, portfolioId);
+  // Recalc on source + destination in parallel.
+  await Promise.all([
+    ...sourcePortfolioIds.map((pid) => recalculateAllocations(admin, pid)),
+    recalculateAllocations(admin, portfolioId),
+  ]);
 
-  // Compute fresh allocation_pct per assigned ticker for the fanout body.
-  const { data: refreshed } = await admin
-    .from("positions")
-    .select("id, ticker, shares, current_price, allocation_pct")
-    .in("id", positionIds);
-  const refreshedMap = new Map(
-    ((refreshed ?? []) as {
-      id: string;
-      ticker: string;
-      shares: number | null;
-      current_price: number | null;
-      allocation_pct: number | null;
-    }[]).map((r) => [r.id, r])
-  );
+  // Return response immediately — defer fanout to after().
+  after(async () => {
+    const { data: refreshed } = await admin
+      .from("positions")
+      .select("id, ticker, shares, current_price, allocation_pct")
+      .in("id", positionIds);
+    const refreshedMap = new Map(
+      ((refreshed ?? []) as {
+        id: string;
+        ticker: string;
+        shares: number | null;
+        current_price: number | null;
+        allocation_pct: number | null;
+      }[]).map((r) => [r.id, r])
+    );
 
-  // Buy fanout — one per assigned ticker so doplers get per-ticker push
-  // notifications. fanOutPortfolioUpdate already inserts a single
-  // portfolio_updates row per call; batching this would lose ticker
-  // granularity.
-  for (const pid of positionIds) {
-    const r = refreshedMap.get(pid);
-    if (!r) continue;
-    try {
-      await fanOutPortfolioUpdate(admin, {
-        portfolio_id: portfolioId,
-        fund_manager_id: fmId,
-        changes: [
-          {
-            type: "buy",
-            ticker: r.ticker,
-            shares: Number(r.shares) || 0,
-            price: r.current_price != null ? Number(r.current_price) : undefined,
-            allocation_pct:
-              r.allocation_pct != null ? Number(r.allocation_pct) : undefined,
-          },
-        ],
-        description: `added ${r.ticker}`,
-        thesis_note: thesisNote,
-      });
-    } catch (err) {
-      console.warn(`fanout failed for ${r.ticker}:`, err);
+    for (const pid of positionIds) {
+      const r = refreshedMap.get(pid);
+      if (!r) continue;
+      try {
+        await fanOutPortfolioUpdate(admin, {
+          portfolio_id: portfolioId,
+          fund_manager_id: fmId,
+          changes: [
+            {
+              type: "buy",
+              ticker: r.ticker,
+              shares: Number(r.shares) || 0,
+              price:
+                r.current_price != null ? Number(r.current_price) : undefined,
+              allocation_pct:
+                r.allocation_pct != null
+                  ? Number(r.allocation_pct)
+                  : undefined,
+            },
+          ],
+          description: `added ${r.ticker}`,
+          thesis_note: thesisNote,
+        });
+      } catch (err) {
+        console.warn(`fanout failed for ${r.ticker}:`, err);
+      }
     }
-  }
+  });
 
   return NextResponse.json({
     ok: true,
@@ -360,56 +361,62 @@ export async function DELETE(request: Request) {
     .update({ portfolio_id: null })
     .in("id", ids);
 
-  // Per-source-portfolio recalc + sell fanout for each unassigned ticker.
-  for (const sourceId of sourcePortfolioIds) {
-    await recalculateAllocations(admin, sourceId);
-  }
+  // Recalc allocations on all source portfolios in parallel.
+  await Promise.all(
+    sourcePortfolioIds.map((sourceId) =>
+      recalculateAllocations(admin, sourceId)
+    )
+  );
 
-  // Sell fanout — emits sell change per ticker so subscribers get a
-  // per-ticker push. The position is NOT deleted (lives in pool now)
-  // but for subscribers it's "gone from this portfolio". Sprint 17:
-  // pass current_price + entry_price + realized P&L so the dopler
-  // push reads "sold AAPL · $189 · bought at $142 · +33.1% P&L".
-  for (const pos of positions as Array<{
-    id: string;
-    ticker: string;
-    shares: number | null;
-    current_price: number | null;
-    entry_price: number | null;
-    portfolio_id: string | null;
-  }>) {
-    if (!pos.portfolio_id) continue; // pool→pool noop
-    const sellPrice =
-      pos.current_price != null ? Number(pos.current_price) : undefined;
-    const buyPrice =
-      pos.entry_price != null ? Number(pos.entry_price) : undefined;
-    const realized =
-      pos.entry_price != null && pos.current_price != null
-        ? ((Number(pos.current_price) - Number(pos.entry_price)) /
-            Number(pos.entry_price)) *
-          100
-        : undefined;
-    try {
-      await fanOutPortfolioUpdate(admin, {
-        portfolio_id: pos.portfolio_id,
-        fund_manager_id: user.id,
-        changes: [
-          {
-            type: "sell",
-            ticker: pos.ticker,
-            prevShares: Number(pos.shares) || 0,
-            price: sellPrice,
-            buy_price: buyPrice,
-            realized_pnl_pct: realized,
-          },
-        ],
-        description: `removed ${pos.ticker}`,
-        thesis_note: body.thesis_note ?? null,
-      });
-    } catch (err) {
-      console.warn(`sell fanout failed for ${pos.ticker}:`, err);
+  // Capture values needed by the deferred fanout.
+  const userId = user.id;
+  const thesisNote = body.thesis_note ?? null;
+  const positionsSnapshot = (
+    positions as Array<{
+      id: string;
+      ticker: string;
+      shares: number | null;
+      current_price: number | null;
+      entry_price: number | null;
+      portfolio_id: string | null;
+    }>
+  ).filter((p) => p.portfolio_id != null);
+
+  // Return response immediately — defer sell fanout to after().
+  after(async () => {
+    for (const pos of positionsSnapshot) {
+      const sellPrice =
+        pos.current_price != null ? Number(pos.current_price) : undefined;
+      const buyPrice =
+        pos.entry_price != null ? Number(pos.entry_price) : undefined;
+      const realized =
+        pos.entry_price != null && pos.current_price != null
+          ? ((Number(pos.current_price) - Number(pos.entry_price)) /
+              Number(pos.entry_price)) *
+            100
+          : undefined;
+      try {
+        await fanOutPortfolioUpdate(admin, {
+          portfolio_id: pos.portfolio_id!,
+          fund_manager_id: userId,
+          changes: [
+            {
+              type: "sell",
+              ticker: pos.ticker,
+              prevShares: Number(pos.shares) || 0,
+              price: sellPrice,
+              buy_price: buyPrice,
+              realized_pnl_pct: realized,
+            },
+          ],
+          description: `removed ${pos.ticker}`,
+          thesis_note: thesisNote,
+        });
+      } catch (err) {
+        console.warn(`sell fanout failed for ${pos.ticker}:`, err);
+      }
     }
-  }
+  });
 
   return NextResponse.json({
     ok: true,
