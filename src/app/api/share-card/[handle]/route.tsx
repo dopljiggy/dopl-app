@@ -26,6 +26,7 @@ export async function GET(
     .eq("fund_manager_id", fm.id)
     .eq("is_active", true);
 
+  try {
   return new ImageResponse(
     (
       <div
@@ -45,13 +46,13 @@ export async function GET(
         <div
           style={{
             position: "absolute",
-            top: -180,
-            right: -180,
-            width: 480,
-            height: 480,
-            background: "rgba(197, 214, 52, 0.18)",
-            borderRadius: "100%",
-            filter: "blur(80px)",
+            top: -80,
+            right: -80,
+            width: 400,
+            height: 400,
+            borderRadius: 9999,
+            background:
+              "radial-gradient(circle, rgba(197,214,52,0.15) 0%, transparent 70%)",
           }}
         />
         <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
@@ -76,7 +77,6 @@ export async function GET(
                 src={fm.avatar_url}
                 width={120}
                 height={120}
-                style={{ objectFit: "cover" }}
               />
             ) : (
               (fm.display_name || handle)[0]?.toUpperCase()
@@ -98,7 +98,7 @@ export async function GET(
           </div>
         </div>
 
-        {fm.bio && (
+        {fm.bio ? (
           <div
             style={{
               fontSize: 28,
@@ -109,6 +109,8 @@ export async function GET(
           >
             {fm.bio.slice(0, 140)}
           </div>
+        ) : (
+          <div />
         )}
 
         <div
@@ -193,4 +195,11 @@ export async function GET(
     ),
     { width: 1200, height: 630 }
   );
+  } catch (e) {
+    console.error("[share-card] ImageResponse error:", e);
+    return new Response(
+      JSON.stringify({ error: String(e) }),
+      { status: 500, headers: { "content-type": "application/json" } }
+    );
+  }
 }
