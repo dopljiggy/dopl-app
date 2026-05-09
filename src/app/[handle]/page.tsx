@@ -1,4 +1,6 @@
+import type { Metadata } from "next";
 import { getCachedUser } from "@/lib/supabase-server";
+import { createServerSupabase } from "@/lib/supabase-server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import ProfileHero from "./profile-hero";
@@ -19,6 +21,47 @@ const RESERVED = new Set([
   "api",
   "favicon.ico",
 ]);
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ handle: string }>;
+}): Promise<Metadata> {
+  const { handle: raw } = await params;
+  const handle = decodeURIComponent(raw).toLowerCase();
+  if (RESERVED.has(handle)) return {};
+
+  const supabase = await createServerSupabase();
+  const { data: fm } = await supabase
+    .from("fund_managers")
+    .select("display_name, handle, bio")
+    .ilike("handle", handle)
+    .maybeSingle();
+
+  if (!fm) return {};
+
+  const origin = process.env.NEXT_PUBLIC_APP_URL ?? "https://dopl-app.vercel.app";
+  const ogImage = `${origin}/api/share-card/${fm.handle}`;
+  const title = `${fm.display_name} on dopl`;
+  const description = fm.bio ?? "follow my portfolio on dopl";
+
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      type: "profile",
+      images: [{ url: ogImage, width: 1200, height: 630, alt: title }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [ogImage],
+    },
+  };
+}
 
 export default async function FundManagerProfile({
   params,

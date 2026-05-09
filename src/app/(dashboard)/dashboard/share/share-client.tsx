@@ -36,37 +36,20 @@ export default function ShareClient({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const [sharing, setSharing] = useState(false);
-
   const shareDopl = async () => {
-    if (!navigator.share) {
-      copyLink();
-      return;
-    }
-    setSharing(true);
-    try {
-      let files: File[] | undefined;
-      if (cardRef.current && navigator.canShare?.({ files: [new File([], "t.png", { type: "image/png" })] })) {
-        const { toBlob } = await import("html-to-image");
-        const blob = await toBlob(cardRef.current, {
-          pixelRatio: 2.222,
-          canvasWidth: 1200,
-          canvasHeight: 630,
+    markShared();
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `${displayName} on dopl`,
+          text: "follow my portfolio on dopl",
+          url: shareUrl,
         });
-        if (blob) {
-          files = [new File([blob], `dopl-${handle}.png`, { type: "image/png" })];
-        }
+      } catch {
+        /* user cancelled */
       }
-      await navigator.share({
-        ...(files ? { files } : {}),
-        title: `${displayName} on dopl`,
-        text: `follow my portfolio on dopl\n${shareUrl}`,
-      });
-      markShared();
-    } catch {
-      /* user cancelled or share failed */
-    } finally {
-      setSharing(false);
+    } else {
+      copyLink();
     }
   };
 
@@ -290,10 +273,9 @@ export default function ShareClient({
       <div className="mx-auto" style={{ maxWidth: CARD_W }}>
         <button
           onClick={shareDopl}
-          disabled={sharing}
-          className="w-full btn-lime text-base font-semibold py-4 rounded-xl disabled:opacity-70"
+          className="w-full btn-lime text-base font-semibold py-4 rounded-xl"
         >
-          {sharing ? "preparing..." : "share"}
+          share
         </button>
       </div>
 
