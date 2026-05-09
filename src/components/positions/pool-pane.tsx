@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import {
   Building2,
   Check,
@@ -9,7 +8,6 @@ import {
   PencilLine,
 } from "lucide-react";
 import { fireToast } from "@/components/ui/toast";
-import { useBottomSheetFooter } from "@/components/ui/bottom-sheet";
 
 /**
  * Sprint 17: extracted from positions-client.tsx so /dashboard/positions
@@ -161,8 +159,6 @@ export function PoolPane({
     }
   };
 
-  const footerEl = useBottomSheetFooter();
-
   const assignBarInner = visiblePool.length > 0 ? (
     <>
       <div className="flex justify-between items-center">
@@ -206,15 +202,6 @@ export function PoolPane({
       </div>
     </>
   ) : null;
-
-  const assignBarPortal = footerEl && assignBarInner
-    ? createPortal(
-        <div className="px-4 py-2.5 border-t border-[color:var(--dopl-cream)]/[0.08]">
-          {assignBarInner}
-        </div>,
-        footerEl
-      )
-    : null;
 
   return (
     <section>
@@ -278,9 +265,7 @@ export function PoolPane({
         </div>
       )}
 
-      {/* Portal to bottom sheet footer on mobile; inline sticky on desktop */}
-      {assignBarPortal}
-      {!footerEl && assignBarInner && (
+      {assignBarInner && (
         <div
           className="sticky bottom-0 mt-4 pt-3 pb-1"
           style={{ background: "linear-gradient(to top, rgba(10, 31, 25, 1) 60%, transparent)" }}

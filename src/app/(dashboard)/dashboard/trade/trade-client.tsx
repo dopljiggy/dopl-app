@@ -191,16 +191,16 @@ export default function TradeClient({
         </div>
       </div>
 
-      <div className="grid lg:grid-cols-[7fr_3fr] gap-6 min-w-0">
+      <div className="grid xl:grid-cols-[7fr_3fr] gap-6 min-w-0">
         <div className="min-w-0">
           <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-6">
             <button
               type="button"
               onClick={() => setShowMobilePool(true)}
-              className="relative rounded-2xl px-3 py-3 sm:px-4 text-left lg:cursor-default lg:pointer-events-none border border-[color:var(--dopl-lime)]/30 bg-[color:var(--dopl-lime)]/[0.04] transition-colors"
+              className="relative rounded-2xl px-3 py-3 sm:px-4 text-left xl:cursor-default xl:pointer-events-none border border-[color:var(--dopl-lime)]/30 bg-[color:var(--dopl-lime)]/[0.04] transition-colors"
             >
               {effectivePool.length > 0 && (
-                <span className="absolute top-2.5 right-2.5 lg:hidden flex h-2.5 w-2.5">
+                <span className="absolute top-2.5 right-2.5 xl:hidden flex h-2.5 w-2.5">
                   <span className="absolute inset-0 rounded-full bg-blue-400 opacity-60 animate-ping" />
                   <span className="relative rounded-full h-2.5 w-2.5 bg-blue-400" />
                 </span>
@@ -246,7 +246,7 @@ export default function TradeClient({
           )}
 
           <section>
-            <header className="hidden lg:flex items-center justify-between mb-4">
+            <header className="hidden xl:flex items-center justify-between mb-4">
               <h2 className="font-display text-lg font-semibold flex items-center gap-2">
                 Portfolios
                 <span className="text-xs text-[color:var(--dopl-cream)]/40 font-mono font-normal">
@@ -325,7 +325,7 @@ export default function TradeClient({
         </div>
 
         {/* Desktop: pool inline on the right, aligned with stat cards */}
-        <section className="hidden lg:block">
+        <section className="hidden xl:block">
           <PoolPane
             pool={effectivePool}
             connections={connections}

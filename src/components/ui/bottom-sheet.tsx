@@ -1,11 +1,8 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { motion, useMotionValue, animate } from "framer-motion";
 import { X } from "lucide-react";
-
-const BottomSheetFooterCtx = createContext<HTMLDivElement | null>(null);
-export const useBottomSheetFooter = () => useContext(BottomSheetFooterCtx);
 
 interface BottomSheetProps {
   isOpen: boolean;
@@ -36,8 +33,6 @@ export function BottomSheet({
   const scrollRef = useRef<HTMLDivElement>(null);
   const snapRef = useRef<"half" | "full">("half");
   const closedRef = useRef(false);
-  const [scrollable, setScrollable] = useState(false);
-  const [footerEl, setFooterEl] = useState<HTMLDivElement | null>(null);
 
   const drag = useRef({
     active: false,
@@ -64,7 +59,6 @@ export function BottomSheet({
         );
       } else {
         snapRef.current = snap;
-        setScrollable(snap === "full");
         animate(sheetY, target, SPRING);
       }
     },
@@ -76,7 +70,6 @@ export function BottomSheet({
   useEffect(() => {
     if (isOpen) {
       closedRef.current = false;
-      setScrollable(false);
       const snaps = getSnaps();
       sheetY.set(snaps.dismiss);
       snapRef.current = "half";
@@ -182,17 +175,20 @@ export function BottomSheet({
     const touchY = e.touches[0].clientY;
     const dy = touchY - sd.startY;
 
-    // At half-snap: any vertical gesture > 8px becomes a sheet drag
-    if (snapRef.current === "half" && !sd.active && Math.abs(dy) > 8) {
-      sd.active = true;
-      drag.current = {
-        active: true,
-        startY: touchY,
-        startSheetY: sheetY.get(),
-        lastY: touchY,
-        lastTime: Date.now(),
-        velocity: 0,
-      };
+    // At half-snap: block native scrolling, activate drag after 8px
+    if (snapRef.current === "half") {
+      e.preventDefault();
+      if (!sd.active && Math.abs(dy) > 8) {
+        sd.active = true;
+        drag.current = {
+          active: true,
+          startY: touchY,
+          startSheetY: sheetY.get(),
+          lastY: touchY,
+          lastTime: Date.now(),
+          velocity: 0,
+        };
+      }
     }
 
     // At full-snap: pull-down from scroll top transitions to drag
@@ -234,7 +230,7 @@ export function BottomSheet({
   if (!isOpen) return null;
 
   return (
-    <div className="lg:hidden">
+    <div className="xl:hidden">
       {/* Backdrop */}
       <motion.div
         initial={{ opacity: 0 }}
@@ -297,34 +293,21 @@ export function BottomSheet({
           </div>
         </div>
 
-        <BottomSheetFooterCtx.Provider value={footerEl}>
-          {/* Scrollable content */}
-          <div
-            ref={scrollRef}
-            className="flex-1 min-h-0 px-5 pb-4"
-            style={{
-              overflowY: scrollable ? "auto" : "hidden",
-              WebkitOverflowScrolling: "touch",
-              overscrollBehavior: "contain",
-            }}
-            onTouchStart={onScrollTouchStart}
-            onTouchMove={onScrollTouchMove}
-            onTouchEnd={onScrollTouchEnd}
-          >
-            {children}
-          </div>
-
-          {/* Footer zone — portal target for assign bar, always draggable */}
-          <div
-            ref={setFooterEl}
-            className="flex-shrink-0 select-none"
-            style={{ touchAction: "none" }}
-            onPointerDown={onHandleDown}
-            onPointerMove={onHandleMove}
-            onPointerUp={onHandleUp}
-            onPointerCancel={onHandleUp}
-          />
-        </BottomSheetFooterCtx.Provider>
+        {/* Scrollable content */}
+        <div
+          ref={scrollRef}
+          className="flex-1 min-h-0 px-5 pb-4"
+          style={{
+            overflowY: "auto",
+            WebkitOverflowScrolling: "touch",
+            overscrollBehavior: "contain",
+          }}
+          onTouchStart={onScrollTouchStart}
+          onTouchMove={onScrollTouchMove}
+          onTouchEnd={onScrollTouchEnd}
+        >
+          {children}
+        </div>
       </motion.div>
     </div>
   );
