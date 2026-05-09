@@ -239,7 +239,7 @@ export default function ExpandablePortfolioCard({
             onToggle();
           }
         }}
-        className="w-full text-left p-5 md:p-6 flex items-center gap-4 hover:bg-[color:var(--dopl-sage)]/10 transition-colors cursor-pointer"
+        className="w-full text-left p-4 md:p-6 flex items-center gap-3 md:gap-4 hover:bg-[color:var(--dopl-sage)]/10 transition-colors cursor-pointer overflow-hidden"
       >
         <motion.div
           animate={{ rotate: isExpanded ? 180 : 0 }}
@@ -250,7 +250,7 @@ export default function ExpandablePortfolioCard({
         </motion.div>
 
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2 mb-1 min-w-0">
             <span
               className={`text-[10px] font-mono font-semibold px-2 py-0.5 rounded uppercase tracking-wider ${
                 isFree
@@ -285,15 +285,17 @@ export default function ExpandablePortfolioCard({
           )}
         </div>
 
-        <div className="flex items-center gap-5 flex-shrink-0">
-          <Stat icon={<Briefcase size={12} />} value={positions.length} label="positions" />
-          <Stat
-            icon={<Users size={12} />}
-            value={portfolio.subscriber_count}
-            label="doplers"
-          />
+        <div className="flex items-center gap-3 md:gap-5 flex-shrink-0">
+          <div className="hidden sm:flex items-center gap-3 md:gap-5">
+            <Stat icon={<Briefcase size={12} />} value={positions.length} label="positions" />
+            <Stat
+              icon={<Users size={12} />}
+              value={portfolio.subscriber_count}
+              label="doplers"
+            />
+          </div>
           <div className="text-right">
-            <p className="font-mono text-base md:text-lg font-bold text-[color:var(--dopl-lime)] leading-none">
+            <p className="font-mono text-sm md:text-lg font-bold text-[color:var(--dopl-lime)] leading-none">
               {isFree ? "free" : `$${(portfolio.price_cents / 100).toFixed(0)}`}
             </p>
             {!isFree && (

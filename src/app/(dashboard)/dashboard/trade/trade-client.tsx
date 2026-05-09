@@ -175,8 +175,8 @@ export default function TradeClient({
         </div>
       </div>
 
-      <div className="grid lg:grid-cols-[7fr_3fr] gap-6">
-        <div>
+      <div className="grid lg:grid-cols-[7fr_3fr] gap-6 min-w-0">
+        <div className="min-w-0">
           <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-6">
             <button
               type="button"
