@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, RefreshCw, X } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { Loader2, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { fireToast } from "@/components/ui/toast";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
 import {
   PoolPane,
   formatMoney,
@@ -52,21 +52,6 @@ export default function TradeClient({
   const [showMobilePool, setShowMobilePool] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const sheetRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!showMobilePool) return;
-    const html = document.documentElement;
-    html.style.overflow = "hidden";
-    const onTouchMove = (e: TouchEvent) => {
-      if (sheetRef.current?.contains(e.target as Node)) return;
-      e.preventDefault();
-    };
-    document.addEventListener("touchmove", onTouchMove, { passive: false });
-    return () => {
-      html.style.overflow = "";
-      document.removeEventListener("touchmove", onTouchMove);
-    };
-  }, [showMobilePool]);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<PortfolioSortKey>("date");
@@ -350,66 +335,23 @@ export default function TradeClient({
         </section>
       </div>
 
-      {/* Mobile: bottom sheet triggered by unassigned stat card */}
-      <div className="lg:hidden">
-        <AnimatePresence>
-          {showMobilePool && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.25 }}
-              className="fixed inset-0 z-[70] bg-[color:var(--dopl-deep)]/50"
-              onClick={() => setShowMobilePool(false)}
-            />
-          )}
-        </AnimatePresence>
-        <AnimatePresence>
-          {showMobilePool && (
-            <motion.div
-              ref={sheetRef}
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{ duration: 0.35, ease: [0.32, 0.72, 0, 1] }}
-              className="fixed bottom-0 left-0 right-0 z-[71] max-h-[55vh] rounded-t-2xl p-5 pb-8 border-t border-[color:var(--dopl-cream)]/10"
-              style={{
-                background: "rgba(13, 30, 24, 0.95)",
-                overflowY: "scroll",
-                WebkitOverflowScrolling: "touch",
-                overscrollBehavior: "contain",
-              }}
-            >
-              <div className="flex justify-center mb-3">
-                <div className="w-10 h-1 rounded-full bg-[color:var(--dopl-cream)]/20" />
-              </div>
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <h2 className="font-display text-lg font-semibold">Unassigned</h2>
-                  <span className="text-xs text-[color:var(--dopl-cream)]/40 font-mono">
-                    {effectivePool.length} positions
-                  </span>
-                </div>
-                <button
-                  onClick={() => setShowMobilePool(false)}
-                  className="p-1.5 rounded-lg text-[color:var(--dopl-cream)]/40 hover:text-[color:var(--dopl-cream)] hover:bg-[color:var(--dopl-sage)]/30 transition-colors"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-              <PoolPane
-                pool={effectivePool}
-                connections={connections}
-                portfolios={portfolioStubs}
-                onChanged={() => {
-                  router.refresh();
-                  setShowMobilePool(false);
-                }}
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+      <BottomSheet
+        isOpen={showMobilePool}
+        onClose={() => setShowMobilePool(false)}
+        title="Unassigned"
+        subtitle={`${effectivePool.length} positions`}
+      >
+        <PoolPane
+          pool={effectivePool}
+          connections={connections}
+          portfolios={portfolioStubs}
+          onChanged={() => {
+            router.refresh();
+            setShowMobilePool(false);
+          }}
+          hideHeader
+        />
+      </BottomSheet>
     </div>
   );
 }
