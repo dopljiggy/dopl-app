@@ -53,8 +53,19 @@ export default function TradeClient({
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
-    document.body.style.overflow = showMobilePool ? "hidden" : "";
-    return () => { document.body.style.overflow = ""; };
+    if (!showMobilePool) return;
+    const scrollY = window.scrollY;
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.left = "0";
+    document.body.style.right = "0";
+    return () => {
+      document.body.style.position = "";
+      document.body.style.top = "";
+      document.body.style.left = "";
+      document.body.style.right = "";
+      window.scrollTo(0, scrollY);
+    };
   }, [showMobilePool]);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -348,7 +359,7 @@ export default function TradeClient({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.25 }}
-              className="fixed inset-0 z-[70] bg-[color:var(--dopl-deep)]/70 backdrop-blur-sm"
+              className="fixed inset-0 z-[70] bg-[color:var(--dopl-deep)]/50"
               onClick={() => setShowMobilePool(false)}
             />
           )}
