@@ -55,12 +55,17 @@ export default function TradeClient({
   const sheetRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!showMobilePool) return;
+    const html = document.documentElement;
+    html.style.overflow = "hidden";
     const onTouchMove = (e: TouchEvent) => {
       if (sheetRef.current?.contains(e.target as Node)) return;
       e.preventDefault();
     };
     document.addEventListener("touchmove", onTouchMove, { passive: false });
-    return () => document.removeEventListener("touchmove", onTouchMove);
+    return () => {
+      html.style.overflow = "";
+      document.removeEventListener("touchmove", onTouchMove);
+    };
   }, [showMobilePool]);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -367,10 +372,12 @@ export default function TradeClient({
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
               transition={{ duration: 0.35, ease: [0.32, 0.72, 0, 1] }}
-              className="fixed bottom-0 left-0 right-0 z-[71] max-h-[55vh] overflow-y-auto overscroll-contain rounded-t-2xl p-5 pb-8 border-t border-[color:var(--dopl-cream)]/10"
+              className="fixed bottom-0 left-0 right-0 z-[71] max-h-[55vh] rounded-t-2xl p-5 pb-8 border-t border-[color:var(--dopl-cream)]/10"
               style={{
-                background: "var(--glass-bg)",
+                background: "rgba(13, 30, 24, 0.95)",
+                overflowY: "scroll",
                 WebkitOverflowScrolling: "touch",
+                overscrollBehavior: "contain",
               }}
             >
               <div className="flex justify-center mb-3">
