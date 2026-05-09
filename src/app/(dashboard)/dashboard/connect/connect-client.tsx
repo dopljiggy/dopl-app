@@ -189,10 +189,6 @@ export default function ConnectClient({
           <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight mb-2">
             Connected Brokers
           </h1>
-          <p className="text-[color:var(--dopl-cream)]/50 text-sm">
-            link as many brokers as you trade with — read-only, never
-            executes trades.
-          </p>
         </div>
         {connections.length > 0 && (
           <div className="flex items-center gap-2 flex-wrap">
