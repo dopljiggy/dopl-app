@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Copy, Check, Download } from "lucide-react";
+import { Copy, Check } from "lucide-react";
 
 
 interface Props {
@@ -20,7 +20,6 @@ export default function ShareClient({
   origin,
 }: Props) {
   const [copied, setCopied] = useState(false);
-  const [downloading, setDownloading] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
   const shareUrl = `${origin}/${handle}`;
 
@@ -37,46 +36,37 @@ export default function ShareClient({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const downloadPng = async () => {
-    if (!cardRef.current) return;
-    setDownloading(true);
-    try {
-      const { toBlob } = await import("html-to-image");
-      const blob = await toBlob(cardRef.current, {
-        pixelRatio: 2.222,
-        canvasWidth: 1200,
-        canvasHeight: 630,
-      });
-      if (!blob) return;
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `dopl-${handle}.png`;
-      a.click();
-      URL.revokeObjectURL(url);
-      markShared();
-    } catch {
-      window.open(`${origin}/api/share-card/${handle}`, "_blank");
-      markShared();
-    } finally {
-      setDownloading(false);
-    }
-  };
+  const [sharing, setSharing] = useState(false);
 
   const shareDopl = async () => {
-    markShared();
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: `${displayName} on dopl`,
-          text: "follow my portfolio on dopl",
-          url: shareUrl,
-        });
-      } catch {
-        /* user cancelled */
-      }
-    } else {
+    if (!navigator.share) {
       copyLink();
+      return;
+    }
+    setSharing(true);
+    try {
+      let files: File[] | undefined;
+      if (cardRef.current && navigator.canShare?.({ files: [new File([], "t.png", { type: "image/png" })] })) {
+        const { toBlob } = await import("html-to-image");
+        const blob = await toBlob(cardRef.current, {
+          pixelRatio: 2.222,
+          canvasWidth: 1200,
+          canvasHeight: 630,
+        });
+        if (blob) {
+          files = [new File([blob], `dopl-${handle}.png`, { type: "image/png" })];
+        }
+      }
+      await navigator.share({
+        ...(files ? { files } : {}),
+        title: `${displayName} on dopl`,
+        text: `follow my portfolio on dopl\n${shareUrl}`,
+      });
+      markShared();
+    } catch {
+      /* user cancelled or share failed */
+    } finally {
+      setSharing(false);
     }
   };
 
@@ -103,7 +93,7 @@ export default function ShareClient({
       </h1>
 
       {/* Card preview */}
-      <div ref={wrapperRef} className="w-full mb-10" style={{ maxWidth: CARD_W, margin: "0 auto" }}>
+      <div ref={wrapperRef} className="w-full mx-auto" style={{ maxWidth: CARD_W, marginBottom: 48 }}>
         <div className="relative">
           <div style={{ height: (CARD_H + 2) * cardScale }}>
             <div style={{ transform: `scale(${cardScale})`, transformOrigin: "top left" }}>
@@ -273,7 +263,7 @@ export default function ShareClient({
       </div>
 
       {/* Link bar */}
-      <div className="flex items-center gap-2 mb-6 mx-auto" style={{ maxWidth: CARD_W }}>
+      <div className="flex items-center gap-2 mb-8 mx-auto" style={{ maxWidth: CARD_W }}>
         <div className="flex-1 min-w-0 rounded-xl glass-card-light px-4 py-3 flex items-center gap-2">
           <span className="text-xs text-[color:var(--dopl-cream)]/40 flex-shrink-0">
             <Copy size={14} />
@@ -300,21 +290,10 @@ export default function ShareClient({
       <div className="mx-auto" style={{ maxWidth: CARD_W }}>
         <button
           onClick={shareDopl}
-          className="w-full btn-lime text-base font-semibold py-4 rounded-xl"
+          disabled={sharing}
+          className="w-full btn-lime text-base font-semibold py-4 rounded-xl disabled:opacity-70"
         >
-          share
-        </button>
-      </div>
-
-      {/* Secondary: download PNG (useful for social posts) */}
-      <div className="mx-auto mt-3" style={{ maxWidth: CARD_W }}>
-        <button
-          onClick={downloadPng}
-          disabled={downloading}
-          className="w-full glass-card-light rounded-xl px-4 py-3 text-sm text-[color:var(--dopl-cream)]/60 hover:text-[color:var(--dopl-cream)] hover:bg-[color:var(--dopl-sage)]/30 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-        >
-          <Download size={14} />
-          {downloading ? "rendering..." : "download card as PNG"}
+          {sharing ? "preparing..." : "share"}
         </button>
       </div>
 
