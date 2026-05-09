@@ -175,116 +175,118 @@ export default function TradeClient({
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-6">
-        <button
-          type="button"
-          onClick={() => setShowMobilePool(true)}
-          className="rounded-2xl px-3 py-3 sm:px-4 text-left lg:cursor-default lg:pointer-events-none border border-[color:var(--dopl-lime)]/30 bg-[color:var(--dopl-lime)]/[0.04] transition-colors"
-        >
-          <p className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/45 mb-1">
-            pool
-          </p>
-          <p className="font-display text-xl sm:text-2xl font-semibold tabular-nums leading-none">
-            {pool.length}
-          </p>
-          <p className="text-[10px] sm:text-[11px] text-[color:var(--dopl-lime)]/85 font-mono mt-1 tabular-nums">
-            {formatMoney(poolTotal)}
-          </p>
-        </button>
-        <div className="glass-card-light rounded-2xl px-3 py-3 sm:px-4 border-l-2 border-[color:var(--dopl-cream)]/40">
-          <p className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/45 mb-1">
-            assigned
-          </p>
-          <p className="font-display text-xl sm:text-2xl font-semibold tabular-nums leading-none">
-            {assigned.length}
-          </p>
-          <p className="text-[10px] sm:text-[11px] text-[color:var(--dopl-cream)]/75 font-mono mt-1 tabular-nums">
-            {formatMoney(assignedTotal)}
-          </p>
-        </div>
-        <div className="glass-card-light rounded-2xl px-3 py-3 sm:px-4 border-l-2 border-[color:var(--dopl-sage)]/70">
-          <p className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/45 mb-1">
-            connections
-          </p>
-          <p className="font-display text-xl sm:text-2xl font-semibold tabular-nums leading-none">
-            {activeConnectionCount}
-          </p>
-          <p className="text-[10px] sm:text-[11px] text-[color:var(--dopl-cream)]/45 font-mono mt-1">
-            active
-          </p>
-        </div>
-      </div>
-
-      {error && (
-        <div className="glass-card-light p-3 border border-red-500/30 text-sm text-red-300 mb-6 rounded-xl">
-          {error}
-        </div>
-      )}
-
       <div className="grid lg:grid-cols-[7fr_3fr] gap-6">
-        <section>
-          <header className="hidden lg:flex items-center justify-between mb-4">
-            <h2 className="font-display text-lg font-semibold flex items-center gap-2">
-              Portfolios
-              <span className="text-xs text-[color:var(--dopl-cream)]/40 font-mono font-normal">
-                {portfolios.length}
-              </span>
-            </h2>
-          </header>
-
-          {portfolios.length === 0 ? (
-            <div className="glass-card p-8 text-center text-sm text-[color:var(--dopl-cream)]/40 rounded-2xl">
-              <p className="mb-3">no portfolios yet</p>
-              <a
-                href="/dashboard/portfolios"
-                className="btn-lime text-xs px-4 py-2 inline-flex items-center gap-2"
-              >
-                create a portfolio
-              </a>
+        <div>
+          <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-6">
+            <button
+              type="button"
+              onClick={() => setShowMobilePool(true)}
+              className="rounded-2xl px-3 py-3 sm:px-4 text-left lg:cursor-default lg:pointer-events-none border border-[color:var(--dopl-lime)]/30 bg-[color:var(--dopl-lime)]/[0.04] transition-colors"
+            >
+              <p className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/45 mb-1">
+                unassigned
+              </p>
+              <p className="font-display text-xl sm:text-2xl font-semibold tabular-nums leading-none">
+                {pool.length}
+              </p>
+              <p className="text-[10px] sm:text-[11px] text-[color:var(--dopl-lime)]/85 font-mono mt-1 tabular-nums">
+                {formatMoney(poolTotal)}
+              </p>
+            </button>
+            <div className="glass-card-light rounded-2xl px-3 py-3 sm:px-4 border-l-2 border-[color:var(--dopl-cream)]/40">
+              <p className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/45 mb-1">
+                assigned
+              </p>
+              <p className="font-display text-xl sm:text-2xl font-semibold tabular-nums leading-none">
+                {assigned.length}
+              </p>
+              <p className="text-[10px] sm:text-[11px] text-[color:var(--dopl-cream)]/75 font-mono mt-1 tabular-nums">
+                {formatMoney(assignedTotal)}
+              </p>
             </div>
-          ) : (
-            <div className="space-y-4">
-              {sortedPortfolios.map((p, idx) => {
-                const showArrows =
-                  sortKey === "custom" && sortedPortfolios.length > 1;
-                const card = (
-                  <ExpandablePortfolioCard
-                    portfolio={p}
-                    positions={positionsByPortfolio.get(p.id) ?? []}
-                    isExpanded={expandedId === p.id}
-                    onToggle={() =>
-                      setExpandedId(expandedId === p.id ? null : p.id)
-                    }
-                    onDelete={() => handleDelete(p.id)}
-                    brokerProvider={brokerProvider}
-                  />
-                );
-                return (
-                  <div key={p.id}>
-                    {showArrows ? (
-                      <div className="flex items-stretch gap-2">
-                        <PortfolioReorderArrows
-                          onUp={() => void move(sortedPortfolios, p.id, "up")}
-                          onDown={() =>
-                            void move(sortedPortfolios, p.id, "down")
-                          }
-                          canUp={idx > 0}
-                          canDown={idx < sortedPortfolios.length - 1}
-                          position={idx + 1}
-                        />
-                        <div className="flex-1 min-w-0">{card}</div>
-                      </div>
-                    ) : (
-                      card
-                    )}
-                  </div>
-                );
-              })}
+            <div className="glass-card-light rounded-2xl px-3 py-3 sm:px-4 border-l-2 border-[color:var(--dopl-sage)]/70">
+              <p className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/45 mb-1">
+                connections
+              </p>
+              <p className="font-display text-xl sm:text-2xl font-semibold tabular-nums leading-none">
+                {activeConnectionCount}
+              </p>
+              <p className="text-[10px] sm:text-[11px] text-[color:var(--dopl-cream)]/45 font-mono mt-1">
+                active
+              </p>
+            </div>
+          </div>
+
+          {error && (
+            <div className="glass-card-light p-3 border border-red-500/30 text-sm text-red-300 mb-6 rounded-xl">
+              {error}
             </div>
           )}
-        </section>
 
-        {/* Desktop: pool inline on the right */}
+          <section>
+            <header className="hidden lg:flex items-center justify-between mb-4">
+              <h2 className="font-display text-lg font-semibold flex items-center gap-2">
+                Portfolios
+                <span className="text-xs text-[color:var(--dopl-cream)]/40 font-mono font-normal">
+                  {portfolios.length}
+                </span>
+              </h2>
+            </header>
+
+            {portfolios.length === 0 ? (
+              <div className="glass-card p-8 text-center text-sm text-[color:var(--dopl-cream)]/40 rounded-2xl">
+                <p className="mb-3">no portfolios yet</p>
+                <a
+                  href="/dashboard/portfolios"
+                  className="btn-lime text-xs px-4 py-2 inline-flex items-center gap-2"
+                >
+                  create a portfolio
+                </a>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {sortedPortfolios.map((p, idx) => {
+                  const showArrows =
+                    sortKey === "custom" && sortedPortfolios.length > 1;
+                  const card = (
+                    <ExpandablePortfolioCard
+                      portfolio={p}
+                      positions={positionsByPortfolio.get(p.id) ?? []}
+                      isExpanded={expandedId === p.id}
+                      onToggle={() =>
+                        setExpandedId(expandedId === p.id ? null : p.id)
+                      }
+                      onDelete={() => handleDelete(p.id)}
+                      brokerProvider={brokerProvider}
+                    />
+                  );
+                  return (
+                    <div key={p.id}>
+                      {showArrows ? (
+                        <div className="flex items-stretch gap-2">
+                          <PortfolioReorderArrows
+                            onUp={() => void move(sortedPortfolios, p.id, "up")}
+                            onDown={() =>
+                              void move(sortedPortfolios, p.id, "down")
+                            }
+                            canUp={idx > 0}
+                            canDown={idx < sortedPortfolios.length - 1}
+                            position={idx + 1}
+                          />
+                          <div className="flex-1 min-w-0">{card}</div>
+                        </div>
+                      ) : (
+                        card
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        </div>
+
+        {/* Desktop: pool inline on the right, aligned with stat cards */}
         <section className="hidden lg:block">
           <PoolPane
             pool={pool}
@@ -317,7 +319,7 @@ export default function TradeClient({
               >
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <h2 className="font-display text-lg font-semibold">Pool</h2>
+                    <h2 className="font-display text-lg font-semibold">Unassigned</h2>
                     <span className="text-xs text-[color:var(--dopl-cream)]/40 font-mono">
                       {pool.length} positions
                     </span>

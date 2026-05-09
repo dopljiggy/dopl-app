@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, ArrowRight, Building2, Landmark, Globe } from "lucide-react";
+import { Loader2, ArrowRight, Building2, Globe } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { fireToast } from "@/components/ui/toast";
 
@@ -24,13 +24,6 @@ export const BROKER_CHOICES: BrokerChoice[] = [
       "Robinhood, Fidelity, Schwab, Webull, Interactive Brokers, Coinbase, Trading 212, and more.",
     label: "via snaptrade",
     icon: Building2,
-  },
-  {
-    key: "saltedge",
-    title: "my bank",
-    subtitle: "Emirates NBD, HSBC, Barclays, and 5000+ banks worldwide.",
-    label: "via salt edge",
-    icon: Landmark,
   },
   {
     key: "manual",
@@ -64,7 +57,7 @@ export function BrokerTypeSelector({
       fireToast({
         title: "add positions directly in your portfolio",
       });
-      router.push("/dashboard/portfolios");
+      router.push("/dashboard/trade");
       return;
     }
 

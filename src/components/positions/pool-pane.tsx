@@ -162,7 +162,7 @@ export function PoolPane({
     <section>
       <header className="flex items-center justify-between mb-4 gap-2">
         <h2 className="font-display text-lg font-semibold flex items-center gap-2">
-          Centralized Pool
+          Unassigned
           <span className="text-xs text-[color:var(--dopl-cream)]/40 font-mono font-normal">
             {visiblePool.length}
           </span>

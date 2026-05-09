@@ -32,12 +32,6 @@ const PROVIDER_ICON = {
   manual: PencilLine,
 } as const;
 
-const PROVIDER_LABEL = {
-  snaptrade: "via snaptrade",
-  saltedge: "via salt edge",
-  manual: "manual entry",
-} as const;
-
 /**
  * One broker connection card. Sprint 15.
  *
@@ -151,9 +145,6 @@ export function BrokerConnectionCard({
               <h3 className="font-display text-base font-semibold truncate">
                 {connection.broker_name}
               </h3>
-              <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-[color:var(--dopl-cream)]/40">
-                {PROVIDER_LABEL[connection.provider]}
-              </span>
               {syncStatus === "ok" && (
                 <CheckCircle
                   size={12}
