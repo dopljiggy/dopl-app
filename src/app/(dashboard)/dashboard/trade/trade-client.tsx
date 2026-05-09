@@ -51,6 +51,11 @@ export default function TradeClient({
   const router = useRouter();
   const [showMobilePool, setShowMobilePool] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    document.body.style.overflow = showMobilePool ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [showMobilePool]);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<PortfolioSortKey>("date");
@@ -342,11 +347,10 @@ export default function TradeClient({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[70]"
+              transition={{ duration: 0.25 }}
+              className="fixed inset-0 z-[70] bg-[color:var(--dopl-deep)]/70 backdrop-blur-sm"
               onClick={() => setShowMobilePool(false)}
-            >
-              <div className="absolute inset-0 bg-[color:var(--dopl-deep)]/70 backdrop-blur-sm" />
-            </motion.div>
+            />
           )}
         </AnimatePresence>
         <AnimatePresence>
@@ -355,13 +359,13 @@ export default function TradeClient({
               initial={{ y: "100%" }}
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 28, stiffness: 300 }}
-              className="fixed bottom-0 left-0 right-0 z-[71] max-h-[55vh] overflow-y-auto rounded-t-2xl glass-card glass-card-strong p-5 pb-8"
+              transition={{ duration: 0.35, ease: [0.32, 0.72, 0, 1] }}
+              className="fixed bottom-0 left-0 right-0 z-[71] max-h-[55vh] rounded-t-2xl glass-card glass-card-strong p-5 pb-8 flex flex-col overscroll-contain"
             >
-              <div className="flex justify-center mb-3">
+              <div className="flex justify-center mb-3 flex-shrink-0">
                 <div className="w-10 h-1 rounded-full bg-[color:var(--dopl-cream)]/20" />
               </div>
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between mb-4 flex-shrink-0">
                 <div className="flex items-center gap-3">
                   <h2 className="font-display text-lg font-semibold">Unassigned</h2>
                   <span className="text-xs text-[color:var(--dopl-cream)]/40 font-mono">
@@ -375,15 +379,17 @@ export default function TradeClient({
                   <X size={16} />
                 </button>
               </div>
-              <PoolPane
-                pool={effectivePool}
-                connections={connections}
-                portfolios={portfolioStubs}
-                onChanged={() => {
-                  router.refresh();
-                  setShowMobilePool(false);
-                }}
-              />
+              <div className="overflow-y-auto flex-1 min-h-0 overscroll-contain">
+                <PoolPane
+                  pool={effectivePool}
+                  connections={connections}
+                  portfolios={portfolioStubs}
+                  onChanged={() => {
+                    router.refresh();
+                    setShowMobilePool(false);
+                  }}
+                />
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
