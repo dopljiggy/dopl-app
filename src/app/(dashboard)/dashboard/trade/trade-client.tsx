@@ -52,17 +52,15 @@ export default function TradeClient({
   const [showMobilePool, setShowMobilePool] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
+  const sheetRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!showMobilePool) return;
-    const html = document.documentElement;
-    const scrollY = window.scrollY;
-    html.style.setProperty("--sheet-scroll", `-${scrollY}px`);
-    html.classList.add("sheet-open");
-    return () => {
-      html.classList.remove("sheet-open");
-      html.style.removeProperty("--sheet-scroll");
-      window.scrollTo(0, scrollY);
+    const onTouchMove = (e: TouchEvent) => {
+      if (sheetRef.current?.contains(e.target as Node)) return;
+      e.preventDefault();
     };
+    document.addEventListener("touchmove", onTouchMove, { passive: false });
+    return () => document.removeEventListener("touchmove", onTouchMove);
   }, [showMobilePool]);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -364,12 +362,16 @@ export default function TradeClient({
         <AnimatePresence>
           {showMobilePool && (
             <motion.div
+              ref={sheetRef}
               initial={{ y: "100%" }}
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
               transition={{ duration: 0.35, ease: [0.32, 0.72, 0, 1] }}
-              style={{ touchAction: "pan-y" }}
-              className="fixed bottom-0 left-0 right-0 z-[71] max-h-[55vh] overflow-y-auto overscroll-contain rounded-t-2xl glass-card glass-card-strong p-5 pb-8"
+              className="fixed bottom-0 left-0 right-0 z-[71] max-h-[55vh] overflow-y-auto overscroll-contain rounded-t-2xl p-5 pb-8 border-t border-[color:var(--dopl-cream)]/10"
+              style={{
+                background: "var(--glass-bg)",
+                WebkitOverflowScrolling: "touch",
+              }}
             >
               <div className="flex justify-center mb-3">
                 <div className="w-10 h-1 rounded-full bg-[color:var(--dopl-cream)]/20" />

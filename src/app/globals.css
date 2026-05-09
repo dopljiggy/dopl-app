@@ -429,14 +429,6 @@ input:focus, select:focus, textarea:focus {
 }
 .position-pulse { animation: position-pulse 1.2s ease-out; }
 
-/* Bottom sheet scroll lock — freezes page behind mobile sheet */
-html.sheet-open body {
-  position: fixed;
-  width: 100%;
-  top: var(--sheet-scroll, 0);
-  overflow-y: scroll;
-}
-
 /* prefers-reduced-motion — turn off heavy animations */
 @media (prefers-reduced-motion: reduce) {
   .glass-card::before { animation: none; }
