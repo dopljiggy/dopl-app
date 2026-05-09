@@ -334,7 +334,7 @@ export default function TradeClient({
         </section>
       </div>
 
-      {/* Mobile: centered pool modal triggered by pool stat card */}
+      {/* Mobile: bottom sheet triggered by unassigned stat card */}
       <div className="lg:hidden">
         <AnimatePresence>
           {showMobilePool && (
@@ -342,42 +342,48 @@ export default function TradeClient({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[70] flex items-center justify-center p-4"
+              className="fixed inset-0 z-[70]"
               onClick={() => setShowMobilePool(false)}
             >
               <div className="absolute inset-0 bg-[color:var(--dopl-deep)]/70 backdrop-blur-sm" />
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.97, y: 10 }}
-                transition={{ duration: 0.25, ease: [0.2, 0.7, 0.2, 1] }}
-                onClick={(e) => e.stopPropagation()}
-                className="relative w-full max-w-lg max-h-[80vh] overflow-y-auto rounded-2xl glass-card glass-card-strong p-5"
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <h2 className="font-display text-lg font-semibold">Unassigned</h2>
-                    <span className="text-xs text-[color:var(--dopl-cream)]/40 font-mono">
-                      {effectivePool.length} positions
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => setShowMobilePool(false)}
-                    className="p-1.5 rounded-lg text-[color:var(--dopl-cream)]/40 hover:text-[color:var(--dopl-cream)] hover:bg-[color:var(--dopl-sage)]/30 transition-colors"
-                  >
-                    <X size={16} />
-                  </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        <AnimatePresence>
+          {showMobilePool && (
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 28, stiffness: 300 }}
+              className="fixed bottom-0 left-0 right-0 z-[71] max-h-[55vh] overflow-y-auto rounded-t-2xl glass-card glass-card-strong p-5 pb-8"
+            >
+              <div className="flex justify-center mb-3">
+                <div className="w-10 h-1 rounded-full bg-[color:var(--dopl-cream)]/20" />
+              </div>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <h2 className="font-display text-lg font-semibold">Unassigned</h2>
+                  <span className="text-xs text-[color:var(--dopl-cream)]/40 font-mono">
+                    {effectivePool.length} positions
+                  </span>
                 </div>
-                <PoolPane
-                  pool={effectivePool}
-                  connections={connections}
-                  portfolios={portfolioStubs}
-                  onChanged={() => {
-                    router.refresh();
-                    setShowMobilePool(false);
-                  }}
-                />
-              </motion.div>
+                <button
+                  onClick={() => setShowMobilePool(false)}
+                  className="p-1.5 rounded-lg text-[color:var(--dopl-cream)]/40 hover:text-[color:var(--dopl-cream)] hover:bg-[color:var(--dopl-sage)]/30 transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <PoolPane
+                pool={effectivePool}
+                connections={connections}
+                portfolios={portfolioStubs}
+                onChanged={() => {
+                  router.refresh();
+                  setShowMobilePool(false);
+                }}
+              />
             </motion.div>
           )}
         </AnimatePresence>
