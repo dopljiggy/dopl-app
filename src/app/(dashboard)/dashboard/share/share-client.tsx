@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Copy, Download, Share2, Check } from "lucide-react";
+import { Copy, Download, Share2, Check, Upload } from "lucide-react";
 import { motion } from "framer-motion";
 
 interface Props {
@@ -71,11 +71,6 @@ export default function ShareClient({
   const shareOnX = () => {
     const text = encodeURIComponent(`follow my portfolio on dopl`);
     const url = encodeURIComponent(shareUrl);
-    // Canonical X web intent is /intent/tweet (verified 2026-04). The
-    // /intent/post variant used in Sprint 4 R1 returns X's error page.
-    // NOTE: do NOT pass "noopener,noreferrer" in the features string —
-    // per WHATWG spec window.open returns null when noopener is set,
-    // which would force the fallback same-tab nav and close the dashboard.
     const intent = `https://x.com/intent/tweet?text=${text}&url=${url}`;
     const popup = window.open(intent, "_blank");
     if (popup) {
@@ -89,6 +84,22 @@ export default function ShareClient({
     }
     markShared();
   };
+
+  const nativeShare = async () => {
+    if (!navigator.share) return;
+    try {
+      await navigator.share({
+        title: `${displayName} on dopl`,
+        text: "follow my portfolio on dopl",
+        url: shareUrl,
+      });
+      markShared();
+    } catch {
+      /* user cancelled */
+    }
+  };
+
+  const canNativeShare = typeof navigator !== "undefined" && !!navigator.share;
 
   const CARD_W = 540;
   const CARD_H = 283;
@@ -455,6 +466,13 @@ export default function ShareClient({
             actions
           </p>
           <div className="space-y-3">
+            {canNativeShare && (
+              <ActionButton
+                icon={<Upload size={16} />}
+                title="Share"
+                onClick={nativeShare}
+              />
+            )}
             <ActionButton
               icon={copied ? <Check size={16} /> : <Copy size={16} />}
               title={copied ? "Copied!" : "Copy Link"}

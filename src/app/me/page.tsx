@@ -17,18 +17,31 @@ type PortfolioRow = {
   price_cents: number;
 };
 type FmRow = { id: string; handle: string; display_name: string };
+type ProfileRow = {
+  full_name: string | null;
+  email: string | null;
+  trading_broker_preference: string | null;
+};
 
 export default async function MePage() {
   const { supabase, user } = await getCachedUser();
   if (!user) redirect("/login");
 
-  const { data: rawSubs } = await supabase
-    .from("subscriptions")
-    .select("id, price_cents, created_at, portfolio_id, fund_manager_id")
-    .eq("user_id", user.id)
-    .eq("status", "active")
-    .order("created_at", { ascending: false });
+  const [{ data: rawSubs }, { data: profileData }] = await Promise.all([
+    supabase
+      .from("subscriptions")
+      .select("id, price_cents, created_at, portfolio_id, fund_manager_id")
+      .eq("user_id", user.id)
+      .eq("status", "active")
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("profiles")
+      .select("full_name, email, trading_broker_preference")
+      .eq("id", user.id)
+      .maybeSingle(),
+  ]);
 
+  const profile = profileData as ProfileRow | null;
   const subs = (rawSubs ?? []) as SubRow[];
   const portfolioIds = Array.from(new Set(subs.map((s) => s.portfolio_id)));
   const fmIds = Array.from(new Set(subs.map((s) => s.fund_manager_id)));
@@ -63,9 +76,21 @@ export default async function MePage() {
     fund_manager: fmMap.get(s.fund_manager_id) ?? null,
   }));
 
+  const displayName =
+    profile?.full_name ??
+    user.user_metadata?.full_name ??
+    profile?.email?.split("@")[0] ??
+    "dopler";
+
   return (
     <DoplerShell>
-      <MeClient userId={user.id} subscriptions={rows} />
+      <MeClient
+        userId={user.id}
+        displayName={displayName}
+        email={profile?.email ?? user.email ?? null}
+        brokerPreference={profile?.trading_broker_preference ?? null}
+        subscriptions={rows}
+      />
     </DoplerShell>
   );
 }

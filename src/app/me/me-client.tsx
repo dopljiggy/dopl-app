@@ -3,8 +3,11 @@
 import { useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
+import { Bell, TrendingUp, LogOut } from "lucide-react";
 import { CancelSubscriptionButton } from "@/components/ui/cancel-subscription-button";
 import { useNotificationsContext } from "@/components/notifications-context";
+import { BrokerPreferencePicker } from "@/components/broker-preference-picker";
+import { createClient } from "@/lib/supabase";
 import type { Notification } from "@/types/database";
 
 export type MeSubscription = {
@@ -26,36 +29,41 @@ export type MeSubscription = {
 
 export default function MeClient({
   userId: _userId,
+  displayName,
+  email,
+  brokerPreference,
   subscriptions,
 }: {
   userId: string;
+  displayName: string;
+  email: string | null;
+  brokerPreference: string | null;
   subscriptions: MeSubscription[];
 }) {
   const [subs, setSubs] = useState<MeSubscription[]>(subscriptions);
   const { notifications } = useNotificationsContext();
-
-  const monthlyCents = subs.reduce(
-    (sum, s) => sum + (s.price_cents ?? 0),
-    0
-  );
-  const monthlyDollars = monthlyCents / 100;
+  const [signingOut, setSigningOut] = useState(false);
 
   const handleCancelled = (id: string) => {
     setSubs((prev) => prev.filter((s) => s.id !== id));
   };
 
+  const signOut = async () => {
+    setSigningOut(true);
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    window.location.href = "/";
+  };
+
   return (
     <div className="max-w-2xl mx-auto px-6 py-8">
-      <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight mb-2">
-        /me
+      <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight mb-8">
+        {displayName}
       </h1>
-      <p className="text-sm text-[color:var(--dopl-cream)]/55 mb-8">
-        your subscriptions, your spend, your notifications.
-      </p>
 
       <section className="mb-10">
         <h2 className="text-xs font-mono uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/50 mb-3">
-          your subscriptions
+          you are dopling...
         </h2>
         {subs.length === 0 ? (
           <div className="rounded-2xl glass-card-light p-8 text-center">
@@ -94,10 +102,7 @@ export default function MeClient({
                     {s.portfolio?.name ?? "portfolio"}
                   </p>
                   <p className="text-[10px] uppercase tracking-[0.18em] font-mono text-[color:var(--dopl-cream)]/40 mt-2">
-                    {s.portfolio?.tier ?? "—"}{" "}
-                    {s.price_cents != null && s.price_cents > 0
-                      ? `— $${(s.price_cents / 100).toFixed(0)}/mo`
-                      : "— free"}
+                    {s.portfolio?.tier ?? "—"}
                   </p>
                 </div>
                 <CancelSubscriptionButton
@@ -112,65 +117,75 @@ export default function MeClient({
 
       <section className="mb-10">
         <h2 className="text-xs font-mono uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/50 mb-3">
-          your monthly spend
+          your activity
         </h2>
-        <div className="rounded-2xl glass-card-light p-6">
-          <p className="text-3xl font-display font-semibold">
-            {`$${monthlyDollars.toFixed(0)}`}
-          </p>
-          <p className="text-xs text-[color:var(--dopl-cream)]/50 mt-1">
-            per month, across {subs.length} active sub
-            {subs.length === 1 ? "" : "s"}
-          </p>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-2xl glass-card-light p-5">
+            <div className="flex items-center gap-2 mb-2">
+              <Bell size={14} className="text-[color:var(--dopl-lime)]" />
+              <p className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/40">
+                alerts received
+              </p>
+            </div>
+            <p className="text-2xl font-display font-semibold">
+              {notifications.length}
+            </p>
+          </div>
+          <div className="rounded-2xl glass-card-light p-5">
+            <div className="flex items-center gap-2 mb-2">
+              <TrendingUp size={14} className="text-[color:var(--dopl-lime)]" />
+              <p className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/40">
+                portfolios
+              </p>
+            </div>
+            <p className="text-2xl font-display font-semibold">
+              {subs.length}
+            </p>
+          </div>
         </div>
-      </section>
-
-      <section className="mb-10">
-        <div className="flex items-baseline justify-between mb-3">
-          <h2 className="text-xs font-mono uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/50">
-            recent notifications
-          </h2>
+        {notifications.length > 0 && (
           <Link
             href="/notifications"
-            className="text-xs text-[color:var(--dopl-lime)] hover:underline"
+            className="text-xs text-[color:var(--dopl-lime)] mt-3 inline-block hover:underline"
           >
-            see all →
+            view all notifications →
           </Link>
-        </div>
-        {notifications.length === 0 ? (
-          <div className="rounded-2xl glass-card-light p-6 text-center text-xs text-[color:var(--dopl-cream)]/50">
-            nothing yet
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {notifications.slice(0, 5).map((n) => (
-              <NotificationMini key={n.id} n={n} />
-            ))}
-          </div>
         )}
       </section>
 
-      <div className="mt-10 pt-6 border-t border-[color:var(--glass-border)]">
-        <Link
-          href="/settings"
-          className="text-xs text-[color:var(--dopl-cream)]/45 hover:text-[color:var(--dopl-cream)]"
-        >
-          account settings →
-        </Link>
-      </div>
-    </div>
-  );
-}
+      <section className="mb-10">
+        <h2 className="text-xs font-mono uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/50 mb-3">
+          settings
+        </h2>
+        <div className="space-y-3">
+          <div className="rounded-2xl glass-card-light p-5">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/40 mb-1">
+              name
+            </p>
+            <p className="text-sm">{displayName}</p>
+          </div>
+          {email && (
+            <div className="rounded-2xl glass-card-light p-5">
+              <p className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/40 mb-1">
+                email
+              </p>
+              <p className="text-sm font-mono">{email}</p>
+            </div>
+          )}
+          <div className="rounded-2xl glass-card-light p-5">
+            <BrokerPreferencePicker initial={brokerPreference} />
+          </div>
+        </div>
+      </section>
 
-function NotificationMini({ n }: { n: Notification }) {
-  return (
-    <div className="rounded-xl glass-card-light p-4">
-      <p className="text-sm font-semibold">{n.title}</p>
-      {n.body && (
-        <p className="text-xs text-[color:var(--dopl-cream)]/50 mt-1">
-          {n.body}
-        </p>
-      )}
+      <button
+        onClick={signOut}
+        disabled={signingOut}
+        className="glass-card-light rounded-xl px-4 py-3 text-sm flex items-center gap-2 hover:bg-[color:var(--dopl-sage)]/30 transition-colors disabled:opacity-50 w-full"
+      >
+        <LogOut size={14} className="text-[color:var(--dopl-cream)]/50" />
+        {signingOut ? "signing out..." : "sign out"}
+      </button>
     </div>
   );
 }

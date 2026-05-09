@@ -76,6 +76,11 @@ export default function ExpandablePortfolioCard({
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
   useEffect(() => { setPortalTarget(document.body); }, []);
 
+  const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
+  const visiblePositions = removedIds.size === 0
+    ? positions
+    : positions.filter((p) => !removedIds.has(p.id));
+
   // Inline-edit state for the per-row Adjust + Delete actions (H3).
   // Only one row can be in edit mode at a time; opening one closes the
   // other. The submitting flag covers both flows so the row's confirm
@@ -192,31 +197,35 @@ export default function ExpandablePortfolioCard({
 
   const submitRemove = async (pos: PositionRow) => {
     setSubmitting(true);
+    const thesis = removeThesis.trim() || null;
+    closeInlineEdit();
+    setRemovedIds((prev) => new Set([...prev, pos.id]));
+    setSubmitting(false);
     const res = await fetch("/api/positions/manual", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        id: pos.id,
-        thesis_note: removeThesis.trim() || null,
-      }),
+      body: JSON.stringify({ id: pos.id, thesis_note: thesis }),
     });
-    setSubmitting(false);
     if (!res.ok) {
       const j = (await res.json().catch(() => ({}))) as { error?: string };
       fireToast({ title: "remove failed", body: j.error ?? "" });
+      setRemovedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(pos.id);
+        return next;
+      });
       return;
     }
-    closeInlineEdit();
     router.refresh();
   };
 
-  const allocationSum = positions.reduce(
+  const allocationSum = visiblePositions.reduce(
     (a, p) => a + (Number(p.allocation_pct) || 0),
     0
   );
   const isBalanced = Math.abs(allocationSum - 100) < 0.5;
 
-  const donutData = positions
+  const donutData = visiblePositions
     .map((p) => ({
       name: p.ticker,
       value: Number(p.allocation_pct) || 0,
@@ -287,7 +296,7 @@ export default function ExpandablePortfolioCard({
 
         <div className="flex items-center gap-3 md:gap-5 flex-shrink-0">
           <div className="hidden sm:flex items-center gap-3 md:gap-5">
-            <Stat icon={<Briefcase size={12} />} value={positions.length} label="positions" />
+            <Stat icon={<Briefcase size={12} />} value={visiblePositions.length} label="positions" />
             <Stat
               icon={<Users size={12} />}
               value={portfolio.subscriber_count}
@@ -414,7 +423,7 @@ export default function ExpandablePortfolioCard({
                   <AllocationSumBadge sum={allocationSum} balanced={isBalanced} />
                 </div>
 
-                {positions.length === 0 ? (
+                {visiblePositions.length === 0 ? (
                   <div className="glass-card-light p-8 text-center rounded-2xl">
                     <TrendingUp
                       size={24}
@@ -457,7 +466,7 @@ export default function ExpandablePortfolioCard({
                       <div className="col-span-2 text-right">P/L</div>
                       <div className="col-span-3 text-right" aria-label="actions" />
                     </div>
-                    {positions.map((pos) => {
+                    {visiblePositions.map((pos) => {
                       const gain = (pos.gain_loss_pct ?? 0) >= 0;
                       const isAdjusting = adjusting?.id === pos.id;
                       const isRemoving = pendingRemove?.id === pos.id;
