@@ -101,9 +101,6 @@ export function BrokerPreferencePicker({
           )}
         </div>
       </div>
-      <p className="text-[11px] text-[color:var(--dopl-cream)]/40 mt-2">
-        used to open your broker when a fund manager trades. no account linking.
-      </p>
     </div>
   );
 }

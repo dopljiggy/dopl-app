@@ -220,11 +220,6 @@ export default function PositionsClient({
           </button>
         </div>
       </div>
-      <p className="text-[color:var(--dopl-cream)]/50 text-sm mb-4">
-        positions land in the pool from each broker. select them and assign
-        to a portfolio — doplers see the assignment instantly.
-      </p>
-
       <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-6">
         <div className="glass-card-light rounded-2xl px-3 py-3 sm:px-4 border-l-2 border-[color:var(--dopl-lime)]/55">
           <p className="text-[10px] uppercase tracking-[0.2em] text-[color:var(--dopl-cream)]/45 mb-1">

@@ -116,10 +116,6 @@ export default function DoplersClient({
           export CSV
         </button>
       </div>
-      <p className="text-dopl-cream/50 text-sm mb-8">
-        every dopler currently or previously subscribed to your portfolios.
-      </p>
-
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <StatCard label="total doplers" value={stats.totalDoplers} />
         <StatCard label="active" value={stats.activeDoplers} />
