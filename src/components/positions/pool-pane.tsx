@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { createPortal } from "react-dom";
 import {
   Building2,
   Check,
@@ -9,6 +9,7 @@ import {
   PencilLine,
 } from "lucide-react";
 import { fireToast } from "@/components/ui/toast";
+import { useBottomSheetFooter } from "@/components/ui/bottom-sheet";
 
 /**
  * Sprint 17: extracted from positions-client.tsx so /dashboard/positions
@@ -160,6 +161,61 @@ export function PoolPane({
     }
   };
 
+  const footerEl = useBottomSheetFooter();
+
+  const assignBarInner = visiblePool.length > 0 ? (
+    <>
+      <div className="flex justify-between items-center">
+        <span className="text-[10px] font-mono text-[color:var(--dopl-lime)]">
+          {selected.size} selected
+        </span>
+        {selected.size > 0 && (
+          <span
+            role="button"
+            tabIndex={0}
+            onClick={() => setSelected(new Set())}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setSelected(new Set()); }}
+            className="text-[10px] text-[color:var(--dopl-cream)]/50 hover:text-[color:var(--dopl-cream)] cursor-pointer"
+          >
+            clear
+          </span>
+        )}
+      </div>
+      <div className="flex gap-2 mt-1.5">
+        <select
+          value={assignTargetId}
+          onChange={(e) => setAssignTargetId(e.target.value)}
+          className="flex-1 min-w-0 bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/30 rounded-lg px-3 py-1.5 text-xs text-[color:var(--dopl-cream)] focus:outline-none focus:border-[color:var(--dopl-lime)]/50"
+        >
+          <option value="" disabled>
+            assign to portfolio…
+          </option>
+          {portfolios.map((pf) => (
+            <option key={pf.id} value={pf.id}>
+              {pf.name} ({pf.tier})
+            </option>
+          ))}
+        </select>
+        <button
+          onClick={assignSelected}
+          disabled={!assignTargetId || assigning || selected.size === 0}
+          className="btn-lime text-xs px-4 py-1.5 disabled:opacity-50"
+        >
+          {assigning ? "assigning…" : "assign"}
+        </button>
+      </div>
+    </>
+  ) : null;
+
+  const assignBarPortal = footerEl && assignBarInner
+    ? createPortal(
+        <div className="px-4 py-2.5 border-t border-[color:var(--dopl-cream)]/[0.08]">
+          {assignBarInner}
+        </div>,
+        footerEl
+      )
+    : null;
+
   return (
     <section>
       {!hideHeader && (
@@ -222,54 +278,18 @@ export function PoolPane({
         </div>
       )}
 
-      <AnimatePresence>
-        {selected.size > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            transition={{ type: "spring", stiffness: 400, damping: 30 }}
-            className="sticky bottom-0 mt-4 pt-3 pb-1"
-            style={{
-              background:
-                "linear-gradient(to top, rgba(10, 31, 25, 1) 60%, transparent)",
-            }}
-          >
-            <div className="rounded-xl p-3 flex items-center gap-2 flex-wrap border border-[color:var(--dopl-lime)]/20 bg-[color:var(--dopl-sage)]/20">
-              <span className="text-xs text-[color:var(--dopl-lime)] font-mono flex-shrink-0">
-                {selected.size} selected
-              </span>
-              <select
-                value={assignTargetId}
-                onChange={(e) => setAssignTargetId(e.target.value)}
-                className="flex-1 min-w-0 bg-[color:var(--dopl-deep)] border border-[color:var(--dopl-sage)]/30 rounded-lg px-3 py-2 text-xs text-[color:var(--dopl-cream)] focus:outline-none focus:border-[color:var(--dopl-lime)]/50"
-              >
-                <option value="" disabled>
-                  assign to portfolio…
-                </option>
-                {portfolios.map((pf) => (
-                  <option key={pf.id} value={pf.id}>
-                    {pf.name} ({pf.tier})
-                  </option>
-                ))}
-              </select>
-              <button
-                onClick={assignSelected}
-                disabled={!assignTargetId || assigning}
-                className="btn-lime text-xs px-4 py-2 disabled:opacity-50"
-              >
-                {assigning ? "assigning…" : "assign"}
-              </button>
-              <button
-                onClick={() => setSelected(new Set())}
-                className="text-xs px-2 py-2 text-[color:var(--dopl-cream)]/50 hover:text-[color:var(--dopl-cream)]"
-              >
-                clear
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Portal to bottom sheet footer on mobile; inline sticky on desktop */}
+      {assignBarPortal}
+      {!footerEl && assignBarInner && (
+        <div
+          className="sticky bottom-0 mt-4 pt-3 pb-1"
+          style={{ background: "linear-gradient(to top, rgba(10, 31, 25, 1) 60%, transparent)" }}
+        >
+          <div className="rounded-xl px-4 py-2.5 border border-[color:var(--dopl-lime)]/20 bg-[color:var(--dopl-sage)]/20">
+            {assignBarInner}
+          </div>
+        </div>
+      )}
     </section>
   );
 }
@@ -300,11 +320,14 @@ function PoolSection({
   return (
     <div className="glass-card rounded-2xl p-4 border border-[color:var(--dopl-cream)]/15">
       <div className="flex items-center gap-3 mb-3">
-        <button
-          type="button"
-          onClick={() => onToggleAll(!allSelected)}
+        <div
+          role="checkbox"
+          tabIndex={0}
+          aria-checked={allSelected ? "true" : someSelected ? "mixed" : "false"}
           aria-label={allSelected ? "deselect all" : "select all"}
-          className={`w-6 h-6 rounded-full border flex items-center justify-center transition-colors flex-shrink-0 ${
+          onClick={() => onToggleAll(!allSelected)}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggleAll(!allSelected); } }}
+          className={`w-6 h-6 rounded-full border flex items-center justify-center transition-colors flex-shrink-0 cursor-pointer ${
             allSelected
               ? "bg-[color:var(--dopl-lime)] border-[color:var(--dopl-lime)]"
               : someSelected
@@ -315,7 +338,7 @@ function PoolSection({
           {allSelected && (
             <Check size={14} className="text-[color:var(--dopl-deep)]" strokeWidth={3} />
           )}
-        </button>
+        </div>
         <div className="w-9 h-9 rounded-xl bg-[color:var(--dopl-lime)]/12 border border-[color:var(--dopl-lime)]/25 flex items-center justify-center text-[color:var(--dopl-lime)] flex-shrink-0">
           <Icon size={15} />
         </div>

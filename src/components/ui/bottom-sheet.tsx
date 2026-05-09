@@ -1,8 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
-import { motion, AnimatePresence, useMotionValue, animate } from "framer-motion";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { motion, useMotionValue, animate } from "framer-motion";
 import { X } from "lucide-react";
+
+const BottomSheetFooterCtx = createContext<HTMLDivElement | null>(null);
+export const useBottomSheetFooter = () => useContext(BottomSheetFooterCtx);
 
 interface BottomSheetProps {
   isOpen: boolean;
@@ -33,6 +36,8 @@ export function BottomSheet({
   const scrollRef = useRef<HTMLDivElement>(null);
   const snapRef = useRef<"half" | "full">("half");
   const closedRef = useRef(false);
+  const [scrollable, setScrollable] = useState(false);
+  const [footerEl, setFooterEl] = useState<HTMLDivElement | null>(null);
 
   const drag = useRef({
     active: false,
@@ -59,6 +64,7 @@ export function BottomSheet({
         );
       } else {
         snapRef.current = snap;
+        setScrollable(snap === "full");
         animate(sheetY, target, SPRING);
       }
     },
@@ -70,6 +76,7 @@ export function BottomSheet({
   useEffect(() => {
     if (isOpen) {
       closedRef.current = false;
+      setScrollable(false);
       const snaps = getSnaps();
       sheetY.set(snaps.dismiss);
       snapRef.current = "half";
@@ -175,7 +182,21 @@ export function BottomSheet({
     const touchY = e.touches[0].clientY;
     const dy = touchY - sd.startY;
 
-    if (!sd.active && sd.wasAtTop && dy > 8 && (scrollRef.current?.scrollTop ?? 0) <= 0) {
+    // At half-snap: any vertical gesture > 8px becomes a sheet drag
+    if (snapRef.current === "half" && !sd.active && Math.abs(dy) > 8) {
+      sd.active = true;
+      drag.current = {
+        active: true,
+        startY: touchY,
+        startSheetY: sheetY.get(),
+        lastY: touchY,
+        lastTime: Date.now(),
+        velocity: 0,
+      };
+    }
+
+    // At full-snap: pull-down from scroll top transitions to drag
+    if (snapRef.current === "full" && !sd.active && sd.wasAtTop && dy > 8 && (scrollRef.current?.scrollTop ?? 0) <= 0) {
       sd.active = true;
       drag.current = {
         active: true,
@@ -276,21 +297,34 @@ export function BottomSheet({
           </div>
         </div>
 
-        {/* Scrollable content */}
-        <div
-          ref={scrollRef}
-          className="flex-1 min-h-0 px-5 pb-8"
-          style={{
-            overflowY: "auto",
-            WebkitOverflowScrolling: "touch",
-            overscrollBehavior: "contain",
-          }}
-          onTouchStart={onScrollTouchStart}
-          onTouchMove={onScrollTouchMove}
-          onTouchEnd={onScrollTouchEnd}
-        >
-          {children}
-        </div>
+        <BottomSheetFooterCtx.Provider value={footerEl}>
+          {/* Scrollable content */}
+          <div
+            ref={scrollRef}
+            className="flex-1 min-h-0 px-5 pb-4"
+            style={{
+              overflowY: scrollable ? "auto" : "hidden",
+              WebkitOverflowScrolling: "touch",
+              overscrollBehavior: "contain",
+            }}
+            onTouchStart={onScrollTouchStart}
+            onTouchMove={onScrollTouchMove}
+            onTouchEnd={onScrollTouchEnd}
+          >
+            {children}
+          </div>
+
+          {/* Footer zone — portal target for assign bar, always draggable */}
+          <div
+            ref={setFooterEl}
+            className="flex-shrink-0 select-none"
+            style={{ touchAction: "none" }}
+            onPointerDown={onHandleDown}
+            onPointerMove={onHandleMove}
+            onPointerUp={onHandleUp}
+            onPointerCancel={onHandleUp}
+          />
+        </BottomSheetFooterCtx.Provider>
       </motion.div>
     </div>
   );
