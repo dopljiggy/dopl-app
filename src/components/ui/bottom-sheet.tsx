@@ -54,7 +54,7 @@ export function BottomSheet({
       if (snap === "dismiss") {
         if (closedRef.current) return;
         closedRef.current = true;
-        animate(sheetY, target, { ...SPRING, stiffness: 300, damping: 30 }).then(
+        animate(sheetY, target, { type: "tween", duration: 0.2, ease: [0.4, 0, 1, 1] }).then(
           onClose
         );
       } else {
