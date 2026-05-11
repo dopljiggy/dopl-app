@@ -276,17 +276,6 @@ export default function ExpandablePortfolioCard({
             </button>
           </div>
           <div className="flex items-center gap-2 mt-1">
-            <span
-              className={`text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded uppercase flex-shrink-0 ${
-                isFree
-                  ? "bg-[color:var(--dopl-lime)]/15 text-[color:var(--dopl-lime)]"
-                  : portfolio.tier === "vip"
-                  ? "bg-[color:var(--dopl-lime)]/20 text-[color:var(--dopl-lime)]"
-                  : "bg-[color:var(--dopl-sage)]/40 text-[color:var(--dopl-cream)]/80"
-              }`}
-            >
-              {portfolio.tier}
-            </span>
             <span className="text-[10px] font-mono text-[color:var(--dopl-cream)]/40">
               {visiblePositions.length} pos · {portfolio.subscriber_count} doplers
             </span>
@@ -294,16 +283,17 @@ export default function ExpandablePortfolioCard({
         </div>
 
         <div className="flex flex-col items-end gap-1 flex-shrink-0">
-          <div className="flex items-center gap-1 text-[10px] font-mono">
-            <span
-              className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                brokerProvider === "manual" ? "bg-amber-400" : "bg-[color:var(--dopl-lime)]"
-              }`}
-            />
-            <span className={brokerProvider === "manual" ? "text-amber-300/60" : "text-[color:var(--dopl-lime)]/50"}>
-              {brokerProvider === "manual" ? "manual" : "live"}
-            </span>
-          </div>
+          <span
+            className={`text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded uppercase ${
+              isFree
+                ? "bg-[color:var(--dopl-lime)]/15 text-[color:var(--dopl-lime)]"
+                : portfolio.tier === "vip"
+                ? "bg-[color:var(--dopl-lime)]/20 text-[color:var(--dopl-lime)]"
+                : "bg-[color:var(--dopl-sage)]/40 text-[color:var(--dopl-cream)]/80"
+            }`}
+          >
+            {portfolio.tier}
+          </span>
           {!isFree && (
             <p className="font-mono text-sm md:text-base font-bold text-[color:var(--dopl-lime)] leading-none">
               ${(portfolio.price_cents / 100).toFixed(0)}<span className="text-[10px] font-normal text-[color:var(--dopl-cream)]/40">/mo</span>
