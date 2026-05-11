@@ -15,26 +15,14 @@ import {
 } from "lucide-react";
 import dynamic from "next/dynamic";
 
-const LazyPieChart = dynamic(
-  () => import("recharts").then((m) => ({ default: m.PieChart })),
-  { ssr: false }
-);
-const LazyPie = dynamic(
-  () => import("recharts").then((m) => ({ default: m.Pie })),
-  { ssr: false }
-);
-const LazyCell = dynamic(
-  () => import("recharts").then((m) => ({ default: m.Cell })),
-  { ssr: false }
-);
-const LazyResponsiveContainer = dynamic(
-  () => import("recharts").then((m) => ({ default: m.ResponsiveContainer })),
-  { ssr: false }
-);
-const LazyTooltip = dynamic(
-  () => import("recharts").then((m) => ({ default: m.Tooltip })),
-  { ssr: false }
-);
+const AllocationDonut = dynamic(() => import("./allocation-donut"), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-full flex items-center justify-center text-xs text-[color:var(--dopl-cream)]/30">
+      loading chart…
+    </div>
+  ),
+});
 import { useRouter } from "next/navigation";
 import { GlassCard } from "@/components/ui/glass-card";
 import { fireToast } from "@/components/ui/toast";
@@ -57,15 +45,7 @@ export type PositionRow = {
   broker_name?: string | null;
 };
 
-const PIE_COLORS = [
-  "#C5D634", // lime
-  "#a8b82c",
-  "#8cc9a4",
-  "#6fa686",
-  "#4f7862",
-  "#2D4A3E", // sage
-  "#344a41",
-];
+import { PIE_COLORS } from "./allocation-donut";
 
 export default function ExpandablePortfolioCard({
   portfolio,
@@ -336,35 +316,7 @@ export default function ExpandablePortfolioCard({
                   ) : (
                     <>
                       <div className="h-[180px]">
-                        <LazyResponsiveContainer width="100%" height="100%">
-                          <LazyPieChart>
-                            <LazyPie
-                              data={donutData}
-                              innerRadius={45}
-                              outerRadius={80}
-                              paddingAngle={0.5}
-                              dataKey="value"
-                              stroke="none"
-                            >
-                              {donutData.map((_, i) => (
-                                <LazyCell
-                                  key={i}
-                                  fill={PIE_COLORS[i % PIE_COLORS.length]}
-                                />
-                              ))}
-                            </LazyPie>
-                            <LazyTooltip
-                              contentStyle={{
-                                background: "rgba(13, 38, 31, 0.9)",
-                                border: "1px solid rgba(197, 214, 52, 0.22)",
-                                borderRadius: 10,
-                                fontSize: 12,
-                                color: "#F3EFE8",
-                              }}
-                              formatter={(v) => `${Number(v).toFixed(1)}%`}
-                            />
-                          </LazyPieChart>
-                        </LazyResponsiveContainer>
+                        <AllocationDonut data={donutData} />
                       </div>
                       <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3">
                         {donutData.map((d, i) => (
@@ -486,9 +438,9 @@ export default function ExpandablePortfolioCard({
                                 </p>
                               )}
                             </div>
-                            <div className="col-span-2 text-right font-mono text-sm tabular-nums">
+                            <div className="col-span-2 text-right font-mono text-sm tabular-nums truncate">
                               {pos.current_price != null
-                                ? `$${Number(pos.current_price).toFixed(2)}`
+                                ? `$${Number(pos.current_price) >= 10000 ? `${(Number(pos.current_price) / 1000).toFixed(1)}k` : Number(pos.current_price).toFixed(2)}`
                                 : "—"}
                               {pos.shares != null && (
                                 <p className="text-[10px] text-[color:var(--dopl-cream)]/40">
@@ -496,13 +448,13 @@ export default function ExpandablePortfolioCard({
                                 </p>
                               )}
                             </div>
-                            <div className="col-span-2 text-right font-mono text-sm tabular-nums text-[color:var(--dopl-cream)]/85">
+                            <div className="col-span-2 text-right font-mono text-sm tabular-nums text-[color:var(--dopl-cream)]/85 truncate">
                               {pos.market_value != null
-                                ? `$${Number(pos.market_value).toFixed(0)}`
+                                ? `$${Number(pos.market_value) >= 10000 ? `${(Number(pos.market_value) / 1000).toFixed(0)}k` : Number(pos.market_value).toFixed(0)}`
                                 : "—"}
                             </div>
                             <div
-                              className={`col-span-2 text-right font-mono text-sm tabular-nums ${
+                              className={`col-span-2 text-right font-mono text-sm tabular-nums truncate ${
                                 gain
                                   ? "text-[color:var(--dopl-lime)]"
                                   : "text-red-400"
