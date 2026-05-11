@@ -248,7 +248,7 @@ export default function ExpandablePortfolioCard({
             onToggle();
           }
         }}
-        className="group w-full text-left p-4 md:p-6 flex items-center gap-3 md:gap-4 hover:bg-[color:var(--dopl-sage)]/10 transition-colors cursor-pointer overflow-hidden"
+        className="w-full text-left p-4 md:p-6 flex items-center gap-3 md:gap-4 hover:bg-[color:var(--dopl-sage)]/10 transition-colors cursor-pointer overflow-hidden"
       >
         <motion.div
           animate={{ rotate: isExpanded ? 180 : 0 }}
@@ -260,7 +260,7 @@ export default function ExpandablePortfolioCard({
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 min-w-0">
-            <h3 className="font-display text-lg md:text-xl font-semibold truncate text-[color:var(--dopl-cream)]/90 group-hover:text-[color:var(--dopl-lime)] transition-colors">
+            <h3 className="font-display text-lg md:text-xl font-semibold truncate text-[color:var(--dopl-lime)]">
               {portfolio.name}
             </h3>
             <button
