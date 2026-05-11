@@ -105,7 +105,7 @@ function Inner({
             }, 1200);
           }
           if (refreshTimer.current) clearTimeout(refreshTimer.current);
-          refreshTimer.current = setTimeout(() => router.refresh(), 600);
+          refreshTimer.current = setTimeout(() => router.refresh(), 2000);
         }
       )
       .on(
@@ -116,7 +116,10 @@ function Inner({
           table: "portfolio_updates",
           filter: `portfolio_id=eq.${portfolioId}`,
         },
-        () => router.refresh()
+        () => {
+          if (refreshTimer.current) clearTimeout(refreshTimer.current);
+          refreshTimer.current = setTimeout(() => router.refresh(), 2000);
+        }
       )
       .subscribe();
 

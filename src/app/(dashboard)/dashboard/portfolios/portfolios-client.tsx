@@ -137,7 +137,7 @@ export default function PortfoliosClient({
         lastHiddenAt = Date.now();
         return;
       }
-      if (Date.now() - lastHiddenAt > 500) {
+      if (Date.now() - lastHiddenAt > 30_000) {
         router.refresh();
       }
     };
