@@ -126,6 +126,7 @@ export default function ProfileHero({
                 <img
                   src={avatarUrl}
                   alt={displayName}
+                  decoding="async"
                   className="w-full h-full object-cover"
                 />
               ) : (

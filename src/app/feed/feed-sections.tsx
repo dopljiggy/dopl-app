@@ -98,6 +98,7 @@ function PortfolioCard({
                 <img
                   src={s.fm_avatar_url}
                   alt=""
+                  decoding="async"
                   className="w-full h-full object-cover"
                 />
               ) : (

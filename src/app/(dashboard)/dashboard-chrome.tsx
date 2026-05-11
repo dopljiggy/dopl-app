@@ -54,6 +54,7 @@ function DoplLogo() {
         alt=""
         width={28}
         height={28}
+        decoding="async"
         className="rounded-lg"
       />
       <span className="font-display text-xl font-semibold tracking-tight">
