@@ -13,13 +13,28 @@ import {
   Plus,
   Pencil,
 } from "lucide-react";
-import {
-  PieChart,
-  Pie,
-  Cell,
-  ResponsiveContainer,
-  Tooltip,
-} from "recharts";
+import dynamic from "next/dynamic";
+
+const LazyPieChart = dynamic(
+  () => import("recharts").then((m) => ({ default: m.PieChart })),
+  { ssr: false }
+);
+const LazyPie = dynamic(
+  () => import("recharts").then((m) => ({ default: m.Pie })),
+  { ssr: false }
+);
+const LazyCell = dynamic(
+  () => import("recharts").then((m) => ({ default: m.Cell })),
+  { ssr: false }
+);
+const LazyResponsiveContainer = dynamic(
+  () => import("recharts").then((m) => ({ default: m.ResponsiveContainer })),
+  { ssr: false }
+);
+const LazyTooltip = dynamic(
+  () => import("recharts").then((m) => ({ default: m.Tooltip })),
+  { ssr: false }
+);
 import { useRouter } from "next/navigation";
 import { GlassCard } from "@/components/ui/glass-card";
 import { fireToast } from "@/components/ui/toast";
@@ -250,13 +265,11 @@ export default function ExpandablePortfolioCard({
         }}
         className="w-full text-left p-4 md:p-6 flex items-center gap-3 md:gap-4 hover:bg-[color:var(--dopl-sage)]/10 transition-colors cursor-pointer overflow-hidden"
       >
-        <motion.div
-          animate={{ rotate: isExpanded ? 180 : 0 }}
-          transition={{ duration: 0.25, ease: [0.2, 0.7, 0.2, 1] }}
-          className="text-[color:var(--dopl-cream)]/50 flex-shrink-0"
+        <div
+          className={`text-[color:var(--dopl-cream)]/50 flex-shrink-0 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
         >
           <ChevronDown size={18} />
-        </motion.div>
+        </div>
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 min-w-0">
@@ -303,20 +316,11 @@ export default function ExpandablePortfolioCard({
       </div>
 
       {/* Expanded body */}
-      <AnimatePresence initial={false}>
-        {isExpanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{
-              height: "auto",
-              opacity: 1,
-              transitionEnd: { overflow: "visible" },
-            }}
-            exit={{ overflow: "hidden", height: 0, opacity: 0 }}
-            transition={{ duration: 0.35, ease: [0.2, 0.7, 0.2, 1] }}
-            style={{ overflow: "hidden" }}
-            className="border-t border-[color:var(--glass-border)]"
-          >
+      <div
+        className="grid border-t border-[color:var(--glass-border)] transition-[grid-template-rows] duration-300 ease-out"
+        style={{ gridTemplateRows: isExpanded ? "1fr" : "0fr" }}
+      >
+        <div className="overflow-hidden">
             <div className="p-5 md:p-6 space-y-6">
               {/* Charts row */}
               <div className="grid lg:grid-cols-5 gap-5">
@@ -332,9 +336,9 @@ export default function ExpandablePortfolioCard({
                   ) : (
                     <>
                       <div className="h-[180px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie
+                        <LazyResponsiveContainer width="100%" height="100%">
+                          <LazyPieChart>
+                            <LazyPie
                               data={donutData}
                               innerRadius={45}
                               outerRadius={80}
@@ -343,13 +347,13 @@ export default function ExpandablePortfolioCard({
                               stroke="none"
                             >
                               {donutData.map((_, i) => (
-                                <Cell
+                                <LazyCell
                                   key={i}
                                   fill={PIE_COLORS[i % PIE_COLORS.length]}
                                 />
                               ))}
-                            </Pie>
-                            <Tooltip
+                            </LazyPie>
+                            <LazyTooltip
                               contentStyle={{
                                 background: "rgba(13, 38, 31, 0.9)",
                                 border: "1px solid rgba(197, 214, 52, 0.22)",
@@ -359,8 +363,8 @@ export default function ExpandablePortfolioCard({
                               }}
                               formatter={(v) => `${Number(v).toFixed(1)}%`}
                             />
-                          </PieChart>
-                        </ResponsiveContainer>
+                          </LazyPieChart>
+                        </LazyResponsiveContainer>
                       </div>
                       <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3">
                         {donutData.map((d, i) => (
@@ -682,9 +686,8 @@ export default function ExpandablePortfolioCard({
                 </button>
               </div>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+        </div>
+      </div>
       <SendManualUpdateModal
         open={showManualUpdate}
         portfolioId={portfolio.id}
