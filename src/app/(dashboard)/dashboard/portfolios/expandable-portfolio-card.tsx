@@ -6,8 +6,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronDown,
   Trash2,
-  Users,
-  Briefcase,
   TrendingUp,
   Settings,
   AlertTriangle,
@@ -261,7 +259,23 @@ export default function ExpandablePortfolioCard({
         </motion.div>
 
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <h3 className="font-display text-lg md:text-xl font-semibold truncate">
+              {portfolio.name}
+            </h3>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                openEdit();
+              }}
+              aria-label="edit portfolio"
+              className="text-[color:var(--dopl-cream)]/30 hover:text-[color:var(--dopl-cream)] transition-colors flex-shrink-0"
+            >
+              <Pencil size={12} />
+            </button>
+          </div>
+          <div className="flex items-center gap-2 mt-1">
             <span
               className={`text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded uppercase flex-shrink-0 ${
                 isFree
@@ -273,11 +287,14 @@ export default function ExpandablePortfolioCard({
             >
               {portfolio.tier}
             </span>
-            <h3 className="font-display text-lg md:text-xl font-semibold truncate">
-              {portfolio.name}
-            </h3>
+            <span className="text-[10px] font-mono text-[color:var(--dopl-cream)]/40">
+              {visiblePositions.length} pos · {portfolio.subscriber_count} doplers
+            </span>
           </div>
-          <div className="flex items-center gap-1.5 mt-0.5 text-[10px] font-mono">
+        </div>
+
+        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+          <div className="flex items-center gap-1 text-[10px] font-mono">
             <span
               className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${
                 brokerProvider === "manual" ? "bg-amber-400" : "bg-[color:var(--dopl-lime)]"
@@ -286,64 +303,11 @@ export default function ExpandablePortfolioCard({
             <span className={brokerProvider === "manual" ? "text-amber-300/60" : "text-[color:var(--dopl-lime)]/50"}>
               {brokerProvider === "manual" ? "manual" : "live"}
             </span>
-            <span className="text-[color:var(--dopl-cream)]/20">·</span>
-            <span
-              role="button"
-              tabIndex={0}
-              onClick={(e) => {
-                e.stopPropagation();
-                openEdit();
-              }}
-              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); openEdit(); } }}
-              className="text-[color:var(--dopl-cream)]/35 hover:text-[color:var(--dopl-cream)] transition-colors cursor-pointer"
-            >
-              edit
-            </span>
-            {portfolio.description && (
-              <span className="text-[color:var(--dopl-cream)]/20 hidden sm:inline">·</span>
-            )}
-            {portfolio.description && (
-              <span className="text-[color:var(--dopl-cream)]/30 truncate hidden sm:inline">
-                {portfolio.description}
-              </span>
-            )}
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 sm:gap-3 md:gap-5 flex-shrink-0">
-          <div className="flex items-center gap-2 sm:gap-3 md:gap-5">
-            <div className="text-right">
-              <p className="flex items-center gap-1 justify-end text-[color:var(--dopl-cream)]/40">
-                <Briefcase size={11} />
-                <span className="font-mono text-xs sm:text-sm text-[color:var(--dopl-cream)]/70">
-                  {visiblePositions.length}
-                </span>
-              </p>
-              <p className="text-[10px] text-[color:var(--dopl-cream)]/30 uppercase tracking-wider hidden sm:block">
-                positions
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="flex items-center gap-1 justify-end text-[color:var(--dopl-cream)]/40">
-                <Users size={11} />
-                <span className="font-mono text-xs sm:text-sm text-[color:var(--dopl-cream)]/70">
-                  {portfolio.subscriber_count}
-                </span>
-              </p>
-              <p className="text-[10px] text-[color:var(--dopl-cream)]/30 uppercase tracking-wider hidden sm:block">
-                doplers
-              </p>
-            </div>
           </div>
           {!isFree && (
-            <div className="text-right">
-              <p className="font-mono text-sm md:text-lg font-bold text-[color:var(--dopl-lime)] leading-none">
-                ${(portfolio.price_cents / 100).toFixed(0)}
-              </p>
-              <p className="text-[10px] text-[color:var(--dopl-cream)]/40 font-mono mt-0.5">
-                /mo
-              </p>
-            </div>
+            <p className="font-mono text-sm md:text-base font-bold text-[color:var(--dopl-lime)] leading-none">
+              ${(portfolio.price_cents / 100).toFixed(0)}<span className="text-[10px] font-normal text-[color:var(--dopl-cream)]/40">/mo</span>
+            </p>
           )}
         </div>
       </div>
@@ -697,13 +661,16 @@ export default function ExpandablePortfolioCard({
                   <Plus size={13} />
                   {showAddForm ? "hide form" : "add position"}
                 </button>
-                <a
-                  href="/dashboard/positions"
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    router.push("/dashboard/positions");
+                  }}
                   className="glass-card-light w-full sm:w-auto px-3 sm:px-4 py-2 text-xs rounded-xl hover:bg-[color:var(--dopl-sage)]/40 transition-colors inline-flex items-center justify-center gap-2"
                 >
                   <Settings size={13} />
                   manage positions
-                </a>
+                </button>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
