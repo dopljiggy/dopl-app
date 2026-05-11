@@ -25,7 +25,6 @@ import {
 import { useRouter } from "next/navigation";
 import { GlassCard } from "@/components/ui/glass-card";
 import { fireToast } from "@/components/ui/toast";
-import { SyncBadge } from "@/components/ui/sync-badge";
 import { SendManualUpdateModal } from "@/components/ui/send-manual-update-modal";
 import { AddPositionForm } from "@/components/ui/add-position-form";
 import type { Portfolio } from "@/types/database";
@@ -264,7 +263,7 @@ export default function ExpandablePortfolioCard({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 min-w-0">
             <span
-              className={`text-[10px] font-mono font-semibold px-2 py-0.5 rounded uppercase tracking-wider flex-shrink-0 ${
+              className={`text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded uppercase flex-shrink-0 ${
                 isFree
                   ? "bg-[color:var(--dopl-lime)]/15 text-[color:var(--dopl-lime)]"
                   : portfolio.tier === "vip"
@@ -278,8 +277,16 @@ export default function ExpandablePortfolioCard({
               {portfolio.name}
             </h3>
           </div>
-          <div className="flex items-center gap-2 mt-0.5">
-            <SyncBadge provider={brokerProvider} />
+          <div className="flex items-center gap-1.5 mt-0.5 text-[10px] font-mono">
+            <span
+              className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                brokerProvider === "manual" ? "bg-amber-400" : "bg-[color:var(--dopl-lime)]"
+              }`}
+            />
+            <span className={brokerProvider === "manual" ? "text-amber-300/60" : "text-[color:var(--dopl-lime)]/50"}>
+              {brokerProvider === "manual" ? "manual" : "live"}
+            </span>
+            <span className="text-[color:var(--dopl-cream)]/20">·</span>
             <span
               role="button"
               tabIndex={0}
@@ -288,13 +295,16 @@ export default function ExpandablePortfolioCard({
                 openEdit();
               }}
               onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); openEdit(); } }}
-              className="text-[10px] font-mono text-[color:var(--dopl-cream)]/35 hover:text-[color:var(--dopl-cream)] transition-colors cursor-pointer"
+              className="text-[color:var(--dopl-cream)]/35 hover:text-[color:var(--dopl-cream)] transition-colors cursor-pointer"
             >
               edit
             </span>
             {portfolio.description && (
-              <span className="text-[10px] text-[color:var(--dopl-cream)]/30 truncate hidden sm:inline">
-                · {portfolio.description}
+              <span className="text-[color:var(--dopl-cream)]/20 hidden sm:inline">·</span>
+            )}
+            {portfolio.description && (
+              <span className="text-[color:var(--dopl-cream)]/30 truncate hidden sm:inline">
+                {portfolio.description}
               </span>
             )}
           </div>
@@ -682,14 +692,14 @@ export default function ExpandablePortfolioCard({
                     e.stopPropagation();
                     setShowAddForm((s) => !s);
                   }}
-                  className="glass-card-light px-3 sm:px-4 py-2 text-xs rounded-xl hover:bg-[color:var(--dopl-sage)]/40 transition-colors inline-flex items-center justify-center gap-2"
+                  className="glass-card-light w-full sm:w-auto px-3 sm:px-4 py-2 text-xs rounded-xl hover:bg-[color:var(--dopl-sage)]/40 transition-colors inline-flex items-center justify-center gap-2"
                 >
                   <Plus size={13} />
                   {showAddForm ? "hide form" : "add position"}
                 </button>
                 <a
                   href="/dashboard/positions"
-                  className="glass-card-light px-3 sm:px-4 py-2 text-xs rounded-xl hover:bg-[color:var(--dopl-sage)]/40 transition-colors inline-flex items-center justify-center gap-2"
+                  className="glass-card-light w-full sm:w-auto px-3 sm:px-4 py-2 text-xs rounded-xl hover:bg-[color:var(--dopl-sage)]/40 transition-colors inline-flex items-center justify-center gap-2"
                 >
                   <Settings size={13} />
                   manage positions
@@ -699,7 +709,7 @@ export default function ExpandablePortfolioCard({
                     e.stopPropagation();
                     setShowManualUpdate(true);
                   }}
-                  className="glass-card-light px-3 sm:px-4 py-2 text-xs rounded-xl hover:bg-[color:var(--dopl-sage)]/40 transition-colors inline-flex items-center justify-center gap-2"
+                  className="glass-card-light w-full sm:w-auto px-3 sm:px-4 py-2 text-xs rounded-xl hover:bg-[color:var(--dopl-sage)]/40 transition-colors inline-flex items-center justify-center gap-2"
                 >
                   send update →
                 </button>
@@ -708,7 +718,7 @@ export default function ExpandablePortfolioCard({
                     e.stopPropagation();
                     onDelete();
                   }}
-                  className="glass-card-light px-3 sm:px-4 py-2 text-xs rounded-xl hover:bg-red-500/10 hover:text-red-300 transition-colors inline-flex items-center justify-center gap-2 sm:ml-auto"
+                  className="glass-card-light w-full sm:w-auto px-3 sm:px-4 py-2 text-xs rounded-xl hover:bg-red-500/10 hover:text-red-300 transition-colors inline-flex items-center justify-center gap-2 sm:ml-auto"
                 >
                   <Trash2 size={13} />
                   delete
