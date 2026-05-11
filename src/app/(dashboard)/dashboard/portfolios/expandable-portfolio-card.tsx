@@ -262,9 +262,9 @@ export default function ExpandablePortfolioCard({
         </motion.div>
 
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1 min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
             <span
-              className={`text-[10px] font-mono font-semibold px-2 py-0.5 rounded uppercase tracking-wider ${
+              className={`text-[10px] font-mono font-semibold px-2 py-0.5 rounded uppercase tracking-wider flex-shrink-0 ${
                 isFree
                   ? "bg-[color:var(--dopl-lime)]/15 text-[color:var(--dopl-lime)]"
                   : portfolio.tier === "vip"
@@ -277,45 +277,64 @@ export default function ExpandablePortfolioCard({
             <h3 className="font-display text-lg md:text-xl font-semibold truncate">
               {portfolio.name}
             </h3>
-            <button
-              type="button"
+          </div>
+          <div className="flex items-center gap-2 mt-0.5">
+            <SyncBadge provider={brokerProvider} />
+            <span
+              role="button"
+              tabIndex={0}
               onClick={(e) => {
                 e.stopPropagation();
                 openEdit();
               }}
-              aria-label="edit portfolio"
-              className="text-[color:var(--dopl-cream)]/40 hover:text-[color:var(--dopl-cream)] transition-colors"
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); openEdit(); } }}
+              className="text-[10px] font-mono text-[color:var(--dopl-cream)]/35 hover:text-[color:var(--dopl-cream)] transition-colors cursor-pointer"
             >
-              <Pencil size={13} />
-            </button>
-            <SyncBadge provider={brokerProvider} />
+              edit
+            </span>
+            {portfolio.description && (
+              <span className="text-[10px] text-[color:var(--dopl-cream)]/30 truncate hidden sm:inline">
+                · {portfolio.description}
+              </span>
+            )}
           </div>
-          {portfolio.description && (
-            <p className="text-xs text-[color:var(--dopl-cream)]/40 truncate">
-              {portfolio.description}
-            </p>
-          )}
         </div>
 
-        <div className="flex items-center gap-3 md:gap-5 flex-shrink-0">
-          <div className="hidden sm:flex items-center gap-3 md:gap-5">
-            <Stat icon={<Briefcase size={12} />} value={visiblePositions.length} label="positions" />
-            <Stat
-              icon={<Users size={12} />}
-              value={portfolio.subscriber_count}
-              label="doplers"
-            />
+        <div className="flex items-center gap-2 sm:gap-3 md:gap-5 flex-shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3 md:gap-5">
+            <div className="text-right">
+              <p className="flex items-center gap-1 justify-end text-[color:var(--dopl-cream)]/40">
+                <Briefcase size={11} />
+                <span className="font-mono text-xs sm:text-sm text-[color:var(--dopl-cream)]/70">
+                  {visiblePositions.length}
+                </span>
+              </p>
+              <p className="text-[10px] text-[color:var(--dopl-cream)]/30 uppercase tracking-wider hidden sm:block">
+                positions
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="flex items-center gap-1 justify-end text-[color:var(--dopl-cream)]/40">
+                <Users size={11} />
+                <span className="font-mono text-xs sm:text-sm text-[color:var(--dopl-cream)]/70">
+                  {portfolio.subscriber_count}
+                </span>
+              </p>
+              <p className="text-[10px] text-[color:var(--dopl-cream)]/30 uppercase tracking-wider hidden sm:block">
+                doplers
+              </p>
+            </div>
           </div>
-          <div className="text-right">
-            <p className="font-mono text-sm md:text-lg font-bold text-[color:var(--dopl-lime)] leading-none">
-              {isFree ? "free" : `$${(portfolio.price_cents / 100).toFixed(0)}`}
-            </p>
-            {!isFree && (
+          {!isFree && (
+            <div className="text-right">
+              <p className="font-mono text-sm md:text-lg font-bold text-[color:var(--dopl-lime)] leading-none">
+                ${(portfolio.price_cents / 100).toFixed(0)}
+              </p>
               <p className="text-[10px] text-[color:var(--dopl-cream)]/40 font-mono mt-0.5">
                 /mo
               </p>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -657,20 +676,20 @@ export default function ExpandablePortfolioCard({
               )}
 
               {/* Footer actions */}
-              <div className="flex flex-wrap items-center gap-3 pt-2">
+              <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 sm:gap-3 pt-2">
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     setShowAddForm((s) => !s);
                   }}
-                  className="glass-card-light px-4 py-2 text-xs rounded-xl hover:bg-[color:var(--dopl-sage)]/40 transition-colors inline-flex items-center gap-2"
+                  className="glass-card-light px-3 sm:px-4 py-2 text-xs rounded-xl hover:bg-[color:var(--dopl-sage)]/40 transition-colors inline-flex items-center justify-center gap-2"
                 >
                   <Plus size={13} />
                   {showAddForm ? "hide form" : "add position"}
                 </button>
                 <a
                   href="/dashboard/positions"
-                  className="glass-card-light px-4 py-2 text-xs rounded-xl hover:bg-[color:var(--dopl-sage)]/40 transition-colors inline-flex items-center gap-2"
+                  className="glass-card-light px-3 sm:px-4 py-2 text-xs rounded-xl hover:bg-[color:var(--dopl-sage)]/40 transition-colors inline-flex items-center justify-center gap-2"
                 >
                   <Settings size={13} />
                   manage positions
@@ -680,19 +699,19 @@ export default function ExpandablePortfolioCard({
                     e.stopPropagation();
                     setShowManualUpdate(true);
                   }}
-                  className="glass-card-light px-4 py-2 text-xs rounded-xl hover:bg-[color:var(--dopl-sage)]/40 transition-colors inline-flex items-center gap-2"
+                  className="glass-card-light px-3 sm:px-4 py-2 text-xs rounded-xl hover:bg-[color:var(--dopl-sage)]/40 transition-colors inline-flex items-center justify-center gap-2"
                 >
-                  send manual update →
+                  send update →
                 </button>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     onDelete();
                   }}
-                  className="glass-card-light px-4 py-2 text-xs rounded-xl hover:bg-red-500/10 hover:text-red-300 transition-colors inline-flex items-center gap-2 ml-auto"
+                  className="glass-card-light px-3 sm:px-4 py-2 text-xs rounded-xl hover:bg-red-500/10 hover:text-red-300 transition-colors inline-flex items-center justify-center gap-2 sm:ml-auto"
                 >
                   <Trash2 size={13} />
-                  delete portfolio
+                  delete
                 </button>
               </div>
             </div>
@@ -808,30 +827,6 @@ export default function ExpandablePortfolioCard({
         portalTarget
       )}
     </GlassCard>
-  );
-}
-
-function Stat({
-  icon,
-  value,
-  label,
-}: {
-  icon: React.ReactNode;
-  value: number;
-  label: string;
-}) {
-  return (
-    <div className="text-right hidden sm:block">
-      <p className="flex items-center gap-1 justify-end text-xs text-[color:var(--dopl-cream)]/40">
-        {icon}
-        <span className="font-mono text-sm text-[color:var(--dopl-cream)]/80">
-          {value}
-        </span>
-      </p>
-      <p className="text-[10px] text-[color:var(--dopl-cream)]/30 uppercase tracking-wider">
-        {label}
-      </p>
-    </div>
   );
 }
 
