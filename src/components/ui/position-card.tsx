@@ -1,9 +1,7 @@
 "use client";
 
-import { motion } from "framer-motion";
 import { Lock, TrendingUp, TrendingDown } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
-import CountUp from "@/components/ui/count-up";
 
 export type PositionLike = {
   id: string;
@@ -31,13 +29,7 @@ export function PositionCard({
   const glow = locked ? null : gain ? "gain" : "loss";
 
   return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay: floatIndex * 0.04, ease: [0.2, 0.7, 0.2, 1] }}
-      className={`float-card float-card-delay-${floatIndex % 4}`}
-    >
+    <div>
       <GlassCard
         glow={glow}
         className={`p-5 ${pulsing ? "position-pulse" : ""}`}
@@ -79,16 +71,9 @@ export function PositionCard({
                 allocation
               </p>
               <p className="font-mono text-lg tabular-nums">
-                {p.allocation_pct != null ? (
-                  <CountUp
-                    value={p.allocation_pct}
-                    decimals={1}
-                    suffix="%"
-                    duration={0.7}
-                  />
-                ) : (
-                  "—"
-                )}
+                {p.allocation_pct != null
+                  ? `${p.allocation_pct.toFixed(1)}%`
+                  : "—"}
               </p>
             </div>
             <div className="text-right">
@@ -105,16 +90,14 @@ export function PositionCard({
 
           {/* Allocation bar */}
           <div className="relative h-1 rounded-full bg-[color:var(--dopl-sage)]/30 overflow-hidden">
-            <motion.div
-              className="absolute inset-y-0 left-0 rounded-full"
+            <div
+              className="absolute inset-y-0 left-0 rounded-full transition-[width] duration-500 ease-out"
               style={{
+                width: `${Math.min(100, p.allocation_pct ?? 0)}%`,
                 background: gain
                   ? "linear-gradient(90deg, var(--dopl-sage), var(--dopl-lime))"
                   : "linear-gradient(90deg, rgba(239,68,68,0.4), rgba(239,68,68,0.8))",
               }}
-              initial={{ width: 0 }}
-              animate={{ width: `${Math.min(100, p.allocation_pct ?? 0)}%` }}
-              transition={{ duration: 1, ease: [0.2, 0.7, 0.2, 1] }}
             />
           </div>
 
@@ -131,6 +114,6 @@ export function PositionCard({
           </div>
         </div>
       </GlassCard>
-    </motion.div>
+    </div>
   );
 }

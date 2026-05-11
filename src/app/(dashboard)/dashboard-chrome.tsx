@@ -16,7 +16,6 @@ import {
   Settings,
   ArrowLeftRight,
 } from "lucide-react";
-import { motion } from "framer-motion";
 import PageTransition from "@/components/ui/page-transition";
 import SignOutLink from "@/components/sign-out-link";
 import { NavLink } from "@/components/ui/nav-link";
@@ -82,10 +81,8 @@ function SideNav() {
             }`}
           >
             {active && (
-              <motion.span
-                layoutId="sidebar-active"
+              <span
                 className="absolute inset-0 rounded-xl bg-[color:var(--dopl-lime)]/10 border border-[color:var(--dopl-lime)]/20"
-                transition={{ type: "spring", stiffness: 380, damping: 30 }}
               />
             )}
             <span className="relative flex items-center gap-3">
