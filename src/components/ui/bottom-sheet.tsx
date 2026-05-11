@@ -16,7 +16,7 @@ const SPRING = { type: "spring" as const, stiffness: 400, damping: 34, mass: 0.8
 
 function getSnaps() {
   const h = window.innerHeight;
-  return { half: h * 0.5, full: h * 0.1, dismiss: h };
+  return { full: h * 0.1, dismiss: h };
 }
 
 export function BottomSheet({
@@ -31,7 +31,7 @@ export function BottomSheet({
   );
   const sheetRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const snapRef = useRef<"half" | "full">("half");
+  const snapRef = useRef<"full">("full");
   const closedRef = useRef(false);
 
   const drag = useRef({
@@ -49,7 +49,7 @@ export function BottomSheet({
   });
 
   const snapTo = useCallback(
-    (snap: "half" | "full" | "dismiss") => {
+    (snap: "full" | "dismiss") => {
       const target = getSnaps()[snap];
       if (snap === "dismiss") {
         if (closedRef.current) return;
@@ -58,7 +58,6 @@ export function BottomSheet({
           onClose
         );
       } else {
-        snapRef.current = snap;
         animate(sheetY, target, SPRING);
       }
     },
@@ -72,8 +71,8 @@ export function BottomSheet({
       closedRef.current = false;
       const snaps = getSnaps();
       sheetY.set(snaps.dismiss);
-      snapRef.current = "half";
-      requestAnimationFrame(() => animate(sheetY, snaps.half, SPRING));
+      snapRef.current = "full";
+      requestAnimationFrame(() => animate(sheetY, snaps.full, SPRING));
     }
   }, [isOpen, sheetY]);
 
@@ -108,22 +107,17 @@ export function BottomSheet({
   function resolveSnap(velocity: number) {
     const y = sheetY.get();
     const snaps = getSnaps();
-    const snapY = snaps[snapRef.current];
-    const delta = y - snapY;
+    const delta = y - snaps.full;
     const h = window.innerHeight;
 
     if (delta > 0) {
       if (velocity > 500 || delta > h * 0.15) {
-        snapTo(snapRef.current === "full" ? "half" : "dismiss");
+        snapTo("dismiss");
       } else {
-        snapTo(snapRef.current);
+        snapTo("full");
       }
     } else {
-      if (velocity < -500 || Math.abs(delta) > h * 0.1) {
-        snapTo("full");
-      } else {
-        snapTo(snapRef.current);
-      }
+      snapTo("full");
     }
   }
 
@@ -175,24 +169,8 @@ export function BottomSheet({
     const touchY = e.touches[0].clientY;
     const dy = touchY - sd.startY;
 
-    // At half-snap: block native scrolling, activate drag after 8px
-    if (snapRef.current === "half") {
-      e.preventDefault();
-      if (!sd.active && Math.abs(dy) > 8) {
-        sd.active = true;
-        drag.current = {
-          active: true,
-          startY: touchY,
-          startSheetY: sheetY.get(),
-          lastY: touchY,
-          lastTime: Date.now(),
-          velocity: 0,
-        };
-      }
-    }
-
-    // At full-snap: pull-down from scroll top transitions to drag
-    if (snapRef.current === "full" && !sd.active && sd.wasAtTop && dy > 8 && (scrollRef.current?.scrollTop ?? 0) <= 0) {
+    // Pull-down from scroll top transitions to drag
+    if (!sd.active && sd.wasAtTop && dy > 8 && (scrollRef.current?.scrollTop ?? 0) <= 0) {
       sd.active = true;
       drag.current = {
         active: true,
