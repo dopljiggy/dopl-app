@@ -411,7 +411,12 @@ export default function ExpandablePortfolioCard({
                             <StockLogo ticker={pos.ticker} size={32} />
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center justify-between gap-2">
-                                <p className="font-mono font-semibold text-sm truncate">{pos.ticker}</p>
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <span className="font-mono font-semibold text-sm">{pos.ticker}</span>
+                                  {hasMultipleSources && pos.broker_name && (
+                                    <span className="text-[10px] text-[color:var(--dopl-cream)]/30 truncate">· {pos.broker_name}</span>
+                                  )}
+                                </div>
                                 <div className="flex items-center gap-2 flex-shrink-0">
                                   <p className="font-mono text-sm tabular-nums">
                                     {pos.current_price != null
@@ -447,9 +452,9 @@ export default function ExpandablePortfolioCard({
                                   </div>
                                 </div>
                               </div>
-                              {(pos.name || (hasMultipleSources && pos.broker_name)) && (
-                                <p className="text-[10px] text-[color:var(--dopl-cream)]/40 truncate">
-                                  {pos.name}{hasMultipleSources && pos.broker_name ? ` · ${pos.broker_name}` : ""}
+                              {pos.name && (
+                                <p className="text-[10px] text-[color:var(--dopl-cream)]/40 truncate max-w-[150px]">
+                                  {pos.name}
                                 </p>
                               )}
                             </div>
