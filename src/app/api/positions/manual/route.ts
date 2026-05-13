@@ -157,6 +157,7 @@ export async function POST(request: Request) {
   const body = (await request.json()) as {
     id?: string;
     portfolio_id?: string;
+    pool?: boolean;
     ticker: string;
     name?: string | null;
     shares?: number | null;
@@ -170,10 +171,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "ticker required" }, { status: 400 });
   }
 
-  let portfolioId: string;
+  let portfolioId: string | null = null;
   let isExplicitPortfolio = false;
 
-  if (body.portfolio_id) {
+  if (body.pool) {
+    // Pool mode: position goes into unassigned pool (portfolio_id = NULL)
+    portfolioId = null;
+  } else if (body.portfolio_id) {
     // Ownership check — defense-in-depth alongside RLS.
     const { data: portfolio } = await supabase
       .from("portfolios")
@@ -211,8 +215,35 @@ export async function POST(request: Request) {
     user.id
   );
 
+  // Pool mode: skip the upsert-by-ticker-in-portfolio and go straight to insert
+  if (body.pool) {
+    const { data: inserted, error } = await supabase
+      .from("positions")
+      .insert({
+        portfolio_id: null,
+        broker_connection_id: manualConnectionId,
+        ticker,
+        name: body.name ?? null,
+        shares,
+        entry_price: entry,
+        current_price: price,
+        market_value,
+        asset_type: "stock" as const,
+        last_synced: new Date().toISOString(),
+      })
+      .select("id")
+      .single();
+    if (error)
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    revalidatePath("/dashboard/positions");
+    return NextResponse.json({ ok: true, id: inserted.id });
+  }
+
+  // After this point portfolioId is guaranteed non-null (pool mode returned above)
+  const resolvedPortfolioId = portfolioId as string;
+
   const row = {
-    portfolio_id: portfolioId,
+    portfolio_id: resolvedPortfolioId,
     broker_connection_id: manualConnectionId,
     ticker,
     name: body.name ?? null,
@@ -229,10 +260,10 @@ export async function POST(request: Request) {
       .from("positions")
       .update(row)
       .eq("id", body.id)
-      .eq("portfolio_id", portfolioId);
+      .eq("portfolio_id", resolvedPortfolioId);
     if (error)
       return NextResponse.json({ error: error.message }, { status: 500 });
-    await revalidatePositionSurfaces(supabase, portfolioId, user.id);
+    await revalidatePositionSurfaces(supabase, resolvedPortfolioId, user.id);
     return NextResponse.json({ ok: true, id: body.id });
   }
 
@@ -244,7 +275,7 @@ export async function POST(request: Request) {
   const { data: existing } = await supabase
     .from("positions")
     .select("id, shares")
-    .eq("portfolio_id", portfolioId)
+    .eq("portfolio_id", resolvedPortfolioId)
     .eq("ticker", ticker)
     .maybeSingle();
 
@@ -258,8 +289,8 @@ export async function POST(request: Request) {
     // Auto-rebalance after upsert (Sprint 14): the share count or price
     // may have changed, which shifts market_value and therefore the
     // allocation distribution.
-    await recalculateAllocations(supabase, portfolioId);
-    await revalidatePositionSurfaces(supabase, portfolioId, user.id);
+    await recalculateAllocations(supabase, resolvedPortfolioId);
+    await revalidatePositionSurfaces(supabase, resolvedPortfolioId, user.id);
 
     if (isExplicitPortfolio) {
       const prevShares = Number(existing.shares) || 0;
@@ -269,7 +300,7 @@ export async function POST(request: Request) {
       // A future "price update" change_type could lift this if needed.
       if (prevShares !== newShares) {
         await fanOutPortfolioUpdate(createAdminClient(), {
-          portfolio_id: portfolioId,
+          portfolio_id: resolvedPortfolioId,
           fund_manager_id: user.id,
           changes: [
             {
@@ -299,7 +330,7 @@ export async function POST(request: Request) {
 
   // Auto-rebalance after every insert (Sprint 14) — runs before the
   // fanout so the inline allocation_pct compute below sees fresh values.
-  await recalculateAllocations(supabase, portfolioId);
+  await recalculateAllocations(supabase, resolvedPortfolioId);
 
   if (isExplicitPortfolio) {
     // Subscribable portfolio — fan out a buy event to every active dopler
@@ -314,14 +345,14 @@ export async function POST(request: Request) {
       const { data: allPositions } = await supabase
         .from("positions")
         .select("market_value")
-        .eq("portfolio_id", portfolioId);
+        .eq("portfolio_id", resolvedPortfolioId);
       const total = ((allPositions ?? []) as { market_value: number | null }[])
         .reduce((a, p) => a + (Number(p.market_value) || 0), 0);
       if (total > 0) allocationPct = (market_value / total) * 100;
     }
 
     await fanOutPortfolioUpdate(createAdminClient(), {
-      portfolio_id: portfolioId,
+      portfolio_id: resolvedPortfolioId,
       fund_manager_id: user.id,
       changes: [
         {
@@ -349,7 +380,7 @@ export async function POST(request: Request) {
       .eq("id", user.id);
   }
 
-  await revalidatePositionSurfaces(supabase, portfolioId, user.id);
+  await revalidatePositionSurfaces(supabase, resolvedPortfolioId, user.id);
 
   return NextResponse.json({ ok: true, id: inserted.id });
 }

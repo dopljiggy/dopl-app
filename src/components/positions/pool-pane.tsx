@@ -6,8 +6,11 @@ import {
   Check,
   Landmark,
   PencilLine,
+  Plus,
 } from "lucide-react";
 import { fireToast } from "@/components/ui/toast";
+import { AddPositionForm } from "@/components/ui/add-position-form";
+import { StockLogo } from "@/components/ui/stock-logo";
 
 /**
  * Sprint 17: extracted from positions-client.tsx so /dashboard/positions
@@ -77,6 +80,7 @@ export function PoolPane({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [assignTargetId, setAssignTargetId] = useState<string>("");
   const [assigning, setAssigning] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
   const prevPoolRef = useRef(pool);
@@ -213,12 +217,33 @@ export function PoolPane({
               {visiblePool.length}
             </span>
           </h2>
-          {selected.size > 0 && (
-            <span className="text-xs text-[color:var(--dopl-lime)] font-mono">
-              {selected.size} selected
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            {selected.size > 0 && (
+              <span className="text-xs text-[color:var(--dopl-lime)] font-mono">
+                {selected.size} selected
+              </span>
+            )}
+            <button
+              onClick={() => setShowAddForm((s) => !s)}
+              className="glass-card-light px-3 py-1.5 text-xs rounded-xl hover:bg-[color:var(--dopl-sage)]/40 transition-colors inline-flex items-center gap-1.5"
+            >
+              <Plus size={12} />
+              add position
+            </button>
+          </div>
         </header>
+      )}
+
+      {showAddForm && (
+        <div className="mb-4">
+          <AddPositionForm
+            poolMode
+            onDone={() => {
+              setShowAddForm(false);
+              onChanged();
+            }}
+          />
+        </div>
       )}
 
       {error && (
@@ -377,9 +402,12 @@ function PoolSection({
                 )}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="font-mono font-semibold text-sm text-[color:var(--dopl-cream)]">
-                  {p.ticker}
-                </p>
+                <div className="flex items-center gap-1.5">
+                  <StockLogo ticker={p.ticker} size={20} />
+                  <p className="font-mono font-semibold text-sm text-[color:var(--dopl-cream)]">
+                    {p.ticker}
+                  </p>
+                </div>
                 {p.name && (
                   <p className="text-[11px] text-[color:var(--dopl-cream)]/45 truncate">
                     {p.name}

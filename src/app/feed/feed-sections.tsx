@@ -7,6 +7,7 @@ import { useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { type PositionLike } from "@/components/ui/position-card";
+import { StockLogo } from "@/components/ui/stock-logo";
 import UndoplButton from "@/components/ui/undopl-button";
 import { SyncBadge } from "@/components/ui/sync-badge";
 
@@ -252,9 +253,12 @@ function PositionTable({ positions }: { positions: PositionLike[] }) {
                 className="border-t border-[color:var(--glass-border)] hover:bg-[color:var(--dopl-sage)]/10 transition-colors"
               >
                 <td className="px-5 py-2.5">
-                  <span className="font-mono font-bold text-[color:var(--dopl-cream)]">
-                    {p.ticker}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <StockLogo ticker={p.ticker} size={18} />
+                    <span className="font-mono font-bold text-[color:var(--dopl-cream)]">
+                      {p.ticker}
+                    </span>
+                  </div>
                   {p.name && (
                     <span className="block text-[10px] text-[color:var(--dopl-cream)]/40 truncate max-w-[180px]">
                       {p.name}

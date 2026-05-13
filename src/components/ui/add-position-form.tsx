@@ -17,7 +17,8 @@ import {
 } from "@/components/ui/ticker-search";
 
 interface AddPositionFormProps {
-  portfolioId: string;
+  portfolioId?: string;
+  poolMode?: boolean;
   onDone: () => void;
 }
 
@@ -40,7 +41,7 @@ const THESIS_MAX = 280;
  * returns `price: null` (200, not 502) — we surface a manual-price input
  * so the FM can still add the position with their own pricing.
  */
-export function AddPositionForm({ portfolioId, onDone }: AddPositionFormProps) {
+export function AddPositionForm({ portfolioId, poolMode, onDone }: AddPositionFormProps) {
   const router = useRouter();
   const [selected, setSelected] = useState<TickerSearchSelection | null>(null);
   const [quote, setQuote] = useState<Quote | null>(null);
@@ -128,7 +129,9 @@ export function AddPositionForm({ portfolioId, onDone }: AddPositionFormProps) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        portfolio_id: portfolioId,
+        ...(poolMode
+          ? { pool: true }
+          : { portfolio_id: portfolioId }),
         ticker: selected.symbol,
         shares: computedShares,
         current_price: effectivePrice,
@@ -326,7 +329,7 @@ export function AddPositionForm({ portfolioId, onDone }: AddPositionFormProps) {
               className="text-xs px-5 py-2.5"
               data-testid="add-position-submit"
             >
-              add to portfolio
+              {poolMode ? "add to pool" : "add to portfolio"}
             </SubmitButton>
           </div>
         </>

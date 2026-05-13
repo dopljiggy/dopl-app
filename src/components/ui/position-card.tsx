@@ -2,6 +2,7 @@
 
 import { Lock, TrendingUp, TrendingDown } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
+import { StockLogo } from "@/components/ui/stock-logo";
 
 export type PositionLike = {
   id: string;
@@ -44,7 +45,10 @@ export function PositionCard({
         <div className={locked ? "locked-blur" : ""}>
           <div className="flex items-start justify-between mb-3">
             <div className="min-w-0">
-              <p className="font-mono text-xl font-bold tracking-tight">{p.ticker}</p>
+              <div className="flex items-center gap-2">
+                <StockLogo ticker={p.ticker} size={24} />
+                <p className="font-mono text-xl font-bold tracking-tight">{p.ticker}</p>
+              </div>
               {p.name && (
                 <p className="text-xs text-[color:var(--dopl-cream)]/50 truncate mt-0.5">
                   {p.name}

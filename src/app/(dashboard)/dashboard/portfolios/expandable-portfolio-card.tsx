@@ -28,6 +28,7 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { fireToast } from "@/components/ui/toast";
 import { SendManualUpdateModal } from "@/components/ui/send-manual-update-modal";
 import { AddPositionForm } from "@/components/ui/add-position-form";
+import { StockLogo } from "@/components/ui/stock-logo";
 import type { Portfolio } from "@/types/database";
 
 export type PositionRow = {
@@ -423,6 +424,7 @@ export default function ExpandablePortfolioCard({
                           <div className="grid grid-cols-12 gap-2 px-4 py-3 items-center hover:bg-[color:var(--dopl-sage)]/10 transition-colors">
                             <div className="col-span-3 min-w-0">
                               <div className="flex items-center gap-1.5 flex-wrap">
+                                <StockLogo ticker={pos.ticker} size={20} />
                                 <p className="font-mono font-semibold text-sm truncate">
                                   {pos.ticker}
                                 </p>
