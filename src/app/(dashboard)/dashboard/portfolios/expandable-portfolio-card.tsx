@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -47,6 +47,13 @@ export type PositionRow = {
 
 import { PIE_COLORS } from "./allocation-donut";
 
+const BROKER_DOT_PALETTE = ["#C5D634", "#6fa686", "#8cc9a4", "#5b8a72", "#a8b82c", "#4f7862"];
+function brokerColor(name: string): string {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
+  return BROKER_DOT_PALETTE[Math.abs(h) % BROKER_DOT_PALETTE.length];
+}
+
 export default function ExpandablePortfolioCard({
   portfolio,
   positions,
@@ -90,6 +97,11 @@ export default function ExpandablePortfolioCard({
   >(null);
   const [removeThesis, setRemoveThesis] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  const brokerNames = useMemo(
+    () => Array.from(new Set(positions.map((p) => p.broker_name).filter((n): n is string => !!n))),
+    [positions]
+  );
 
   // Portfolio-edit modal — name, description, tier, price. Hits the
   // existing PATCH /api/portfolios/[id] route.
@@ -406,12 +418,22 @@ export default function ExpandablePortfolioCard({
                         at a glance. P/L stays at col-span-2 to avoid
                         clipping "-200.0%" on narrow viewports. */}
                     <div className="grid grid-cols-12 gap-2 px-4 py-2.5 text-[10px] uppercase tracking-wider text-[color:var(--dopl-cream)]/40 border-b border-[color:var(--glass-border)]">
-                      <div className="col-span-3">ticker</div>
-                      <div className="col-span-3 text-right">price</div>
+                      <div className="col-span-4">ticker</div>
+                      <div className="col-span-2 text-right">price</div>
                       <div className="col-span-2 text-right">value</div>
                       <div className="col-span-2 text-right">P/L</div>
                       <div className="col-span-2 text-right" aria-label="actions" />
                     </div>
+                    {brokerNames.length > 1 && (
+                      <div className="flex items-center gap-3 px-4 py-1 border-b border-[color:var(--glass-border)]">
+                        {brokerNames.map((name) => (
+                          <div key={name} className="flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: brokerColor(name) }} />
+                            <span className="text-[9px] text-[color:var(--dopl-cream)]/40">{name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     {visiblePositions.map((pos) => {
                       const gain = (pos.gain_loss_pct ?? 0) >= 0;
                       const isAdjusting = adjusting?.id === pos.id;
@@ -422,23 +444,21 @@ export default function ExpandablePortfolioCard({
                           className="border-b border-[color:var(--glass-border)] last:border-0"
                         >
                           <div className="grid grid-cols-12 gap-2 px-4 py-3 items-center hover:bg-[color:var(--dopl-sage)]/10 transition-colors">
-                            <div className="col-span-3 min-w-0">
+                            <div className="col-span-4 min-w-0">
                               <div className="flex items-center gap-2.5">
-                                <StockLogo ticker={pos.ticker} size={28} />
+                                <div className="relative flex-shrink-0">
+                                  <StockLogo ticker={pos.ticker} size={28} />
+                                  {pos.broker_name && brokerNames.length > 1 && (
+                                    <span
+                                      className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border border-[color:var(--dopl-deep)]"
+                                      style={{ backgroundColor: brokerColor(pos.broker_name) }}
+                                    />
+                                  )}
+                                </div>
                                 <div className="min-w-0">
-                                  <div className="flex items-center gap-1.5 flex-wrap">
-                                    <p className="font-mono font-semibold text-sm truncate">
-                                      {pos.ticker}
-                                    </p>
-                                    {pos.broker_name && (
-                                      <span
-                                        title={`source: ${pos.broker_name}`}
-                                        className="text-[9px] font-mono uppercase tracking-[0.15em] px-1.5 py-0.5 rounded bg-[color:var(--dopl-sage)]/40 text-[color:var(--dopl-cream)]/70 truncate max-w-[100px]"
-                                      >
-                                        {pos.broker_name}
-                                      </span>
-                                    )}
-                                  </div>
+                                  <p className="font-mono font-semibold text-sm truncate">
+                                    {pos.ticker}
+                                  </p>
                                   {pos.name && (
                                     <p className="text-[10px] text-[color:var(--dopl-cream)]/40 truncate mt-0.5">
                                       {pos.name}
@@ -447,7 +467,7 @@ export default function ExpandablePortfolioCard({
                                 </div>
                               </div>
                             </div>
-                            <div className="col-span-3 text-right font-mono text-sm tabular-nums">
+                            <div className="col-span-2 text-right font-mono text-sm tabular-nums">
                               {pos.current_price != null
                                 ? `$${Number(pos.current_price) >= 10000 ? `${(Number(pos.current_price) / 1000).toFixed(1)}k` : Number(pos.current_price).toFixed(2)}`
                                 : "—"}
