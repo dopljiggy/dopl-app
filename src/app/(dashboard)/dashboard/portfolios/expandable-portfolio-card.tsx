@@ -91,6 +91,8 @@ export default function ExpandablePortfolioCard({
   const [removeThesis, setRemoveThesis] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  const hasMultipleSources = new Set(positions.map((p) => p.broker_name).filter(Boolean)).size > 1;
+
   // Portfolio-edit modal — name, description, tier, price. Hits the
   // existing PATCH /api/portfolios/[id] route.
   const [editing, setEditing] = useState(false);
@@ -445,9 +447,9 @@ export default function ExpandablePortfolioCard({
                                   </div>
                                 </div>
                               </div>
-                              {pos.name && (
+                              {(pos.name || (hasMultipleSources && pos.broker_name)) && (
                                 <p className="text-[10px] text-[color:var(--dopl-cream)]/40 truncate">
-                                  {pos.name}
+                                  {pos.name}{hasMultipleSources && pos.broker_name ? ` · ${pos.broker_name}` : ""}
                                 </p>
                               )}
                             </div>
