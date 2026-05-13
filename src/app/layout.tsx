@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
-import { Fraunces, Inter, JetBrains_Mono } from "next/font/google";
+import { GeistSans } from "geist/font/sans";
+import { GeistMono } from "geist/font/mono";
 import "./globals.css";
 import { LoadingProvider } from "@/components/ui/aurora-loader";
 import { ToastProvider } from "@/components/ui/toast";
@@ -7,23 +8,6 @@ import ServiceWorkerRegister from "@/components/pwa/sw-register";
 import PWAInstallPrompt from "@/components/pwa/install-prompt";
 import StandaloneSplash from "@/components/pwa/standalone-splash";
 
-const fraunces = Fraunces({
-  subsets: ["latin"],
-  variable: "--font-fraunces",
-  display: "swap",
-});
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-  display: "swap",
-});
-
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ["latin"],
-  variable: "--font-jetbrains-mono",
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: "dopl",
@@ -73,7 +57,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`dark ${fraunces.variable} ${inter.variable} ${jetbrainsMono.variable}`}
+      className={`dark ${GeistSans.variable} ${GeistMono.variable}`}
     >
       <head>
         <meta name="apple-mobile-web-app-capable" content="yes" />

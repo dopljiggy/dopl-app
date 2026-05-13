@@ -20,9 +20,9 @@ const config: Config = {
         },
       },
       fontFamily: {
-        display: ["Fraunces", "serif"],
-        body: ["Inter", "sans-serif"],
-        mono: ["JetBrains Mono", "monospace"],
+        display: ["var(--font-geist-sans)", "sans-serif"],
+        body: ["var(--font-geist-sans)", "sans-serif"],
+        mono: ["var(--font-geist-mono)", "monospace"],
       },
       backdropBlur: {
         glass: "20px",

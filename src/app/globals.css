@@ -63,19 +63,20 @@ body {
               radial-gradient(900px 500px at 100% 0%, rgba(45, 74, 62, 0.5), transparent 55%),
               var(--dopl-deep);
   color: var(--dopl-cream);
-  font-family: var(--font-inter), system-ui, -apple-system, sans-serif;
+  font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
 }
 
 h1, h2, h3, h4, h5, h6, .font-display {
-  font-family: var(--font-fraunces), ui-serif, Georgia, serif;
-  letter-spacing: -0.01em;
+  font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+  letter-spacing: -0.02em;
+  font-weight: 600;
 }
 
 .font-mono, .tabular-nums, [data-numbers] {
-  font-family: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, monospace;
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
   font-feature-settings: "tnum", "zero";
 }
 
