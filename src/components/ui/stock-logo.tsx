@@ -15,44 +15,54 @@ function letterColor(ticker: string) {
   return COLORS[Math.abs(hash) % COLORS.length];
 }
 
+type LogoStage = "fmp" | "coincap" | "fallback";
+
 export function StockLogo({
   ticker,
-  size = 24,
+  size = 32,
   className = "",
 }: {
   ticker: string;
   size?: number;
   className?: string;
 }) {
-  const [failed, setFailed] = useState(false);
+  const [stage, setStage] = useState<LogoStage>("fmp");
+  const symbol = ticker.trim().toUpperCase();
 
-  if (failed) {
+  if (stage === "fallback") {
     return (
       <div
-        className={`rounded-md flex items-center justify-center font-mono font-bold text-[color:var(--dopl-deep)] flex-shrink-0 ${className}`}
+        className={`rounded-full flex items-center justify-center font-mono font-bold text-[color:var(--dopl-deep)] flex-shrink-0 ${className}`}
         style={{
           width: size,
           height: size,
-          fontSize: size * 0.5,
-          backgroundColor: letterColor(ticker),
+          fontSize: size * 0.45,
+          backgroundColor: letterColor(symbol),
         }}
       >
-        {ticker[0]}
+        {symbol[0]}
       </div>
     );
   }
 
+  const src =
+    stage === "fmp"
+      ? `https://financialmodelingprep.com/image-stock/${encodeURIComponent(symbol)}.png`
+      : `https://assets.coincap.io/assets/icons/${symbol.toLowerCase()}@2x.png`;
+
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={`https://financialmodelingprep.com/image-stock/${encodeURIComponent(ticker)}.png`}
+      src={src}
       alt=""
       width={size}
       height={size}
       loading="lazy"
       decoding="async"
-      onError={() => setFailed(true)}
-      className={`rounded-md object-contain flex-shrink-0 ${className}`}
+      onError={() =>
+        setStage((prev) => (prev === "fmp" ? "coincap" : "fallback"))
+      }
+      className={`rounded-full object-contain flex-shrink-0 bg-[color:var(--dopl-sage)]/30 ${className}`}
     />
   );
 }

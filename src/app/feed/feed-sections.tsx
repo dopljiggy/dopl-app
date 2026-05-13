@@ -253,17 +253,19 @@ function PositionTable({ positions }: { positions: PositionLike[] }) {
                 className="border-t border-[color:var(--glass-border)] hover:bg-[color:var(--dopl-sage)]/10 transition-colors"
               >
                 <td className="px-5 py-2.5">
-                  <div className="flex items-center gap-2">
-                    <StockLogo ticker={p.ticker} size={18} />
-                    <span className="font-mono font-bold text-[color:var(--dopl-cream)]">
-                      {p.ticker}
-                    </span>
+                  <div className="flex items-center gap-3">
+                    <StockLogo ticker={p.ticker} size={32} />
+                    <div className="min-w-0">
+                      <span className="font-mono font-bold text-[color:var(--dopl-cream)]">
+                        {p.ticker}
+                      </span>
+                      {p.name && (
+                        <span className="block text-[10px] text-[color:var(--dopl-cream)]/40 truncate max-w-[160px]">
+                          {p.name}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  {p.name && (
-                    <span className="block text-[10px] text-[color:var(--dopl-cream)]/40 truncate max-w-[180px]">
-                      {p.name}
-                    </span>
-                  )}
                 </td>
                 <td className="text-right px-3 py-2.5 font-mono tabular-nums text-[color:var(--dopl-cream)]/80">
                   {p.shares != null ? p.shares : "—"}

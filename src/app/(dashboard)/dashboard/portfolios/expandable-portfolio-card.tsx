@@ -423,25 +423,29 @@ export default function ExpandablePortfolioCard({
                         >
                           <div className="grid grid-cols-12 gap-2 px-4 py-3 items-center hover:bg-[color:var(--dopl-sage)]/10 transition-colors">
                             <div className="col-span-3 min-w-0">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <StockLogo ticker={pos.ticker} size={20} />
-                                <p className="font-mono font-semibold text-sm truncate">
-                                  {pos.ticker}
-                                </p>
-                                {pos.broker_name && (
-                                  <span
-                                    title={`source: ${pos.broker_name}`}
-                                    className="text-[9px] font-mono uppercase tracking-[0.15em] px-1.5 py-0.5 rounded bg-[color:var(--dopl-sage)]/40 text-[color:var(--dopl-cream)]/70 truncate max-w-[100px]"
-                                  >
-                                    {pos.broker_name}
-                                  </span>
-                                )}
+                              <div className="flex items-center gap-2.5">
+                                <StockLogo ticker={pos.ticker} size={28} />
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <p className="font-mono font-semibold text-sm truncate">
+                                      {pos.ticker}
+                                    </p>
+                                    {pos.broker_name && (
+                                      <span
+                                        title={`source: ${pos.broker_name}`}
+                                        className="text-[9px] font-mono uppercase tracking-[0.15em] px-1.5 py-0.5 rounded bg-[color:var(--dopl-sage)]/40 text-[color:var(--dopl-cream)]/70 truncate max-w-[100px]"
+                                      >
+                                        {pos.broker_name}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {pos.name && (
+                                    <p className="text-[10px] text-[color:var(--dopl-cream)]/40 truncate mt-0.5">
+                                      {pos.name}
+                                    </p>
+                                  )}
+                                </div>
                               </div>
-                              {pos.name && (
-                                <p className="text-[10px] text-[color:var(--dopl-cream)]/40 truncate mt-0.5">
-                                  {pos.name}
-                                </p>
-                              )}
                             </div>
                             <div className="col-span-3 text-right font-mono text-sm tabular-nums">
                               {pos.current_price != null

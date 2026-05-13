@@ -58,11 +58,58 @@ async function fetchYahooQuote(ticker: string): Promise<QuotePayload | null> {
   }
 }
 
+async function fetchCoinGeckoQuote(
+  ticker: string
+): Promise<QuotePayload | null> {
+  try {
+    const searchRes = await fetch(
+      `https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(ticker)}`,
+      { signal: AbortSignal.timeout(5000), cache: "no-store" }
+    );
+    if (!searchRes.ok) return null;
+    const searchJson = (await searchRes.json()) as {
+      coins?: { id: string; symbol: string; name: string }[];
+    };
+    const coin = (searchJson.coins ?? []).find(
+      (c) => c.symbol.toUpperCase() === ticker.toUpperCase()
+    );
+    if (!coin) return null;
+
+    const priceRes = await fetch(
+      `https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(
+        coin.id
+      )}&vs_currencies=usd&include_24hr_change=true`,
+      { signal: AbortSignal.timeout(5000), cache: "no-store" }
+    );
+    if (!priceRes.ok) return null;
+    const priceJson = (await priceRes.json()) as Record<
+      string,
+      { usd?: number; usd_24h_change?: number }
+    >;
+    const data = priceJson[coin.id];
+    if (!data?.usd) return null;
+
+    const changePercent = data.usd_24h_change ?? null;
+    const change =
+      changePercent != null ? (data.usd * changePercent) / 100 : null;
+    return {
+      ticker,
+      price: data.usd,
+      change,
+      changePercent,
+      name: coin.name,
+      currency: "USD",
+    };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * GET /api/market/quote?ticker=AAPL
- * Finnhub primary, Yahoo fallback. If both fail returns 200 with
- * `{ price: null, error: "price unavailable" }` so the FM can still add
- * the position with manually-entered shares + price.
+ * Finnhub primary, Yahoo fallback, CoinGecko for crypto. If all fail
+ * returns 200 with `{ price: null, error: "price unavailable" }` so the
+ * FM can still add the position with manually-entered shares + price.
  */
 export async function GET(request: Request) {
   const supabase = await createServerSupabase();
@@ -93,6 +140,9 @@ export async function GET(request: Request) {
 
   const yahoo = await fetchYahooQuote(ticker);
   if (yahoo) return NextResponse.json(yahoo);
+
+  const coingecko = await fetchCoinGeckoQuote(ticker);
+  if (coingecko) return NextResponse.json(coingecko);
 
   return NextResponse.json({
     ticker,

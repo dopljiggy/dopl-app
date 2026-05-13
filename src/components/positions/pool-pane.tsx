@@ -402,17 +402,19 @@ function PoolSection({
                 )}
               </div>
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                  <StockLogo ticker={p.ticker} size={20} />
-                  <p className="font-mono font-semibold text-sm text-[color:var(--dopl-cream)]">
-                    {p.ticker}
-                  </p>
+                <div className="flex items-center gap-2.5">
+                  <StockLogo ticker={p.ticker} size={28} />
+                  <div className="min-w-0">
+                    <p className="font-mono font-semibold text-sm text-[color:var(--dopl-cream)]">
+                      {p.ticker}
+                    </p>
+                    {p.name && (
+                      <p className="text-[11px] text-[color:var(--dopl-cream)]/45 truncate">
+                        {p.name}
+                      </p>
+                    )}
+                  </div>
                 </div>
-                {p.name && (
-                  <p className="text-[11px] text-[color:var(--dopl-cream)]/45 truncate">
-                    {p.name}
-                  </p>
-                )}
               </div>
               <div className="text-right text-[11px] font-mono tabular-nums">
                 {p.current_price != null && (

@@ -59,25 +59,49 @@ export async function searchTickers(
   const hit = cacheGet<TickerSearchResult[]>(key);
   if (hit) return hit;
 
-  const json = (await finnhubFetch("/search", {
-    q,
-    exchange: "US",
-  })) as {
-    count?: number;
-    result?: { description: string; symbol: string; type: string }[];
-  };
-  const all = json.result ?? [];
-  // Filter to Common Stock — Finnhub also returns ETFs/funds/options under
-  // the same endpoint and the FM-flow only allows individual equities.
-  const filtered = all
-    .filter((r) => r.type === "Common Stock")
-    .map((r) => ({
-      symbol: r.symbol,
-      description: r.description,
-      type: r.type,
+  const [stocks, crypto] = await Promise.all([
+    finnhubFetch("/search", { q, exchange: "US" })
+      .then((json) => {
+        const data = json as {
+          result?: { description: string; symbol: string; type: string }[];
+        };
+        return (data.result ?? [])
+          .filter((r) => r.type === "Common Stock")
+          .map((r) => ({
+            symbol: r.symbol,
+            description: r.description,
+            type: r.type,
+          }));
+      })
+      .catch(() => [] as TickerSearchResult[]),
+    searchCryptoTickers(q),
+  ]);
+
+  const combined = [...stocks, ...crypto];
+  cacheSet(key, combined, 5 * 60 * 1000);
+  return combined;
+}
+
+async function searchCryptoTickers(
+  query: string
+): Promise<TickerSearchResult[]> {
+  try {
+    const res = await fetch(
+      `https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(query)}`,
+      { signal: AbortSignal.timeout(5000), cache: "no-store" }
+    );
+    if (!res.ok) return [];
+    const json = (await res.json()) as {
+      coins?: { id: string; symbol: string; name: string }[];
+    };
+    return (json.coins ?? []).slice(0, 8).map((c) => ({
+      symbol: c.symbol.toUpperCase(),
+      description: c.name,
+      type: "Crypto",
     }));
-  cacheSet(key, filtered, 5 * 60 * 1000);
-  return filtered;
+  } catch {
+    return [];
+  }
 }
 
 export type Quote = {

@@ -4,6 +4,32 @@ import { createServerSupabase } from "@/lib/supabase-server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { getQuote } from "@/lib/finnhub";
 
+async function fetchCoinGeckoPrice(ticker: string): Promise<number | null> {
+  try {
+    const searchRes = await fetch(
+      `https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(ticker)}`,
+      { signal: AbortSignal.timeout(5000), cache: "no-store" }
+    );
+    if (!searchRes.ok) return null;
+    const searchJson = (await searchRes.json()) as {
+      coins?: { id: string; symbol: string }[];
+    };
+    const coin = (searchJson.coins ?? []).find(
+      (c) => c.symbol.toUpperCase() === ticker.toUpperCase()
+    );
+    if (!coin) return null;
+    const priceRes = await fetch(
+      `https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(coin.id)}&vs_currencies=usd`,
+      { signal: AbortSignal.timeout(5000), cache: "no-store" }
+    );
+    if (!priceRes.ok) return null;
+    const priceJson = (await priceRes.json()) as Record<string, { usd?: number }>;
+    return priceJson[coin.id]?.usd ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function POST() {
   const supabase = await createServerSupabase();
   const {
@@ -43,7 +69,16 @@ export async function POST() {
   for (const ticker of tickers) {
     try {
       const q = await getQuote(ticker);
-      if (q?.current) quotes.set(ticker, q.current);
+      if (q?.current) {
+        quotes.set(ticker, q.current);
+        continue;
+      }
+    } catch {
+      // fall through to CoinGecko
+    }
+    try {
+      const cgPrice = await fetchCoinGeckoPrice(ticker);
+      if (cgPrice) quotes.set(ticker, cgPrice);
     } catch {
       // skip — price stays unchanged
     }
