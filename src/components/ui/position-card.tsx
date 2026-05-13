@@ -104,7 +104,7 @@ export function PositionCard({
           {/* Hover extra */}
           <div className="mt-3 flex items-center justify-between text-xs text-[color:var(--dopl-cream)]/40 opacity-0 group-hover:opacity-100 transition-opacity">
             <span className="font-mono">
-              {p.shares != null ? `${p.shares} sh` : ""}
+              {p.shares != null ? p.shares : ""}
             </span>
             <span className="font-mono">
               {p.market_value != null

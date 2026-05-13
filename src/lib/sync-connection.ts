@@ -323,7 +323,7 @@ async function applySync(
     if (found) {
       // h.entry_price ?? found.entry_price keeps a previously-stored
       // cost basis intact when this round's broker payload omits it.
-      const resolvedEntry = h.entry_price ?? found.entry_price ?? null;
+      const resolvedEntry = h.entry_price ?? found.entry_price ?? h.current_price ?? null;
       const resolvedPrice = h.current_price ?? found.current_price ?? null;
       await admin
         .from("positions")
@@ -350,10 +350,10 @@ async function applySync(
         current_price: h.current_price,
         market_value: h.market_value,
         asset_type: h.asset_type,
-        entry_price: h.entry_price,
+        entry_price: h.entry_price ?? h.current_price,
         gain_loss_pct:
-          h.entry_price && h.current_price
-            ? ((h.current_price - h.entry_price) / h.entry_price) * 100
+          (h.entry_price ?? h.current_price) && h.current_price
+            ? ((h.current_price - (h.entry_price ?? h.current_price)!) / (h.entry_price ?? h.current_price)!) * 100
             : null,
         last_synced: now,
       });

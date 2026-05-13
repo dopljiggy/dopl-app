@@ -403,10 +403,10 @@ export default function ExpandablePortfolioCard({
                         clipping "-200.0%" on narrow viewports. */}
                     <div className="grid grid-cols-12 gap-2 px-4 py-2.5 text-[10px] uppercase tracking-wider text-[color:var(--dopl-cream)]/40 border-b border-[color:var(--glass-border)]">
                       <div className="col-span-3">ticker</div>
-                      <div className="col-span-2 text-right">price</div>
+                      <div className="col-span-3 text-right">price</div>
                       <div className="col-span-2 text-right">value</div>
                       <div className="col-span-2 text-right">P/L</div>
-                      <div className="col-span-3 text-right" aria-label="actions" />
+                      <div className="col-span-2 text-right" aria-label="actions" />
                     </div>
                     {visiblePositions.map((pos) => {
                       const gain = (pos.gain_loss_pct ?? 0) >= 0;
@@ -426,7 +426,7 @@ export default function ExpandablePortfolioCard({
                                 {pos.broker_name && (
                                   <span
                                     title={`source: ${pos.broker_name}`}
-                                    className="text-[9px] font-mono uppercase tracking-[0.15em] px-1.5 py-0.5 rounded bg-[color:var(--dopl-sage)]/40 text-[color:var(--dopl-cream)]/70 truncate max-w-[80px]"
+                                    className="text-[9px] font-mono uppercase tracking-[0.15em] px-1.5 py-0.5 rounded bg-[color:var(--dopl-sage)]/40 text-[color:var(--dopl-cream)]/70 truncate max-w-[100px]"
                                   >
                                     {pos.broker_name}
                                   </span>
@@ -438,23 +438,23 @@ export default function ExpandablePortfolioCard({
                                 </p>
                               )}
                             </div>
-                            <div className="col-span-2 text-right font-mono text-sm tabular-nums truncate">
+                            <div className="col-span-3 text-right font-mono text-sm tabular-nums">
                               {pos.current_price != null
                                 ? `$${Number(pos.current_price) >= 10000 ? `${(Number(pos.current_price) / 1000).toFixed(1)}k` : Number(pos.current_price).toFixed(2)}`
                                 : "—"}
                               {pos.shares != null && (
                                 <p className="text-[10px] text-[color:var(--dopl-cream)]/40">
-                                  {pos.shares} sh
+                                  {pos.shares}
                                 </p>
                               )}
                             </div>
-                            <div className="col-span-2 text-right font-mono text-sm tabular-nums text-[color:var(--dopl-cream)]/85 truncate">
+                            <div className="col-span-2 text-right font-mono text-sm tabular-nums text-[color:var(--dopl-cream)]/85">
                               {pos.market_value != null
                                 ? `$${Number(pos.market_value) >= 10000 ? `${(Number(pos.market_value) / 1000).toFixed(0)}k` : Number(pos.market_value).toFixed(0)}`
                                 : "—"}
                             </div>
                             <div
-                              className={`col-span-2 text-right font-mono text-sm tabular-nums truncate ${
+                              className={`col-span-2 text-right font-mono text-sm tabular-nums ${
                                 gain
                                   ? "text-[color:var(--dopl-lime)]"
                                   : "text-red-400"
@@ -464,7 +464,7 @@ export default function ExpandablePortfolioCard({
                                 ? `${gain ? "+" : ""}${pos.gain_loss_pct.toFixed(1)}%`
                                 : "—"}
                             </div>
-                            <div className="col-span-3 flex items-center justify-end gap-1">
+                            <div className="col-span-2 flex items-center justify-end gap-1">
                               <button
                                 onClick={() => openAdjust(pos)}
                                 aria-label={`adjust ${pos.ticker}`}
@@ -492,7 +492,7 @@ export default function ExpandablePortfolioCard({
                                   </span>{" "}
                                   — currently{" "}
                                   <span className="font-mono">
-                                    {pos.shares ?? 0} sh
+                                    {pos.shares ?? 0}
                                   </span>
                                 </p>
                                 <input

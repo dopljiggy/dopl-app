@@ -262,7 +262,7 @@ function PositionTable({ positions }: { positions: PositionLike[] }) {
                   )}
                 </td>
                 <td className="text-right px-3 py-2.5 font-mono tabular-nums text-[color:var(--dopl-cream)]/80">
-                  {p.shares != null ? `${p.shares} sh` : "—"}
+                  {p.shares != null ? p.shares : "—"}
                 </td>
                 <td className="text-right px-3 py-2.5 font-mono tabular-nums text-[color:var(--dopl-cream)]/80">
                   {p.current_price != null

@@ -365,7 +365,7 @@ export default function PositionsClient({
                                     : "—"}
                                 </p>
                                 <p className="text-[color:var(--dopl-cream)]/45">
-                                  {it.shares != null ? `${it.shares} sh` : ""}
+                                  {it.shares != null ? it.shares : ""}
                                 </p>
                               </div>
                               <div className="text-right text-[11px] font-mono tabular-nums w-20">

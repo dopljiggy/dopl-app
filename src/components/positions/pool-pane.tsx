@@ -392,7 +392,7 @@ function PoolSection({
                 )}
                 {p.shares != null && (
                   <p className="text-[color:var(--dopl-cream)]/45">
-                    {p.shares} sh
+                    {p.shares}
                     {p.entry_price != null
                       ? ` @ $${Number(p.entry_price).toFixed(2)}`
                       : ""}
