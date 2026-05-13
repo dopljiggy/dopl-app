@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -47,13 +47,6 @@ export type PositionRow = {
 
 import { PIE_COLORS } from "./allocation-donut";
 
-const BROKER_DOT_PALETTE = ["#C5D634", "#6fa686", "#8cc9a4", "#5b8a72", "#a8b82c", "#4f7862"];
-function brokerColor(name: string): string {
-  let h = 0;
-  for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
-  return BROKER_DOT_PALETTE[Math.abs(h) % BROKER_DOT_PALETTE.length];
-}
-
 export default function ExpandablePortfolioCard({
   portfolio,
   positions,
@@ -97,11 +90,6 @@ export default function ExpandablePortfolioCard({
   >(null);
   const [removeThesis, setRemoveThesis] = useState("");
   const [submitting, setSubmitting] = useState(false);
-
-  const brokerNames = useMemo(
-    () => Array.from(new Set(positions.map((p) => p.broker_name).filter((n): n is string => !!n))),
-    [positions]
-  );
 
   // Portfolio-edit modal — name, description, tier, price. Hits the
   // existing PATCH /api/portfolios/[id] route.
@@ -410,104 +398,58 @@ export default function ExpandablePortfolioCard({
                     </div>
                   </div>
                 ) : (
-                  <div className="glass-card-light rounded-2xl overflow-hidden">
-                    {/* Sprint 16: dropped the per-row allocation column —
-                        the donut + AllocationSumBadge above already
-                        carry that info. The freed space goes to a new
-                        VALUE column so the FM can see dollars-per-line
-                        at a glance. P/L stays at col-span-2 to avoid
-                        clipping "-200.0%" on narrow viewports. */}
-                    <div className="grid grid-cols-12 gap-2 px-4 py-2.5 text-[10px] uppercase tracking-wider text-[color:var(--dopl-cream)]/40 border-b border-[color:var(--glass-border)]">
-                      <div className="col-span-4">ticker</div>
-                      <div className="col-span-2 text-right">price</div>
-                      <div className="col-span-2 text-right">value</div>
-                      <div className="col-span-2 text-right">P/L</div>
-                      <div className="col-span-2 text-right" aria-label="actions" />
-                    </div>
-                    {brokerNames.length > 1 && (
-                      <div className="flex items-center gap-3 px-4 py-1 border-b border-[color:var(--glass-border)]">
-                        {brokerNames.map((name) => (
-                          <div key={name} className="flex items-center gap-1.5">
-                            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: brokerColor(name) }} />
-                            <span className="text-[9px] text-[color:var(--dopl-cream)]/40">{name}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                  <div className="space-y-0.5">
                     {visiblePositions.map((pos) => {
                       const gain = (pos.gain_loss_pct ?? 0) >= 0;
                       const isAdjusting = adjusting?.id === pos.id;
                       const isRemoving = pendingRemove?.id === pos.id;
                       return (
-                        <div
-                          key={pos.id}
-                          className="border-b border-[color:var(--glass-border)] last:border-0"
-                        >
-                          <div className="grid grid-cols-12 gap-2 px-4 py-3 items-center hover:bg-[color:var(--dopl-sage)]/10 transition-colors">
-                            <div className="col-span-4 min-w-0">
-                              <div className="flex items-center gap-2.5">
-                                <div className="relative flex-shrink-0">
-                                  <StockLogo ticker={pos.ticker} size={28} />
-                                  {pos.broker_name && brokerNames.length > 1 && (
-                                    <span
-                                      className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border border-[color:var(--dopl-deep)]"
-                                      style={{ backgroundColor: brokerColor(pos.broker_name) }}
-                                    />
-                                  )}
-                                </div>
-                                <div className="min-w-0">
-                                  <p className="font-mono font-semibold text-sm truncate">
-                                    {pos.ticker}
+                        <div key={pos.id}>
+                          <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[color:var(--dopl-sage)]/10 transition-colors group">
+                            <StockLogo ticker={pos.ticker} size={32} />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="font-mono font-semibold text-sm truncate">{pos.ticker}</p>
+                                <div className="flex items-center gap-2 flex-shrink-0">
+                                  <p className="font-mono text-sm tabular-nums">
+                                    {pos.current_price != null
+                                      ? `$${Number(pos.current_price) >= 10000 ? `${(Number(pos.current_price) / 1000).toFixed(1)}k` : Number(pos.current_price).toFixed(2)}`
+                                      : "—"}
                                   </p>
-                                  {pos.name && (
-                                    <p className="text-[10px] text-[color:var(--dopl-cream)]/40 truncate mt-0.5">
-                                      {pos.name}
-                                    </p>
-                                  )}
+                                  <span
+                                    className={`font-mono text-xs tabular-nums px-1.5 py-0.5 rounded-md ${
+                                      gain
+                                        ? "text-[color:var(--dopl-lime)] bg-[color:var(--dopl-lime)]/10"
+                                        : "text-red-400 bg-red-400/10"
+                                    }`}
+                                  >
+                                    {pos.gain_loss_pct != null
+                                      ? `${gain ? "+" : ""}${pos.gain_loss_pct.toFixed(1)}%`
+                                      : "—"}
+                                  </span>
+                                  <div className="flex items-center gap-0.5 opacity-40 group-hover:opacity-100 transition-opacity">
+                                    <button
+                                      onClick={() => openAdjust(pos)}
+                                      aria-label={`adjust ${pos.ticker}`}
+                                      className="p-1 rounded-md hover:text-[color:var(--dopl-cream)] hover:bg-[color:var(--dopl-sage)]/30 transition-colors"
+                                    >
+                                      <Pencil size={12} />
+                                    </button>
+                                    <button
+                                      onClick={() => openRemove(pos)}
+                                      aria-label={`remove ${pos.ticker}`}
+                                      className="p-1 rounded-md hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                                    >
+                                      <Trash2 size={12} />
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                            <div className="col-span-2 text-right font-mono text-sm tabular-nums">
-                              {pos.current_price != null
-                                ? `$${Number(pos.current_price) >= 10000 ? `${(Number(pos.current_price) / 1000).toFixed(1)}k` : Number(pos.current_price).toFixed(2)}`
-                                : "—"}
-                              {pos.shares != null && (
-                                <p className="text-[10px] text-[color:var(--dopl-cream)]/40">
-                                  {pos.shares}
+                              {pos.name && (
+                                <p className="text-[10px] text-[color:var(--dopl-cream)]/40 truncate">
+                                  {pos.name}
                                 </p>
                               )}
-                            </div>
-                            <div className="col-span-2 text-right font-mono text-sm tabular-nums text-[color:var(--dopl-cream)]/85">
-                              {pos.market_value != null
-                                ? `$${Number(pos.market_value) >= 10000 ? `${(Number(pos.market_value) / 1000).toFixed(0)}k` : Number(pos.market_value).toFixed(0)}`
-                                : "—"}
-                            </div>
-                            <div
-                              className={`col-span-2 text-right font-mono text-sm tabular-nums ${
-                                gain
-                                  ? "text-[color:var(--dopl-lime)]"
-                                  : "text-red-400"
-                              }`}
-                            >
-                              {pos.gain_loss_pct != null
-                                ? `${gain ? "+" : ""}${pos.gain_loss_pct.toFixed(1)}%`
-                                : "—"}
-                            </div>
-                            <div className="col-span-2 flex items-center justify-end gap-1">
-                              <button
-                                onClick={() => openAdjust(pos)}
-                                aria-label={`adjust ${pos.ticker}`}
-                                className="p-1.5 rounded-md text-[color:var(--dopl-cream)]/40 hover:text-[color:var(--dopl-cream)] hover:bg-[color:var(--dopl-sage)]/30 transition-colors"
-                              >
-                                <Pencil size={12} />
-                              </button>
-                              <button
-                                onClick={() => openRemove(pos)}
-                                aria-label={`remove ${pos.ticker}`}
-                                className="p-1.5 rounded-md text-[color:var(--dopl-cream)]/40 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                              >
-                                <Trash2 size={12} />
-                              </button>
                             </div>
                           </div>
                           {/* Inline adjust row — change shares + thesis */}
