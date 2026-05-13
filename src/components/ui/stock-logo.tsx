@@ -15,7 +15,7 @@ function letterColor(ticker: string) {
   return COLORS[Math.abs(hash) % COLORS.length];
 }
 
-type LogoStage = "fmp" | "coincap" | "fallback";
+type LogoStage = "coincap" | "fmp" | "fallback";
 
 export function StockLogo({
   ticker,
@@ -26,7 +26,7 @@ export function StockLogo({
   size?: number;
   className?: string;
 }) {
-  const [stage, setStage] = useState<LogoStage>("fmp");
+  const [stage, setStage] = useState<LogoStage>("coincap");
   const symbol = ticker.trim().toUpperCase();
 
   if (stage === "fallback") {
@@ -46,9 +46,9 @@ export function StockLogo({
   }
 
   const src =
-    stage === "fmp"
-      ? `https://financialmodelingprep.com/image-stock/${encodeURIComponent(symbol)}.png`
-      : `https://assets.coincap.io/assets/icons/${symbol.toLowerCase()}@2x.png`;
+    stage === "coincap"
+      ? `https://assets.coincap.io/assets/icons/${symbol.toLowerCase()}@2x.png`
+      : `https://financialmodelingprep.com/image-stock/${encodeURIComponent(symbol)}.png`;
 
   return (
     // eslint-disable-next-line @next/next/no-img-element
@@ -60,7 +60,7 @@ export function StockLogo({
       loading="lazy"
       decoding="async"
       onError={() =>
-        setStage((prev) => (prev === "fmp" ? "coincap" : "fallback"))
+        setStage((prev) => (prev === "coincap" ? "fmp" : "fallback"))
       }
       className={`rounded-full object-contain flex-shrink-0 bg-[color:var(--dopl-sage)]/30 ${className}`}
     />
