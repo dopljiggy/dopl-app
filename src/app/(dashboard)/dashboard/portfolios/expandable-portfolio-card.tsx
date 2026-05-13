@@ -40,8 +40,7 @@ export type PositionRow = {
   gain_loss_pct: number | null;
   shares: number | null;
   market_value: number | null;
-  // Sprint 15: small badge in each row showing which broker the position
-  // came from (or "Manual Entry" for hand-entered ones).
+  entry_price: number | null;
   broker_name?: string | null;
 };
 
@@ -83,6 +82,7 @@ export default function ExpandablePortfolioCard({
     { id: string; ticker: string } | null
   >(null);
   const [adjustShares, setAdjustShares] = useState("");
+  const [adjustEntryPrice, setAdjustEntryPrice] = useState("");
   const [adjustThesis, setAdjustThesis] = useState("");
   const [pendingRemove, setPendingRemove] = useState<
     { id: string; ticker: string } | null
@@ -147,6 +147,7 @@ export default function ExpandablePortfolioCard({
   const openAdjust = (pos: PositionRow) => {
     setAdjusting({ id: pos.id, ticker: pos.ticker });
     setAdjustShares(pos.shares != null ? String(pos.shares) : "");
+    setAdjustEntryPrice(pos.entry_price != null ? String(pos.entry_price) : "");
     setAdjustThesis("");
     setPendingRemove(null);
   };
@@ -159,6 +160,7 @@ export default function ExpandablePortfolioCard({
     setAdjusting(null);
     setPendingRemove(null);
     setAdjustShares("");
+    setAdjustEntryPrice("");
     setAdjustThesis("");
     setRemoveThesis("");
   };
@@ -176,6 +178,7 @@ export default function ExpandablePortfolioCard({
         name: pos.name,
         shares: newShares,
         current_price: pos.current_price,
+        entry_price: adjustEntryPrice ? Number(adjustEntryPrice) : null,
         thesis_note: adjustThesis.trim() || null,
       }),
     });
@@ -506,6 +509,17 @@ export default function ExpandablePortfolioCard({
                                   placeholder="new share count"
                                   className="w-full bg-[color:var(--dopl-deep-2)] border border-[color:var(--dopl-sage)]/30 rounded-lg px-3 py-2 text-sm font-mono"
                                   autoFocus
+                                />
+                                <input
+                                  type="number"
+                                  step="any"
+                                  min={0}
+                                  value={adjustEntryPrice}
+                                  onChange={(e) =>
+                                    setAdjustEntryPrice(e.target.value)
+                                  }
+                                  placeholder="cost basis (optional)"
+                                  className="w-full bg-[color:var(--dopl-deep-2)] border border-[color:var(--dopl-sage)]/30 rounded-lg px-3 py-2 text-sm font-mono"
                                 />
                                 <input
                                   type="text"

@@ -24,7 +24,7 @@ export default async function PortfoliosPage() {
         await admin
           .from("positions")
           .select(
-            "id, portfolio_id, ticker, name, allocation_pct, current_price, gain_loss_pct, shares, market_value, broker_connection_id"
+            "id, portfolio_id, ticker, name, allocation_pct, current_price, gain_loss_pct, shares, market_value, broker_connection_id, entry_price"
           )
           .in("portfolio_id", portfolioIds)
       ).data ?? []
@@ -58,6 +58,7 @@ export default async function PortfoliosPage() {
     shares: number | null;
     market_value: number | null;
     broker_connection_id: string | null;
+    entry_price: number | null;
   }>).map((p) => ({
     ...p,
     broker_name: p.broker_connection_id

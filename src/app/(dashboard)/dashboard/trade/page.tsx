@@ -104,6 +104,7 @@ export default async function TradePage() {
       gain_loss_pct: p.gain_loss_pct,
       shares: p.shares,
       market_value: p.market_value,
+      entry_price: p.entry_price,
       broker_name: p.broker_connection_id
         ? brokerNameById.get(p.broker_connection_id) ?? null
         : null,

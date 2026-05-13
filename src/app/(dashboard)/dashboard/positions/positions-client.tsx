@@ -45,6 +45,7 @@ export default function PositionsClient({
 }) {
   const router = useRouter();
   const [syncing, setSyncing] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [unassigningId, setUnassigningId] = useState<string | null>(null);
 
@@ -117,6 +118,30 @@ export default function PositionsClient({
       setError(e instanceof Error ? e.message : "sync failed");
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const hasManualConnections = useMemo(
+    () => connections.some((c) => c.provider === "manual"),
+    [connections]
+  );
+
+  const refreshPrices = async () => {
+    setRefreshing(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/positions/refresh-prices", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "refresh failed");
+      fireToast({
+        title: "prices refreshed",
+        body: `${data.updated ?? 0} positions updated`,
+      });
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "refresh failed");
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -203,6 +228,20 @@ export default function PositionsClient({
             <Download size={14} />
             export CSV
           </button>
+          {hasManualConnections && (
+            <button
+              onClick={refreshPrices}
+              disabled={refreshing}
+              className="glass-card-light px-4 py-2 text-sm flex items-center gap-2 hover:bg-[color:var(--dopl-sage)]/40 transition-colors disabled:opacity-40"
+            >
+              {refreshing ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <RefreshCw size={14} />
+              )}
+              {refreshing ? "refreshing…" : "refresh prices"}
+            </button>
+          )}
           <button
             onClick={syncAll}
             disabled={
