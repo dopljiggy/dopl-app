@@ -210,92 +210,51 @@ function PortfolioCard({
 }
 
 function PositionTable({ positions }: { positions: PositionLike[] }) {
-  // Per-portfolio total. positions is already scoped to one portfolio
-  // (PortfolioCard passes s.positions), so summing here doesn't mix
-  // values across the dopler's other subscribed portfolios.
-  const totalMarketValue = positions.reduce(
-    (a, p) => a + (Number(p.market_value) || 0),
-    0
-  );
-
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-xs">
-        <thead>
-          <tr className="text-[10px] font-mono uppercase tracking-[0.18em] text-[color:var(--dopl-cream)]/40">
-            <th className="text-left px-5 py-2 font-normal">ticker</th>
-            <th className="text-right px-3 py-2 font-normal">shares</th>
-            <th className="text-right px-3 py-2 font-normal">price</th>
-            <th className="text-right px-3 py-2 font-normal">alloc</th>
-            <th className="text-right px-5 py-2 font-normal">p/l</th>
-          </tr>
-        </thead>
-        <tbody>
-          {positions.map((p) => {
-            const pl = p.gain_loss_pct;
-            const plPositive = pl != null && pl >= 0;
-            // Prefer the FM-saved allocation_pct, then fall back to a
-            // computed slice from market_value (older positions, FM
-            // hasn't yet saved). Show '—' only when both are missing.
-            const computedAlloc =
-              p.market_value != null && totalMarketValue > 0
-                ? (Number(p.market_value) / totalMarketValue) * 100
-                : null;
-            const allocDisplay =
-              p.allocation_pct != null
-                ? `${p.allocation_pct.toFixed(1)}%`
-                : computedAlloc != null
-                  ? `${computedAlloc.toFixed(1)}%`
-                  : "—";
-            return (
-              <tr
-                key={p.id}
-                className="border-t border-[color:var(--glass-border)] hover:bg-[color:var(--dopl-sage)]/10 transition-colors"
-              >
-                <td className="px-5 py-2.5">
-                  <div className="flex items-center gap-3">
-                    <StockLogo ticker={p.ticker} size={32} />
-                    <div className="min-w-0">
-                      <span className="font-mono font-bold text-[color:var(--dopl-cream)]">
-                        {p.ticker}
-                      </span>
-                      {p.name && (
-                        <span className="block text-[10px] text-[color:var(--dopl-cream)]/40 truncate max-w-[160px]">
-                          {p.name}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </td>
-                <td className="text-right px-3 py-2.5 font-mono tabular-nums text-[color:var(--dopl-cream)]/80">
-                  {p.shares != null ? p.shares : "—"}
-                </td>
-                <td className="text-right px-3 py-2.5 font-mono tabular-nums text-[color:var(--dopl-cream)]/80">
-                  {p.current_price != null
-                    ? `$${Number(p.current_price).toFixed(2)}`
-                    : "—"}
-                </td>
-                <td className="text-right px-3 py-2.5 font-mono tabular-nums text-[color:var(--dopl-cream)]/80">
-                  {allocDisplay}
-                </td>
-                <td
-                  className={`text-right px-5 py-2.5 font-mono tabular-nums font-semibold ${
-                    pl == null
-                      ? "text-[color:var(--dopl-cream)]/40"
-                      : plPositive
-                        ? "text-[color:var(--dopl-lime)]"
-                        : "text-red-400"
-                  }`}
-                >
-                  {pl != null
-                    ? `${plPositive ? "+" : ""}${pl.toFixed(1)}%`
-                    : "—"}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+    <div className="space-y-0.5">
+      {positions.map((p) => {
+        const pl = p.gain_loss_pct;
+        const plPositive = pl != null && pl >= 0;
+        const price = p.current_price != null ? Number(p.current_price) : null;
+        return (
+          <div
+            key={p.id}
+            className="flex items-center gap-3 px-4 py-2.5 rounded-xl hover:bg-[color:var(--dopl-sage)]/10 transition-colors"
+          >
+            <StockLogo ticker={p.ticker} size={32} />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-mono font-bold text-sm truncate">{p.ticker}</span>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className="font-mono text-sm tabular-nums">
+                    {price != null
+                      ? `$${price >= 10000 ? `${(price / 1000).toFixed(1)}k` : price.toFixed(2)}`
+                      : "—"}
+                  </span>
+                  <span
+                    className={`font-mono text-xs tabular-nums px-1.5 py-0.5 rounded-md ${
+                      pl == null
+                        ? "text-[color:var(--dopl-cream)]/40"
+                        : plPositive
+                          ? "text-[color:var(--dopl-lime)] bg-[color:var(--dopl-lime)]/10"
+                          : "text-red-400 bg-red-400/10"
+                    }`}
+                  >
+                    {pl != null
+                      ? `${plPositive ? "+" : ""}${pl.toFixed(1)}%`
+                      : "—"}
+                  </span>
+                </div>
+              </div>
+              {p.name && (
+                <p className="text-[10px] text-[color:var(--dopl-cream)]/40 truncate max-w-[150px]">
+                  {p.name}
+                </p>
+              )}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
