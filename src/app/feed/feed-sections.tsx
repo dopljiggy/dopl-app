@@ -210,48 +210,75 @@ function PortfolioCard({
 }
 
 function PositionTable({ positions }: { positions: PositionLike[] }) {
+  const totalMv = positions.reduce((a, p) => a + (Number(p.market_value) || 0), 0);
+
   return (
     <div className="space-y-0.5">
       {positions.map((p) => {
         const pl = p.gain_loss_pct;
         const plPositive = pl != null && pl >= 0;
         const price = p.current_price != null ? Number(p.current_price) : null;
+        const alloc =
+          p.allocation_pct ??
+          (p.market_value != null && totalMv > 0
+            ? (Number(p.market_value) / totalMv) * 100
+            : null);
         return (
           <div
             key={p.id}
-            className="flex items-center gap-3 px-4 py-2.5 rounded-xl hover:bg-[color:var(--dopl-sage)]/10 transition-colors"
+            className="px-4 py-2.5 rounded-xl hover:bg-[color:var(--dopl-sage)]/10 transition-colors"
           >
-            <StockLogo ticker={p.ticker} size={32} />
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-mono font-bold text-sm truncate">{p.ticker}</span>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <span className="font-mono text-sm tabular-nums">
-                    {price != null
-                      ? `$${price >= 10000 ? `${(price / 1000).toFixed(1)}k` : price.toFixed(2)}`
-                      : "—"}
-                  </span>
-                  <span
-                    className={`font-mono text-xs tabular-nums px-1.5 py-0.5 rounded-md ${
-                      pl == null
-                        ? "text-[color:var(--dopl-cream)]/40"
-                        : plPositive
-                          ? "text-[color:var(--dopl-lime)] bg-[color:var(--dopl-lime)]/10"
-                          : "text-red-400 bg-red-400/10"
-                    }`}
-                  >
-                    {pl != null
-                      ? `${plPositive ? "+" : ""}${pl.toFixed(1)}%`
-                      : "—"}
-                  </span>
+            <div className="flex items-center gap-3">
+              <StockLogo ticker={p.ticker} size={32} />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono font-bold text-sm truncate">{p.ticker}</span>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className="font-mono text-sm tabular-nums">
+                      {price != null
+                        ? `$${price >= 10000 ? `${(price / 1000).toFixed(1)}k` : price.toFixed(2)}`
+                        : "—"}
+                    </span>
+                    <span
+                      className={`font-mono text-xs tabular-nums px-1.5 py-0.5 rounded-md ${
+                        pl == null
+                          ? "text-[color:var(--dopl-cream)]/40"
+                          : plPositive
+                            ? "text-[color:var(--dopl-lime)] bg-[color:var(--dopl-lime)]/10"
+                            : "text-red-400 bg-red-400/10"
+                      }`}
+                    >
+                      {pl != null
+                        ? `${plPositive ? "+" : ""}${pl.toFixed(1)}%`
+                        : "—"}
+                    </span>
+                  </div>
                 </div>
+                {p.name && (
+                  <p className="text-[10px] text-[color:var(--dopl-cream)]/40 truncate max-w-[150px]">
+                    {p.name}
+                  </p>
+                )}
               </div>
-              {p.name && (
-                <p className="text-[10px] text-[color:var(--dopl-cream)]/40 truncate max-w-[150px]">
-                  {p.name}
-                </p>
-              )}
             </div>
+            {alloc != null && (
+              <div className="flex items-center gap-2 mt-1.5 ml-[44px]">
+                <div className="flex-1 h-1 rounded-full bg-[color:var(--dopl-sage)]/20 overflow-hidden">
+                  <div
+                    className="h-full rounded-full"
+                    style={{
+                      width: `${Math.min(100, alloc)}%`,
+                      background: plPositive !== false
+                        ? "linear-gradient(90deg, var(--dopl-sage), var(--dopl-lime))"
+                        : "linear-gradient(90deg, rgba(239,68,68,0.4), rgba(239,68,68,0.8))",
+                    }}
+                  />
+                </div>
+                <span className="text-[9px] font-mono tabular-nums text-[color:var(--dopl-cream)]/30 flex-shrink-0">
+                  {alloc.toFixed(1)}%
+                </span>
+              </div>
+            )}
           </div>
         );
       })}
